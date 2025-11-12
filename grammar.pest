@@ -1,0 +1,373 @@
+// JCL Grammar - PEG specification using Pest
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
+
+// Entry point
+program = { SOI ~ statement* ~ EOI }
+
+statement = {
+    environment_decl
+  | stack_decl
+  | resource_decl
+  | data_decl
+  | variable_decl
+  | output_decl
+  | for_loop
+  | configure_block
+}
+
+// Identifiers and literals
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+
+// Allow identifiers without quotes for common patterns
+simple_value = @{
+    (ASCII_ALPHANUMERIC | "-" | "_" | "." | "/" | ":")+
+}
+
+string = @{
+    "\"" ~ ("\\\"" | !("\"") ~ ANY)* ~ "\""
+  | simple_value
+}
+
+multiline_string = @{
+    "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\""
+}
+
+number = @{
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?
+}
+
+boolean = { "true" | "false" }
+
+// Lists (using parentheses)
+list = {
+    "(" ~ (value ~ ("," ~ value)*)? ~ ")"
+}
+
+// Maps/Objects (using parentheses with key = value)
+map = {
+    "(" ~ (map_entry ~ ","?)* ~ ")"
+}
+
+map_entry = {
+    identifier ~ "=" ~ value
+}
+
+// Values
+value = {
+    multiline_string
+  | string
+  | number
+  | boolean
+  | list
+  | map
+  | interpolation
+  | reference
+  | function_call
+  | conditional
+  | lambda
+  | pipeline
+}
+
+// String interpolation
+interpolation = ${
+    "$" ~ identifier
+  | "${" ~ expression ~ "}"
+}
+
+// References (e.g., vpc.main.id, env.vars.app_version)
+reference = {
+    identifier ~ ("." ~ (identifier | "*"))+ ~ ("[" ~ number ~ "]")?
+}
+
+// Function calls
+function_call = {
+    identifier ~ "(" ~ (value ~ ("," ~ value)*)? ~ ")"
+}
+
+// Expressions
+expression = {
+    value ~ (operator ~ value)*
+}
+
+operator = {
+    "==" | "!=" | ">=" | "<=" | ">" | "<"
+  | "+" | "-" | "*" | "/" | "%"
+  | "and" | "or" | "not"
+  | "|"  // pipeline operator
+}
+
+// Conditionals
+conditional = {
+    value ~ "?" ~ value ~ ":" ~ value
+}
+
+// Pattern matching
+when_expr = {
+    "when" ~ identifier ~ "(" ~ when_arm+ ~ ")"
+}
+
+when_arm = {
+    (value | "*") ~ "=>" ~ value
+}
+
+match_expr = {
+    "match" ~ identifier ~ "(" ~ match_arm+ ~ ")"
+}
+
+match_arm = {
+    (value | "*") ~ "=>" ~ value
+}
+
+// Lambda expressions
+lambda = {
+    (identifier | "(" ~ identifier ~ ("," ~ identifier)* ~ ")") ~ "=>" ~ expression
+}
+
+// Pipeline
+pipeline = {
+    value ~ ("|" ~ (function_call | lambda))+
+}
+
+// Environment declaration
+environment_decl = {
+    "environment" ~ identifier ~ ("(" ~ environment_body ~ ")")?
+}
+
+environment_body = {
+    (environment_attr)*
+}
+
+environment_attr = {
+    "region" ~ "=" ~ value
+  | "account" ~ "=" ~ value
+  | "vars" ~ map
+  | "tags" ~ map
+  | "provider" ~ identifier ~ map
+}
+
+// Stack declaration
+stack_decl = {
+    "stack" ~ identifier ~ ("(" ~ stack_body ~ ")")?
+}
+
+stack_body = {
+    (stack_attr | resource_decl | data_decl | output_decl)*
+}
+
+stack_attr = {
+    "env" ~ "=" ~ identifier
+  | "depends_on" ~ "=" ~ list
+  | "vars" ~ map
+}
+
+// Resource declaration (managed)
+resource_decl = {
+    (resource_type ~ identifier | identifier ~ identifier) ~ ("(" ~ resource_body ~ ")")?
+}
+
+resource_type = {
+    identifier ~ ("_" ~ identifier)+
+}
+
+resource_body = {
+    (resource_attr | configure_block)*
+}
+
+resource_attr = {
+    identifier ~ "=" ~ value
+  | "count" ~ "=" ~ value
+  | "tags" ~ map
+  | "lifecycle" ~ map
+  | "depends_on" ~ "=" ~ list
+}
+
+// Data source (read-only)
+data_decl = {
+    ("data" | "read") ~ resource_type ~ identifier ~ ("(" ~ data_body ~ ")")?
+}
+
+data_body = {
+    (data_attr)*
+}
+
+data_attr = {
+    identifier ~ "=" ~ value
+  | "tags" ~ map
+  | "lifecycle" ~ map
+  | "readonly" ~ "=" ~ boolean
+}
+
+// Variable declaration
+variable_decl = {
+    ("var" ~ identifier ~ (":" ~ type_annotation)? ~ "=" ~ value)
+  | (identifier ~ "=" ~ value)
+}
+
+type_annotation = {
+    "string" | "int" | "bool" | "float"
+  | "list" ~ "<" ~ type_annotation ~ ">"
+  | "map" ~ "<" ~ type_annotation ~ "," ~ type_annotation ~ ">"
+}
+
+// Output declaration
+output_decl = {
+    "output" ~ identifier ~ "=" ~ value
+}
+
+// For loop
+for_loop = {
+    "for" ~ identifier ~ "in" ~ (range | value) ~ "(" ~ statement* ~ ")"
+}
+
+range = {
+    number ~ ".." ~ number
+}
+
+// Configuration block
+configure_block = {
+    "configure" ~ ("(" ~ config_statement* ~ ")")?
+}
+
+config_statement = {
+    install_statement
+  | package_statement
+  | file_statement
+  | template_statement
+  | service_statement
+  | user_statement
+  | git_statement
+  | run_statement
+  | systemd_statement
+}
+
+install_statement = {
+    "install" ~ "(" ~ package_list ~ ")"
+  | "install" ~ package_list
+}
+
+package_list = {
+    package_spec ~ ("," ~ package_spec)*
+}
+
+package_spec = {
+    identifier ~ ("@" ~ (identifier | number))?
+}
+
+package_statement = {
+    "package" ~ identifier ~ ("(" ~ package_attrs ~ ")")?
+}
+
+package_attrs = {
+    package_attr ~ ","?
+}
+
+package_attr = {
+    "state" ~ "=" ~ ("present" | "absent" | "latest")
+  | "version" ~ "=" ~ value
+}
+
+file_statement = {
+    "file" ~ string ~ ("(" ~ file_attrs ~ ")")?
+  | "file" ~ string ~ "from" ~ string
+  | "file" ~ string ~ "from" ~ "=" ~ string
+}
+
+file_attrs = {
+    (file_attr ~ ","?)*
+}
+
+file_attr = {
+    "content" ~ "=" ~ (multiline_string | string)
+  | "from" ~ "=" ~ string
+  | "mode" ~ "=" ~ value
+  | "owner" ~ "=" ~ identifier
+  | "group" ~ "=" ~ identifier
+}
+
+template_statement = {
+    "template" ~ string ~ "from" ~ string ~ ("(" ~ template_attrs ~ ")")?
+}
+
+template_attrs = {
+    "vars" ~ map
+  | "mode" ~ "=" ~ value
+  | "owner" ~ "=" ~ identifier
+}
+
+service_statement = {
+    "service" ~ identifier ~ ("(" ~ service_attrs ~ ")")?
+  | "service" ~ identifier ~ service_state ~ service_enabled?
+}
+
+service_attrs = {
+    (service_attr ~ ","?)*
+}
+
+service_attr = {
+    "state" ~ "=" ~ service_state
+  | "enabled" ~ "=" ~ boolean
+}
+
+service_state = {
+    "running" | "stopped" | "restarted" | "reloaded" | "start" | "stop"
+}
+
+service_enabled = {
+    "enabled"
+}
+
+user_statement = {
+    "user" ~ identifier ~ ("(" ~ user_attrs ~ ")")?
+}
+
+user_attrs = {
+    (user_attr ~ ","?)*
+}
+
+user_attr = {
+    "shell" ~ "=" ~ string
+  | "home" ~ "=" ~ string
+  | "system" ~ "=" ~ boolean
+}
+
+git_statement = {
+    "git" ~ "clone" ~ string ~ ("to" ~ string)? ~ ("(" ~ git_attrs ~ ")")?
+}
+
+git_attrs = {
+    (git_attr ~ ","?)*
+}
+
+git_attr = {
+    "version" ~ "=" ~ value
+  | "owner" ~ "=" ~ identifier
+  | "branch" ~ "=" ~ identifier
+}
+
+run_statement = {
+    "run" ~ string ~ ("at" ~ string)? ~ ("(" ~ run_attrs ~ ")")?
+}
+
+run_attrs = {
+    (run_attr ~ ","?)*
+}
+
+run_attr = {
+    "user" ~ "=" ~ identifier
+  | "creates" ~ "=" ~ string
+  | "unless" ~ "=" ~ string
+}
+
+systemd_statement = {
+    "systemd_unit" ~ identifier ~ ("(" ~ systemd_attrs ~ ")")?
+}
+
+systemd_attrs = {
+    (systemd_attr ~ ","?)*
+}
+
+systemd_attr = {
+    identifier ~ "=" ~ value
+}
