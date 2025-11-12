@@ -104,6 +104,12 @@ impl FunctionRegistry {
         registry.register("coalesce", fn_coalesce);
         registry.register("try", fn_try);
 
+        // Matrix/Cartesian product functions
+        registry.register("cartesian", fn_cartesian);
+        registry.register("combinations", fn_combinations);
+        registry.register("permutations", fn_permutations);
+        registry.register("product", fn_product);
+
         registry
     }
 
@@ -687,6 +693,115 @@ fn fn_try(args: &[Value]) -> Result<Value> {
     require_args_min(args, 1, "try")?;
     // TODO: Implement proper try/catch for expressions
     Ok(args[0].clone())
+}
+
+// =============================================================================
+// MATRIX / CARTESIAN PRODUCT FUNCTIONS
+// =============================================================================
+
+fn fn_cartesian(args: &[Value]) -> Result<Value> {
+    require_args_min(args, 2, "cartesian")?;
+
+    // Get all lists
+    let mut lists: Vec<Vec<Value>> = Vec::new();
+    for arg in args {
+        lists.push(as_list(arg)?.clone());
+    }
+
+    // Compute Cartesian product
+    let mut result: Vec<Value> = vec![Value::List(vec![])];
+
+    for list in lists {
+        let mut new_result = Vec::new();
+        for existing in &result {
+            let existing_list = match existing {
+                Value::List(l) => l,
+                _ => continue,
+            };
+            for item in &list {
+                let mut new_combo = existing_list.clone();
+                new_combo.push(item.clone());
+                new_result.push(Value::List(new_combo));
+            }
+        }
+        result = new_result;
+    }
+
+    Ok(Value::List(result))
+}
+
+fn fn_product(args: &[Value]) -> Result<Value> {
+    // Alias for cartesian
+    fn_cartesian(args)
+}
+
+fn fn_combinations(args: &[Value]) -> Result<Value> {
+    require_args(args, 2, "combinations")?;
+    let list = as_list(&args[0])?;
+    let n = as_int(&args[1])? as usize;
+
+    let result = generate_combinations(list, n);
+    Ok(Value::List(result))
+}
+
+fn generate_combinations(list: &[Value], n: usize) -> Vec<Value> {
+    if n == 0 {
+        return vec![Value::List(vec![])];
+    }
+    if list.is_empty() {
+        return vec![];
+    }
+
+    let mut result = Vec::new();
+
+    // Include first element
+    for rest in generate_combinations(&list[1..], n - 1) {
+        if let Value::List(mut rest_list) = rest {
+            let mut combo = vec![list[0].clone()];
+            combo.append(&mut rest_list);
+            result.push(Value::List(combo));
+        }
+    }
+
+    // Exclude first element
+    result.extend(generate_combinations(&list[1..], n));
+
+    result
+}
+
+fn fn_permutations(args: &[Value]) -> Result<Value> {
+    require_args(args, 2, "permutations")?;
+    let list = as_list(&args[0])?;
+    let n = as_int(&args[1])? as usize;
+
+    let result = generate_permutations(list, n);
+    Ok(Value::List(result))
+}
+
+fn generate_permutations(list: &[Value], n: usize) -> Vec<Value> {
+    if n == 0 {
+        return vec![Value::List(vec![])];
+    }
+    if list.is_empty() {
+        return vec![];
+    }
+
+    let mut result = Vec::new();
+
+    for (i, item) in list.iter().enumerate() {
+        let mut remaining = list.to_vec();
+        remaining.remove(i);
+
+        for rest in generate_permutations(&remaining, n - 1) {
+            if let Value::List(mut rest_list) = rest {
+                let mut perm = vec![item.clone()];
+                perm.append(&mut rest_list);
+                result.push(Value::List(perm));
+            }
+        }
+    }
+
+    result
 }
 
 // =============================================================================
