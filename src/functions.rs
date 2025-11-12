@@ -739,20 +739,45 @@ fn fn_abspath(args: &[Value]) -> Result<Value> {
 // =============================================================================
 
 fn fn_template(args: &[Value]) -> Result<Value> {
-    require_args_min(args, 1, "template")?;
-    let template = as_string(&args[0])?;
+    require_args(args, 2, "template")?;
+    let template_str = as_string(&args[0])?;
+    let vars = as_map(&args[1])?;
 
-    // TODO: Implement template rendering with handlebars
-    Ok(Value::String(template))
+    // Convert JCL map to JSON value for Handlebars
+    let json_vars = value_to_serde_json(&Value::Map(vars.clone()))?;
+
+    // Render template with Handlebars
+    let mut handlebars = handlebars::Handlebars::new();
+    handlebars.set_strict_mode(true);
+
+    let rendered = handlebars
+        .render_template(&template_str, &json_vars)
+        .map_err(|e| anyhow!("Template rendering error: {}", e))?;
+
+    Ok(Value::String(rendered))
 }
 
 fn fn_templatefile(args: &[Value]) -> Result<Value> {
-    require_args_min(args, 1, "templatefile")?;
+    require_args(args, 2, "templatefile")?;
     let path = as_string(&args[0])?;
-    let template = std::fs::read_to_string(path)?;
+    let vars = as_map(&args[1])?;
 
-    // TODO: Implement template rendering
-    Ok(Value::String(template))
+    // Read template from file
+    let template_str = std::fs::read_to_string(&path)
+        .map_err(|e| anyhow!("Failed to read template file '{}': {}", path, e))?;
+
+    // Convert JCL map to JSON value for Handlebars
+    let json_vars = value_to_serde_json(&Value::Map(vars.clone()))?;
+
+    // Render template with Handlebars
+    let mut handlebars = handlebars::Handlebars::new();
+    handlebars.set_strict_mode(true);
+
+    let rendered = handlebars
+        .render_template(&template_str, &json_vars)
+        .map_err(|e| anyhow!("Template rendering error: {}", e))?;
+
+    Ok(Value::String(rendered))
 }
 
 // =============================================================================
@@ -972,6 +997,38 @@ fn as_map(value: &Value) -> Result<&HashMap<String, Value>> {
     }
 }
 
+/// Convert JCL Value to serde_json::Value for template rendering
+fn value_to_serde_json(value: &Value) -> Result<serde_json::Value> {
+    match value {
+        Value::String(s) => Ok(serde_json::Value::String(s.clone())),
+        Value::Int(i) => Ok(serde_json::Value::Number((*i).into())),
+        Value::Float(f) => {
+            serde_json::Number::from_f64(*f)
+                .map(serde_json::Value::Number)
+                .ok_or_else(|| anyhow!("Invalid float value for JSON"))
+        }
+        Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
+        Value::Null => Ok(serde_json::Value::Null),
+        Value::List(items) => {
+            let json_items: Result<Vec<serde_json::Value>> = items
+                .iter()
+                .map(value_to_serde_json)
+                .collect();
+            Ok(serde_json::Value::Array(json_items?))
+        }
+        Value::Map(map) => {
+            let mut json_map = serde_json::Map::new();
+            for (key, val) in map {
+                json_map.insert(key.clone(), value_to_serde_json(val)?);
+            }
+            Ok(serde_json::Value::Object(json_map))
+        }
+        Value::Function { .. } => {
+            Err(anyhow!("Cannot convert function to JSON for template rendering"))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1020,5 +1077,76 @@ mod tests {
         } else {
             panic!("Expected list");
         }
+    }
+
+    #[test]
+    fn test_template() {
+        let template_str = "Hello, {{name}}! Age: {{age}}.";
+        let vars = vec![
+            ("name".to_string(), Value::String("Alice".to_string())),
+            ("age".to_string(), Value::Int(30)),
+        ].into_iter().collect();
+
+        let result = fn_template(&[
+            Value::String(template_str.to_string()),
+            Value::Map(vars),
+        ]).unwrap();
+
+        assert_eq!(result, Value::String("Hello, Alice! Age: 30.".to_string()));
+    }
+
+    #[test]
+    fn test_template_with_list() {
+        let template_str = "Items: {{#each items}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}";
+        let vars = vec![
+            ("items".to_string(), Value::List(vec![
+                Value::String("apple".to_string()),
+                Value::String("banana".to_string()),
+                Value::String("cherry".to_string()),
+            ])),
+        ].into_iter().collect();
+
+        let result = fn_template(&[
+            Value::String(template_str.to_string()),
+            Value::Map(vars),
+        ]).unwrap();
+
+        assert_eq!(result, Value::String("Items: apple, banana, cherry".to_string()));
+    }
+
+    #[test]
+    fn test_template_with_conditional() {
+        let template_str = "Status: {{#if active}}Active{{else}}Inactive{{/if}}";
+        let vars = vec![
+            ("active".to_string(), Value::Bool(true)),
+        ].into_iter().collect();
+
+        let result = fn_template(&[
+            Value::String(template_str.to_string()),
+            Value::Map(vars),
+        ]).unwrap();
+
+        assert_eq!(result, Value::String("Status: Active".to_string()));
+    }
+
+    #[test]
+    fn test_templatefile() {
+        // Create temporary template file
+        let temp_file = "/tmp/jcl_test_template_unique.txt";
+        std::fs::write(temp_file, "Hello, {{name}}!").unwrap();
+
+        let vars = vec![
+            ("name".to_string(), Value::String("World".to_string())),
+        ].into_iter().collect();
+
+        let result = fn_templatefile(&[
+            Value::String(temp_file.to_string()),
+            Value::Map(vars),
+        ]).unwrap();
+
+        assert_eq!(result, Value::String("Hello, World!".to_string()));
+
+        // Cleanup
+        std::fs::remove_file(temp_file).ok();
     }
 }
