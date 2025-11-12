@@ -21,11 +21,11 @@ JCL is a general-purpose configuration language designed to be human-readable, t
 
 🚀 **Powerful Built-in Functions**
 - **String operations**: upper, lower, trim, replace, split, join, format
-- **Encoding/Decoding**: JSON, YAML, Base64, URL encoding
+- **Encoding/Decoding**: JSON, YAML, TOML, Base64, URL encoding
 - **Collections**: merge, lookup, keys, values, sort, distinct, flatten
 - **Numeric**: min, max, sum, avg, abs, ceil, floor, round
 - **Hashing**: MD5, SHA1, SHA256, SHA512
-- **Templates**: String interpolation and template rendering
+- **Templating**: String interpolation, conditional content, loops in templates
 - **Filesystem**: file, fileexists, dirname, basename
 - **Type conversion**: tostring, tonumber, tobool
 - And more...
@@ -86,14 +86,21 @@ nginx_config = templatefile(nginx.conf.tpl, (
 
 ## Project Status
 
-🚧 **Early Design Phase** 🚧
+🚧 **Design Complete, Implementation Starting** 🚧
 
-This project is in the early design and planning phase. We're currently:
-- Defining the language syntax and grammar
-- Architecting the core components
-- Gathering feedback from the community
+JCL v1.0 language specification is complete! We've finalized:
+- ✅ Language syntax and grammar (see [LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md))
+- ✅ Collection syntax: `[]` for lists, `()` for maps
+- ✅ String interpolation with `${...}`
+- ✅ Null safety operators: `?.` and `??`
+- ✅ Control flow: ternary, if/then/else, when expressions
+- ✅ Functions: lambda (`x => x * 2`) and named (`fn name(x) = ...`)
+- ✅ For loops and list comprehensions
+- ✅ Import system
+- ✅ Error handling with `try()` and fail-fast
+- ✅ Templating patterns (see [TEMPLATING.md](docs/TEMPLATING.md))
 
-See [DESIGN.md](./DESIGN.md) for the detailed design document.
+Next step: Phase 1 implementation (parser, evaluator, type checker).
 
 ## Integration with Hemmer
 
@@ -120,13 +127,13 @@ Built in Rust for:
 ## Roadmap
 
 **Core Language:**
-- [ ] Language specification and grammar (Pest PEG parser)
+- [x] Language specification and grammar (Pest PEG parser) - **v1.0 Complete!**
+- [x] Built-in functions library (50+ functions)
+- [x] Templating patterns documentation
 - [ ] Parser implementation with error recovery
 - [ ] Type system with inference
 - [ ] Expression evaluator
-- [x] Built-in functions library (50+ functions)
 - [ ] String interpolation engine
-- [ ] Template rendering (Handlebars)
 - [ ] REPL for interactive testing
 - [ ] Language server protocol (LSP) support
 
