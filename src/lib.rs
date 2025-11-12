@@ -1,11 +1,12 @@
-//! JCL - Jack Configuration Language
+//! JCL - Jack-of-All Configuration Language
 //!
-//! A unified infrastructure as code and configuration management language
+//! A general-purpose configuration language with powerful built-in functions
 //! that prioritizes safety, ease of use, and flexibility.
 
 pub mod ast;
 pub mod cli;
 pub mod evaluator;
+pub mod functions;
 pub mod parser;
 pub mod planner;
 pub mod providers;

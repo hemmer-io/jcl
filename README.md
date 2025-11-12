@@ -1,16 +1,17 @@
-# JCL - Jack Configuration Language
+# JCL - Jack-of-All Configuration Language
 
-A modern, safe, and flexible configuration language for infrastructure as code and configuration management, written in Rust.
+A modern, safe, and flexible general-purpose configuration language with powerful built-in functions, written in Rust.
 
 ## Vision
 
-JCL bridges the gap between infrastructure provisioning (like Terraform) and configuration management (like Ansible/Puppet), providing a unified, type-safe language that's easy to use yet powerful enough for complex deployments.
+JCL is a general-purpose configuration language designed to be human-readable, type-safe, and powerful. It provides a rich standard library of functions for data manipulation, encoding/decoding (YAML, JSON, Base64), templating, string operations, and more. Built in Rust for performance and safety, JCL can be embedded in other tools (like Hemmer for IaC) or used standalone for configuration management.
 
 ## Key Features
 
-🎯 **Unified IaC + Config Management**
-- Provision infrastructure and configure systems in one language
-- No context switching between tools
+🎯 **General-Purpose Configuration**
+- Clean, human-readable syntax with minimal punctuation
+- Rich standard library of 50+ built-in functions
+- Can be embedded or used standalone
 
 🔒 **Safety First**
 - Strong type system with inference
@@ -18,61 +19,69 @@ JCL bridges the gap between infrastructure provisioning (like Terraform) and con
 - Validation at every stage
 - Dry-run and plan before apply
 
-🚀 **Developer Friendly**
-- Ruby-inspired clean syntax
-- Go template-like built-in functions
-- Clear error messages
-- Fast execution (Rust-powered)
+🚀 **Powerful Built-in Functions**
+- **String operations**: upper, lower, trim, replace, split, join, format
+- **Encoding/Decoding**: JSON, YAML, Base64, URL encoding
+- **Collections**: merge, lookup, keys, values, sort, distinct, flatten
+- **Numeric**: min, max, sum, avg, abs, ceil, floor, round
+- **Hashing**: MD5, SHA1, SHA256, SHA512
+- **Templates**: String interpolation and template rendering
+- **Filesystem**: file, fileexists, dirname, basename
+- **Type conversion**: tostring, tonumber, tobool
+- And more...
 
-🏗️ **Powerful Abstractions**
-- Environment, Stack, and Resource hierarchy
-- Read-only resource references
-- Reusable modules
-- Dependency management
+🏗️ **Flexible Syntax**
+- Parentheses-based grouping (not braces)
+- Dot notation for namespacing
+- No quotes needed for simple values
+- String interpolation: `"Hello, ${name}!"`
+- Progressive disclosure: can be concise or explicit
 
 ## Example
 
-```ruby
-environment "production" {
-  region = "us-west-2"
+```
+# Simple, readable configuration
+environments = (prod, dev, staging)
 
-  variables {
-    instance_type = "t3.large"
-    app_version = "1.2.3"
-  }
-}
+env.prod = (
+  region = us-west-2
 
-stack "web_app" {
-  environment = env.production
+  vars (
+    app_name = myapp
+    version = 1.2.3
+    replicas = 3
+  )
 
-  # Reference existing VPC (read-only)
-  data "aws_vpc" "main" {
-    tags = { name = "main-vpc" }
-    lifecycle { managed = false }
-  }
+  tags (
+    team = platform
+    cost_center = engineering
+  )
+)
 
-  # Provision infrastructure
-  resource "aws_instance" "web_server" {
-    ami = "ami-12345"
-    instance_type = env.vars.instance_type
-    vpc_id = data.aws_vpc.main.id
+# String interpolation
+greeting = "Hello, ${env.prod.vars.app_name}!"
 
-    # Configure the instance
-    configure {
-      package "nginx" { state = "present" }
+# Built-in functions
+uppercased = upper(env.prod.vars.app_name)
+config_json = jsonencode(env.prod.vars)
+config_yaml = yamlencode(env.prod.vars)
 
-      file "/etc/nginx/nginx.conf" {
-        content = template("./nginx.conf.tpl")
-        mode = "0644"
-      }
+# Collections and data manipulation
+regions = (us-west-2, us-east-1, eu-west-1)
+region_count = length(regions)
+merged_tags = merge(env.prod.tags, (environment=prod managed_by=jcl))
 
-      service "nginx" {
-        state = "running"
-        enabled = true
-      }
-    }
-  }
-}
+# List comprehensions and pipelines
+formatted_regions = regions
+  | map r => upper(r)
+  | sort
+  | join ", "
+
+# Template rendering
+nginx_config = templatefile(nginx.conf.tpl, (
+  port = 8080
+  server_name = env.prod.vars.app_name
+))
 ```
 
 ## Project Status
@@ -86,66 +95,79 @@ This project is in the early design and planning phase. We're currently:
 
 See [DESIGN.md](./DESIGN.md) for the detailed design document.
 
-## Core Concepts
+## Integration with Hemmer
 
-### Environment
-A deployment context (dev, staging, prod) with associated variables and configuration.
+JCL is designed as a configuration language that can be used by other tools. **Hemmer** is a companion tool that uses JCL for infrastructure as code:
 
-### Stack
-A logical grouping of related resources that are managed together.
+- **JCL**: The configuration language with syntax, parser, type system, and built-in functions
+- **Hemmer**: Infrastructure provisioning tool that uses JCL for configuration (handles modules, registry, cloud providers, etc.)
 
-### Resources
-Infrastructure or configuration items to be created and managed.
-
-### Data Sources
-References to existing resources that are read-only (not managed).
+This separation allows JCL to be a general-purpose configuration language that can be embedded in multiple tools, not just IaC.
 
 ## Architecture
 
 ```
-CLI → Parser → Type Checker → Evaluator → Planner → Providers → State
+Parser → Type Checker → Evaluator (with Functions) → Output
 ```
 
 Built in Rust for:
 - Memory safety and performance
 - Strong type system
-- Excellent concurrency
-- Rich ecosystem
+- Fast parsing and evaluation
+- Easy embedding in other tools
+- Cross-platform support
 
 ## Roadmap
 
-- [ ] Language specification and grammar
-- [ ] Parser implementation
-- [ ] Type system and checker
-- [ ] Evaluation engine
-- [ ] Dependency graph / planner
-- [ ] Provider interface design
-- [ ] State management
-- [ ] AWS provider (initial)
-- [ ] Configuration management provider
-- [ ] CLI tools
-- [ ] Documentation and examples
-- [ ] Testing framework
-- [ ] Module system and registry
+**Core Language:**
+- [ ] Language specification and grammar (Pest PEG parser)
+- [ ] Parser implementation with error recovery
+- [ ] Type system with inference
+- [ ] Expression evaluator
+- [x] Built-in functions library (50+ functions)
+- [ ] String interpolation engine
+- [ ] Template rendering (Handlebars)
+- [ ] REPL for interactive testing
+- [ ] Language server protocol (LSP) support
+
+**Tooling:**
+- [ ] CLI for standalone use
+- [ ] Syntax highlighting (VSCode, Vim, etc.)
+- [ ] Formatter (jcl fmt)
+- [ ] Linter
+- [ ] Documentation generator
+
+**Integration:**
+- [ ] C FFI for embedding in other languages
+- [ ] Python bindings
+- [ ] WebAssembly compilation
+- [ ] Integration examples with Hemmer
 
 ## Why JCL?
 
-**vs. Terraform:**
-- Better syntax (more readable, less verbose)
-- Unified config management
-- Stronger type safety
-- Read-only resource references built-in
+**vs. HCL (HashiCorp Configuration Language):**
+- More human-readable syntax (less verbose, no braces)
+- Richer built-in function library (50+ functions)
+- Better type inference
+- Cleaner string interpolation
 
-**vs. Ansible:**
-- Infrastructure provisioning built-in
-- Better dependency management
-- Type safety
-- Declarative for both IaC and config
+**vs. YAML:**
+- Type-safe with validation
+- Powerful built-in functions
+- String interpolation and templates
+- Better error messages
 
-**vs. Pulumi:**
-- Purpose-built DSL (simpler than full programming language)
-- Consistent experience across all use cases
-- No need to learn language-specific cloud SDKs
+**vs. JSON:**
+- Human-readable (comments, no quotes required)
+- Computed values and expressions
+- Functions and data transformation
+- Variables and references
+
+**vs. Full Programming Languages (Python, TypeScript):**
+- Purpose-built for configuration
+- Simpler and more constrained
+- Easier to learn and audit
+- Can't execute arbitrary code (safer)
 
 ## Contributing
 
