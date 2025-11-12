@@ -536,15 +536,31 @@ impl Evaluator {
 
     /// Call a function (built-in or user-defined)
     fn call_function(&self, name: &str, args: &[Expression]) -> Result<Value> {
+        // Handle higher-order functions (map, filter, reduce) specially
+        // These need unevaluated arguments to work with lambdas
+        match name {
+            "map" => return self.call_map(args),
+            "filter" => return self.call_filter(args),
+            "reduce" => return self.call_reduce(args),
+            _ => {}
+        }
+
         // Evaluate all arguments
         let arg_values: Result<Vec<Value>> = args.iter()
             .map(|arg| self.evaluate_expression(arg))
             .collect();
         let arg_values = arg_values?;
 
-        // Check if it's a user-defined function
+        // Check if it's a user-defined function (in functions map)
         if let Some(func) = self.functions.get(name) {
             return self.call_user_function(func, &arg_values);
+        }
+
+        // Check if it's a lambda stored in a variable
+        if let Some(func) = self.variables.get(name) {
+            if matches!(func, Value::Function { .. }) {
+                return self.call_user_function(func, &arg_values);
+            }
         }
 
         // Call built-in function
@@ -573,6 +589,99 @@ impl Evaluator {
             }
             _ => Err(anyhow!("Value is not a function")),
         }
+    }
+
+    /// Higher-order function: map(lambda, list)
+    /// Applies the lambda to each element in the list and returns a new list
+    fn call_map(&self, args: &[Expression]) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(anyhow!("map() expects 2 arguments (lambda, list), got {}", args.len()));
+        }
+
+        // Evaluate the lambda/function
+        let func_value = self.evaluate_expression(&args[0])?;
+        if !matches!(func_value, Value::Function { .. }) {
+            return Err(anyhow!("map() first argument must be a function"));
+        }
+
+        // Evaluate the list
+        let list_value = self.evaluate_expression(&args[1])?;
+        let list = match list_value {
+            Value::List(l) => l,
+            _ => return Err(anyhow!("map() second argument must be a list")),
+        };
+
+        // Apply the function to each element
+        let mut results = Vec::new();
+        for item in list {
+            let result = self.call_user_function(&func_value, &[item])?;
+            results.push(result);
+        }
+
+        Ok(Value::List(results))
+    }
+
+    /// Higher-order function: filter(lambda, list)
+    /// Returns a new list containing only elements for which lambda returns true
+    fn call_filter(&self, args: &[Expression]) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(anyhow!("filter() expects 2 arguments (lambda, list), got {}", args.len()));
+        }
+
+        // Evaluate the lambda/function
+        let func_value = self.evaluate_expression(&args[0])?;
+        if !matches!(func_value, Value::Function { .. }) {
+            return Err(anyhow!("filter() first argument must be a function"));
+        }
+
+        // Evaluate the list
+        let list_value = self.evaluate_expression(&args[1])?;
+        let list = match list_value {
+            Value::List(l) => l,
+            _ => return Err(anyhow!("filter() second argument must be a list")),
+        };
+
+        // Filter elements
+        let mut results = Vec::new();
+        for item in list {
+            let result = self.call_user_function(&func_value, &[item.clone()])?;
+            if self.is_truthy(&result) {
+                results.push(item);
+            }
+        }
+
+        Ok(Value::List(results))
+    }
+
+    /// Higher-order function: reduce(lambda, list, initial)
+    /// Reduces the list to a single value by repeatedly applying the lambda
+    fn call_reduce(&self, args: &[Expression]) -> Result<Value> {
+        if args.len() != 3 {
+            return Err(anyhow!("reduce() expects 3 arguments (lambda, list, initial), got {}", args.len()));
+        }
+
+        // Evaluate the lambda/function
+        let func_value = self.evaluate_expression(&args[0])?;
+        if !matches!(func_value, Value::Function { .. }) {
+            return Err(anyhow!("reduce() first argument must be a function"));
+        }
+
+        // Evaluate the list
+        let list_value = self.evaluate_expression(&args[1])?;
+        let list = match list_value {
+            Value::List(l) => l,
+            _ => return Err(anyhow!("reduce() second argument must be a list")),
+        };
+
+        // Evaluate the initial value
+        let mut accumulator = self.evaluate_expression(&args[2])?;
+
+        // Reduce the list
+        for item in list {
+            accumulator = self.call_user_function(&func_value, &[accumulator, item])?;
+        }
+
+        Ok(accumulator)
     }
 
     /// Register built-in functions
@@ -938,5 +1047,100 @@ mod tests {
         };
 
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(100));
+    }
+
+    #[test]
+    fn test_map_function() {
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5]
+            doubled = map(x => x * 2, numbers)
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(
+            result.bindings.get("doubled").unwrap(),
+            &Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+                Value::Int(8),
+                Value::Int(10),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_filter_function() {
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5, 6]
+            evens = filter(x => x % 2 == 0, numbers)
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(
+            result.bindings.get("evens").unwrap(),
+            &Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_reduce_function() {
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5]
+            sum = reduce((acc, x) => acc + x, numbers, 0)
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(
+            result.bindings.get("sum").unwrap(),
+            &Value::Int(15)
+        );
+    }
+
+    #[test]
+    fn test_higher_order_with_lambda_variables() {
+        let input = r#"
+            double = x => x * 2
+            numbers = [1, 2, 3]
+            doubled = map(double, numbers)
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(
+            result.bindings.get("doubled").unwrap(),
+            &Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_lambda_variable_call() {
+        let input = r#"
+            double = x => x * 2
+            result = double(5)
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(
+            result.bindings.get("result").unwrap(),
+            &Value::Int(10)
+        );
     }
 }
