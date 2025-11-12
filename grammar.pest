@@ -155,8 +155,8 @@ primary = {
   | list
   | map
   | multiline_string
-  | interpolated_string
-  | quoted_string
+  | quoted_string        // Try simple quoted strings first
+  | interpolated_string  // Then try interpolated strings
   | number
   | boolean
   | null
@@ -263,7 +263,7 @@ escape_sequence = @{
 }
 
 // String interpolation: "Hello, ${name}!"
-interpolated_string = ${
+interpolated_string = {
     "\"" ~ interpolation_part+ ~ "\""
 }
 
@@ -275,7 +275,7 @@ string_literal_part = @{
     (!"${" ~ !"\"" ~ (escape_sequence | ANY))+
 }
 
-interpolation = ${
+interpolation = {
     "${" ~ expression ~ "}"
 }
 

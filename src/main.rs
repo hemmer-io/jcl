@@ -40,6 +40,16 @@ enum Commands {
         path: String,
     },
 
+    /// Evaluate JCL file and show results
+    Eval {
+        /// Path to configuration file
+        path: String,
+
+        /// Output format (text, json, yaml)
+        #[arg(short, long, default_value = "text")]
+        format: String,
+    },
+
     /// Validate JCL configuration files
     Validate {
         /// Path to configuration file or directory
@@ -114,6 +124,55 @@ fn main() -> Result<()> {
             }
         }
 
+        Commands::Eval { path, format } => {
+            println!("{} {}", "Evaluating".cyan().bold(), path);
+
+            let content = std::fs::read_to_string(&path)?;
+
+            // Parse the file
+            let module = match jcl::parser::parse_str(&content) {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("{} {}", "✗ Parse failed:".red().bold(), e);
+                    std::process::exit(1);
+                }
+            };
+
+            // Evaluate the module
+            let mut evaluator = jcl::evaluator::Evaluator::new();
+            let result = match evaluator.evaluate(module) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("{} {}", "✗ Evaluation failed:".red().bold(), e);
+                    std::process::exit(1);
+                }
+            };
+
+            println!("{}", "✓ Evaluation successful".green());
+            println!();
+
+            // Output results in requested format
+            match format.as_str() {
+                "json" => {
+                    // Convert bindings to JSON
+                    let json = serde_json::to_string_pretty(&result.bindings)?;
+                    println!("{}", json);
+                }
+                "yaml" => {
+                    // Convert bindings to YAML
+                    let yaml = serde_yaml::to_string(&result.bindings)?;
+                    println!("{}", yaml);
+                }
+                _ => {
+                    // Text format (default)
+                    println!("{}", "Results:".bold());
+                    for (name, value) in &result.bindings {
+                        println!("  {} = {}", name.cyan(), format_value(value));
+                    }
+                }
+            }
+        }
+
         Commands::Validate { path } => {
             let target = path.unwrap_or_else(|| ".".to_string());
             println!("{} {}", "Validating".yellow().bold(), target);
@@ -184,4 +243,32 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Format a value for display
+fn format_value(value: &jcl::ast::Value) -> String {
+    use jcl::ast::Value;
+    match value {
+        Value::String(s) => format!("\"{}\"", s),
+        Value::Int(i) => i.to_string(),
+        Value::Float(f) => f.to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Null => "null".to_string(),
+        Value::List(items) => {
+            let formatted: Vec<String> = items.iter().map(format_value).collect();
+            format!("[{}]", formatted.join(", "))
+        }
+        Value::Map(map) => {
+            let mut entries: Vec<String> = map
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, format_value(v)))
+                .collect();
+            entries.sort();
+            format!("({})", entries.join(", "))
+        }
+        Value::Function { params, .. } => {
+            let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
+            format!("fn({})", param_names.join(", "))
+        }
+    }
 }

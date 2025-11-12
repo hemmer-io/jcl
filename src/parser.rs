@@ -42,8 +42,10 @@ lazy_static::lazy_static! {
             .op(Op::infix(add_op, Assoc::Left) | Op::infix(sub_op, Assoc::Left))
             // Multiplication, division, modulo
             .op(Op::infix(mul_op, Assoc::Left) | Op::infix(div_op, Assoc::Left) | Op::infix(mod_op, Assoc::Left))
-            // Prefix operators (highest precedence)
+            // Prefix operators
             .op(Op::prefix(neg) | Op::prefix(not))
+            // Postfix operators (highest precedence - member access, calls, indexing)
+            .op(Op::postfix(call_args) | Op::postfix(member_access) | Op::postfix(index_access) | Op::postfix(optional_chain))
     };
 }
 

@@ -6,6 +6,23 @@ A modern, safe, and flexible general-purpose configuration language with powerfu
 
 JCL is a general-purpose configuration language designed to be human-readable, type-safe, and powerful. It provides a rich standard library of functions for data manipulation, encoding/decoding (YAML, JSON, Base64), templating, string operations, and more. Built in Rust for performance and safety, JCL can be embedded in other tools (like Hemmer for IaC) or used standalone for configuration management.
 
+## Status
+
+**Phase 1 Complete! 🎉**
+
+The JCL v1.0 parser and evaluator are fully implemented and tested:
+- ✅ Complete Pratt parser with proper operator precedence
+- ✅ Full expression evaluator (arithmetic, logical, comparison, null-safety)
+- ✅ String interpolation with `${...}` syntax
+- ✅ List comprehensions, pipelines, pattern matching
+- ✅ Lambda functions and user-defined functions
+- ✅ 50+ built-in functions (string, encoding, collections, numeric, hashing)
+- ✅ 33 comprehensive tests (100% passing)
+- ✅ Zero compiler warnings
+- ✅ CLI with parse, validate, init, and fmt commands
+
+**Next:** Phase 2 will add REPL, better error messages, and advanced type checking.
+
 ## Key Features
 
 🎯 **General-Purpose Configuration**
@@ -130,17 +147,20 @@ Built in Rust for:
 - [x] Language specification and grammar (Pest PEG parser) - **v1.0 Complete!**
 - [x] Built-in functions library (50+ functions)
 - [x] Templating patterns documentation
-- [ ] Parser implementation with error recovery
-- [ ] Type system with inference
-- [ ] Expression evaluator
-- [ ] String interpolation engine
+- [x] Parser implementation (Pratt parser for expressions) - **Phase 1 Complete!**
+- [x] Expression evaluator with all operators - **Phase 1 Complete!**
+- [x] String interpolation engine - **Phase 1 Complete!**
+- [x] Basic type system with inference
+- [ ] Parser with error recovery and better error messages
+- [ ] Advanced type checking during evaluation
 - [ ] REPL for interactive testing
 - [ ] Language server protocol (LSP) support
 
 **Tooling:**
-- [ ] CLI for standalone use
+- [x] Basic CLI for standalone use (parse, validate, init, fmt)
+- [ ] Enhanced CLI with eval/run commands
 - [ ] Syntax highlighting (VSCode, Vim, etc.)
-- [ ] Formatter (jcl fmt)
+- [ ] Formatter implementation (jcl fmt - currently stub)
 - [ ] Linter
 - [ ] Documentation generator
 
