@@ -43,6 +43,8 @@ impl FunctionRegistry {
         registry.register("jsondecode", fn_jsondecode);
         registry.register("yamlencode", fn_yamlencode);
         registry.register("yamldecode", fn_yamldecode);
+        registry.register("tomlencode", fn_tomlencode);
+        registry.register("tomldecode", fn_tomldecode);
         registry.register("urlencode", fn_urlencode);
         registry.register("urldecode", fn_urldecode);
 
@@ -270,6 +272,19 @@ fn fn_yamldecode(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "yamldecode")?;
     let s = as_string(&args[0])?;
     let value: Value = serde_yaml::from_str(&s)?;
+    Ok(value)
+}
+
+fn fn_tomlencode(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "tomlencode")?;
+    let toml = toml::to_string(&args[0])?;
+    Ok(Value::String(toml))
+}
+
+fn fn_tomldecode(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "tomldecode")?;
+    let s = as_string(&args[0])?;
+    let value: Value = toml::from_str(&s)?;
     Ok(value)
 }
 

@@ -127,6 +127,22 @@ Decodes a YAML string.
 yamldecode("name: myapp\nversion: 1.0")  # (name=myapp version=1.0)
 ```
 
+### tomlencode(value) -> string
+Encodes a value as TOML.
+
+```
+tomlencode((name=myapp version=1.0))
+# name = "myapp"
+# version = "1.0"
+```
+
+### tomldecode(string) -> value
+Decodes a TOML string.
+
+```
+tomldecode('name = "myapp"\nversion = "1.0"')  # (name=myapp version=1.0)
+```
+
 ### base64encode(string) -> string
 Encodes a string as Base64.
 
