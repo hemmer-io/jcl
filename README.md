@@ -8,9 +8,11 @@ JCL is a general-purpose configuration language designed to be human-readable, t
 
 ## Status
 
-**Phase 1 Complete! 🎉**
+**Phase 2 In Progress! 🚀**
 
-The JCL v1.0 parser and evaluator are fully implemented and tested:
+JCL v1.0 is feature-complete with advanced programming capabilities:
+
+**Phase 1 (Complete):**
 - ✅ Complete Pratt parser with proper operator precedence
 - ✅ Full expression evaluator (arithmetic, logical, comparison, null-safety)
 - ✅ String interpolation with `${...}` syntax
@@ -19,11 +21,17 @@ The JCL v1.0 parser and evaluator are fully implemented and tested:
 - ✅ 56+ built-in functions (string, encoding, collections, numeric, hashing, time)
 - ✅ Interactive REPL with history and state management
 - ✅ Comprehensive error messages with context and hints
-- ✅ 33 unit tests + 9 integration tests (100% passing)
-- ✅ Zero compiler warnings
-- ✅ CLI with parse, validate, init, fmt, and repl commands
 
-**Next:** Phase 2 will add higher-order functions (map/filter/reduce), advanced type checking, LSP support, and tooling ecosystem.
+**Phase 2 (Recent Additions):**
+- ✅ Higher-order functions: `map()`, `filter()`, `reduce()` with lambda support
+- ✅ Runtime type validation with annotations (e.g., `name: string = "Alice"`)
+- ✅ Code formatter (`jcl fmt`) with style rules
+- ✅ Template rendering: `template()` and `templatefile()` with Handlebars
+- ✅ Lambda variable calls (call lambdas stored in variables)
+- ✅ 62 unit tests + 9 integration tests (100% passing)
+- ✅ Zero compiler warnings
+
+**Next:** LSP support, syntax highlighting, and advanced tooling ecosystem.
 
 ## Key Features
 
@@ -157,13 +165,15 @@ Built in Rust for:
 - [x] Basic type system with inference - **Phase 1 Complete!**
 - [x] Parser with error recovery and comprehensive error messages - **Phase 1 Complete!**
 - [x] REPL for interactive testing - **Phase 1 Complete!**
-- [ ] Higher-order functions (map, filter, reduce) with lambda support
-- [ ] Advanced type checking during evaluation
+- [x] Higher-order functions (map, filter, reduce) with lambda support - **Phase 2 Complete!**
+- [x] Runtime type validation during evaluation - **Phase 2 Complete!**
+- [x] Template rendering (template, templatefile) with Handlebars - **Phase 2 Complete!**
 - [ ] Language server protocol (LSP) support
+- [ ] Advanced static type inference
 
 **Tooling:**
 - [x] Basic CLI for standalone use (parse, validate, init, fmt, repl) - **Phase 1 Complete!**
-- [ ] Formatter implementation with style rules (jcl fmt)
+- [x] Code formatter with style rules (jcl fmt) - **Phase 2 Complete!**
 - [ ] Linter with style checks and best practices
 - [ ] Syntax highlighting (VSCode extension)
 - [ ] Vim/Neovim syntax files
@@ -180,9 +190,11 @@ Built in Rust for:
 
 **vs. HCL (HashiCorp Configuration Language):**
 - More human-readable syntax (less verbose, no braces)
-- Richer built-in function library (50+ functions)
+- Richer built-in function library (56+ functions including higher-order functions)
+- Runtime type validation with annotations
 - Better type inference
 - Cleaner string interpolation
+- Built-in code formatter
 
 **vs. YAML:**
 - Type-safe with validation
