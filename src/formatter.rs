@@ -384,3 +384,149 @@ pub fn format_with_options(module: &Module, options: FormatOptions) -> Result<St
     let mut formatter = Formatter::with_options(options);
     formatter.format_module(module)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser;
+
+    #[test]
+    fn test_format_simple_assignment() {
+        let input = "name=\"John\"";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "name = \"John\"");
+    }
+
+    #[test]
+    fn test_format_type_annotation() {
+        let input = "age:int=25";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "age: int = 25");
+    }
+
+    #[test]
+    fn test_format_list() {
+        let input = "numbers=[1,2,3,4,5]";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "numbers = [1, 2, 3, 4, 5]");
+    }
+
+    #[test]
+    fn test_format_map() {
+        let input = "config=(name=\"test\", port=8080)";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "config = (name = \"test\", port = 8080)");
+    }
+
+    #[test]
+    fn test_format_lambda() {
+        let input = "double=x=>x*2";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "double = x => x * 2");
+    }
+
+    #[test]
+    fn test_format_multi_param_lambda() {
+        let input = "add=(x,y)=>x+y";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "add = (x, y) => x + y");
+    }
+
+    #[test]
+    fn test_format_function_call() {
+        let input = "result=map(x=>x*2,[1,2,3])";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "result = map(x => x * 2, [1, 2, 3])");
+    }
+
+    #[test]
+    fn test_format_binary_operations() {
+        let input = "result=1+2*3";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "result = 1 + 2 * 3");
+    }
+
+    #[test]
+    fn test_format_string() {
+        let input = r#"greeting="Hello, World!""#;
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, r#"greeting = "Hello, World!""#);
+    }
+
+    #[test]
+    fn test_format_if_expression() {
+        let input = "result=if x>0 then \"positive\" else \"negative\"";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "result = if x > 0 then \"positive\" else \"negative\"");
+    }
+
+    #[test]
+    fn test_format_ternary() {
+        let input = "result=x>0?\"pos\":\"neg\"";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "result = x > 0 ? \"pos\" : \"neg\"");
+    }
+
+    #[test]
+    fn test_format_multiple_statements() {
+        let input = r#"
+            name="John"
+            age=25
+            active=true
+        "#;
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "name = \"John\"\nage = 25\nactive = true");
+    }
+
+    #[test]
+    fn test_format_function_definition() {
+        let input = "fn double(x)=x*2";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "fn double(x) = x * 2");
+    }
+
+    #[test]
+    fn test_format_function_with_type_annotation() {
+        let input = "fn add(x:int,y:int):int=x+y";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "fn add(x: int, y: int): int = x + y");
+    }
+
+    #[test]
+    fn test_format_member_access() {
+        let input = "value=config.server.port";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "value = config.server.port");
+    }
+
+    #[test]
+    fn test_format_optional_chain() {
+        let input = "value=config?.server?.port";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "value = config?.server?.port");
+    }
+
+    #[test]
+    fn test_format_index_access() {
+        let input = "item=list[0]";
+        let module = parser::parse_str(input).unwrap();
+        let formatted = format(&module).unwrap();
+        assert_eq!(formatted, "item = list[0]");
+    }
+}
