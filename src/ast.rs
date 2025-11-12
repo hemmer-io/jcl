@@ -1,162 +1,317 @@
-//! Abstract Syntax Tree definitions for JCL
+//! Abstract Syntax Tree definitions for JCL v1.0
+//!
+//! This module defines the AST nodes for the Jack-of-All Configuration Language.
+//! JCL is a general-purpose configuration language, not IaC-specific.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A JCL module (file)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Module {
-    pub environments: Vec<Environment>,
-    pub stacks: Vec<Stack>,
-    pub resources: Vec<Resource>,
-    pub data_sources: Vec<DataSource>,
-    pub variables: Vec<Variable>,
-    pub outputs: Vec<Output>,
+    pub statements: Vec<Statement>,
 }
 
-/// Environment definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Environment {
-    pub name: String,
-    pub region: Option<String>,
-    pub variables: HashMap<String, Value>,
-    pub tags: HashMap<String, String>,
-    pub providers: Vec<Provider>,
-}
-
-/// Stack definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Stack {
-    pub name: String,
-    pub environment: Option<String>,
-    pub depends_on: Vec<String>,
-    pub variables: HashMap<String, Value>,
-    pub resources: Vec<Resource>,
-}
-
-/// Resource definition (managed)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Resource {
-    pub resource_type: String,
-    pub name: String,
-    pub attributes: HashMap<String, Value>,
-    pub configuration: Option<Configuration>,
-    pub lifecycle: Lifecycle,
-    pub depends_on: Vec<String>,
-}
-
-/// Data source (read-only reference)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataSource {
-    pub data_type: String,
-    pub name: String,
-    pub filters: HashMap<String, Value>,
-}
-
-/// Configuration block for config management
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Configuration {
-    pub tasks: Vec<ConfigTask>,
-}
-
-/// Configuration task (Ansible-like)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConfigTask {
-    Package {
+/// Top-level statement
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Statement {
+    /// Variable assignment: `name = value` or `mut name = value`
+    Assignment {
         name: String,
-        state: PackageState,
-        version: Option<String>,
+        mutable: bool,
+        value: Expression,
+        type_annotation: Option<Type>,
     },
-    File {
+
+    /// Function definition: `fn name(params) = expr`
+    FunctionDef {
+        name: String,
+        params: Vec<Parameter>,
+        return_type: Option<Type>,
+        body: Expression,
+    },
+
+    /// Import statement: `import (items) from "path"`
+    Import {
+        items: Vec<String>,
         path: String,
-        content: Option<String>,
-        source: Option<String>,
-        mode: Option<String>,
-        owner: Option<String>,
-        group: Option<String>,
+        wildcard: bool, // true for `import * from "path"`
     },
-    Service {
+
+    /// For loop: `for x in list (body)`
+    ForLoop {
+        variables: Vec<String>, // Can have multiple for Cartesian product
+        iterables: Vec<Expression>,
+        body: Vec<Statement>,
+        condition: Option<Expression>, // Optional filter condition
+    },
+
+    /// Expression statement (for side effects)
+    Expression(Expression),
+}
+
+/// Function parameter
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Parameter {
+    pub name: String,
+    pub param_type: Option<Type>,
+    pub default: Option<Expression>,
+}
+
+/// Expression (produces a value)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Expression {
+    /// Literal value
+    Literal(Value),
+
+    /// Variable reference
+    Variable(String),
+
+    /// Member access: `obj.field`
+    MemberAccess {
+        object: Box<Expression>,
+        field: String,
+    },
+
+    /// Optional chaining: `obj?.field`
+    OptionalChain {
+        object: Box<Expression>,
+        field: String,
+    },
+
+    /// Index access: `list[0]` or `map["key"]`
+    Index {
+        object: Box<Expression>,
+        index: Box<Expression>,
+    },
+
+    /// Function call: `func(args)`
+    FunctionCall {
         name: String,
-        state: ServiceState,
-        enabled: bool,
+        args: Vec<Expression>,
     },
-    Command {
-        command: String,
-        creates: Option<String>,
-        unless: Option<String>,
+
+    /// Method call: `obj.method(args)` or pipeline: `obj | func`
+    MethodCall {
+        object: Box<Expression>,
+        method: String,
+        args: Vec<Expression>,
     },
-    GitClone {
-        repo: String,
-        dest: String,
-        version: Option<String>,
+
+    /// Binary operation: `a + b`, `a == b`, etc.
+    BinaryOp {
+        op: BinaryOperator,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
+
+    /// Unary operation: `!a`, `-a`
+    UnaryOp {
+        op: UnaryOperator,
+        operand: Box<Expression>,
+    },
+
+    /// Ternary conditional: `condition ? then_expr : else_expr`
+    Ternary {
+        condition: Box<Expression>,
+        then_expr: Box<Expression>,
+        else_expr: Box<Expression>,
+    },
+
+    /// If expression: `if condition then expr else expr`
+    If {
+        condition: Box<Expression>,
+        then_expr: Box<Expression>,
+        else_expr: Option<Box<Expression>>,
+    },
+
+    /// When expression (pattern matching): `when value (pattern => expr, ...)`
+    When {
+        value: Box<Expression>,
+        arms: Vec<WhenArm>,
+    },
+
+    /// Lambda function: `x => x * 2` or `(x, y) => x + y`
+    Lambda {
+        params: Vec<Parameter>,
+        body: Box<Expression>,
+    },
+
+    /// List comprehension: `[expr for x in list if condition]`
+    ListComprehension {
+        expr: Box<Expression>,
+        variable: String,
+        iterable: Box<Expression>,
+        condition: Option<Box<Expression>>,
+    },
+
+    /// Pipeline: `value | func1 | func2`
+    Pipeline {
+        stages: Vec<Expression>,
+    },
+
+    /// Try expression: `try(expr)`
+    Try {
+        expr: Box<Expression>,
+        default: Option<Box<Expression>>,
+    },
+
+    /// String with interpolation: `"Hello, ${name}!"`
+    InterpolatedString {
+        parts: Vec<StringPart>,
+    },
+
+    /// List literal: `[1, 2, 3]`
+    List(Vec<Expression>),
+
+    /// Map literal: `(key = value, ...)`
+    Map(Vec<(String, Expression)>),
+
+    /// Spread operator: `...list`
+    Spread(Box<Expression>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PackageState {
-    Present,
-    Absent,
-    Latest,
+/// String part (literal or interpolation)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum StringPart {
+    Literal(String),
+    Interpolation(Box<Expression>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ServiceState {
-    Running,
-    Stopped,
-    Reloaded,
-    Restarted,
+/// When arm for pattern matching
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WhenArm {
+    pub pattern: Pattern,
+    pub guard: Option<Expression>,
+    pub expr: Expression,
 }
 
-/// Variable definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Variable {
-    pub name: String,
-    pub value_type: Option<Type>,
-    pub default: Option<Value>,
-    pub description: Option<String>,
-    pub validation: Option<Validation>,
+/// Pattern for when expressions
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Pattern {
+    /// Literal match: `"prod"`
+    Literal(Value),
+
+    /// Tuple match: `("prod", "us-west-2")`
+    Tuple(Vec<Pattern>),
+
+    /// Variable binding: `x` (binds to variable)
+    Variable(String),
+
+    /// Wildcard: `*`
+    Wildcard,
 }
 
-/// Output definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Output {
-    pub name: String,
-    pub value: Expression,
-    pub description: Option<String>,
+/// Binary operators
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BinaryOperator {
+    // Arithmetic
+    Add,      // +
+    Subtract, // -
+    Multiply, // *
+    Divide,   // /
+    Modulo,   // %
+    Power,    // **
+
+    // Comparison
+    Equal,              // ==
+    NotEqual,           // !=
+    LessThan,           // <
+    LessThanOrEqual,    // <=
+    GreaterThan,        // >
+    GreaterThanOrEqual, // >=
+
+    // Logical
+    And, // and
+    Or,  // or
+
+    // Null coalescing
+    NullCoalesce, // ??
+
+    // String concatenation
+    Concat, // ++
 }
 
-/// Provider configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Provider {
-    pub name: String,
-    pub config: HashMap<String, Value>,
+/// Unary operators
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnaryOperator {
+    Not,    // !
+    Negate, // -
 }
 
-/// Resource lifecycle settings
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Lifecycle {
-    pub managed: bool,
-    pub create_before_destroy: bool,
-    pub prevent_destroy: bool,
-    pub ignore_changes: Vec<String>,
+/// Value representation (runtime values)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Value {
+    String(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    List(Vec<Value>),
+    Map(HashMap<String, Value>),
+    Function {
+        params: Vec<Parameter>,
+        body: Expression,
+    },
+    Null,
 }
 
-impl Default for Lifecycle {
-    fn default() -> Self {
-        Self {
-            managed: true,
-            create_before_destroy: false,
-            prevent_destroy: false,
-            ignore_changes: vec![],
+impl Value {
+    /// Check if value is null
+    pub fn is_null(&self) -> bool {
+        matches!(self, Value::Null)
+    }
+
+    /// Convert to string representation
+    pub fn to_string_repr(&self) -> String {
+        match self {
+            Value::String(s) => s.clone(),
+            Value::Int(i) => i.to_string(),
+            Value::Float(f) => f.to_string(),
+            Value::Bool(b) => b.to_string(),
+            Value::Null => "null".to_string(),
+            Value::List(items) => {
+                let strs: Vec<_> = items.iter().map(|v| v.to_string_repr()).collect();
+                format!("[{}]", strs.join(", "))
+            }
+            Value::Map(m) => {
+                let pairs: Vec<_> = m
+                    .iter()
+                    .map(|(k, v)| format!("{} = {}", k, v.to_string_repr()))
+                    .collect();
+                format!("({})", pairs.join(", "))
+            }
+            Value::Function { .. } => "<function>".to_string(),
         }
     }
-}
 
-/// Validation rule
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Validation {
-    pub condition: Expression,
-    pub error_message: String,
+    /// Get type of this value
+    pub fn get_type(&self) -> Type {
+        match self {
+            Value::String(_) => Type::String,
+            Value::Int(_) => Type::Int,
+            Value::Float(_) => Type::Float,
+            Value::Bool(_) => Type::Bool,
+            Value::List(items) => {
+                if items.is_empty() {
+                    Type::List(Box::new(Type::Any))
+                } else {
+                    Type::List(Box::new(items[0].get_type()))
+                }
+            }
+            Value::Map(_) => Type::Map(Box::new(Type::String), Box::new(Type::Any)),
+            Value::Function { params, .. } => {
+                let param_types = params
+                    .iter()
+                    .map(|p| p.param_type.clone().unwrap_or(Type::Any))
+                    .collect();
+                Type::Function {
+                    params: param_types,
+                    return_type: Box::new(Type::Any),
+                }
+            }
+            Value::Null => Type::Null,
+        }
+    }
 }
 
 /// Type system
@@ -168,76 +323,70 @@ pub enum Type {
     Bool,
     List(Box<Type>),
     Map(Box<Type>, Box<Type>),
-    Object(HashMap<String, Type>),
+    Function {
+        params: Vec<Type>,
+        return_type: Box<Type>,
+    },
+    Null,
     Any,
 }
 
-/// Value representation
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Value {
-    String(String),
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    List(Vec<Value>),
-    Map(HashMap<String, Value>),
-    Null,
-    Expression(Expression),
+impl Type {
+    /// Check if this type is nullable (can be null)
+    pub fn is_nullable(&self) -> bool {
+        matches!(self, Type::Any | Type::Null)
+    }
+
+    /// Create a nullable version of this type
+    pub fn nullable(self) -> Type {
+        // For now, we'll use Any to represent nullable types
+        // A more sophisticated approach would be Type::Optional(Box<Type>)
+        Type::Any
+    }
 }
 
-/// Expression (for computed values)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Expression {
-    Literal(Value),
-    Variable(String),
-    Reference(String),
-    FunctionCall {
-        name: String,
-        args: Vec<Expression>,
-    },
-    BinaryOp {
-        op: BinaryOperator,
-        left: Box<Expression>,
-        right: Box<Expression>,
-    },
-    UnaryOp {
-        op: UnaryOperator,
-        operand: Box<Expression>,
-    },
-    Conditional {
-        condition: Box<Expression>,
-        then_expr: Box<Expression>,
-        else_expr: Box<Expression>,
-    },
-    ForEach {
-        variable: String,
-        collection: Box<Expression>,
-        body: Box<Expression>,
-    },
-    Pipeline {
-        stages: Vec<Expression>,
-    },
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::String => write!(f, "string"),
+            Type::Int => write!(f, "int"),
+            Type::Float => write!(f, "float"),
+            Type::Bool => write!(f, "bool"),
+            Type::List(inner) => write!(f, "list<{}>", inner),
+            Type::Map(k, v) => write!(f, "map<{}, {}>", k, v),
+            Type::Function { params, return_type } => {
+                let param_strs: Vec<_> = params.iter().map(|p| p.to_string()).collect();
+                write!(f, "fn({}) -> {}", param_strs.join(", "), return_type)
+            }
+            Type::Null => write!(f, "null"),
+            Type::Any => write!(f, "any"),
+        }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum BinaryOperator {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
-    Equal,
-    NotEqual,
-    LessThan,
-    LessThanOrEqual,
-    GreaterThan,
-    GreaterThanOrEqual,
-    And,
-    Or,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum UnaryOperator {
-    Not,
-    Negate,
+    #[test]
+    fn test_value_to_string() {
+        assert_eq!(Value::String("hello".to_string()).to_string_repr(), "hello");
+        assert_eq!(Value::Int(42).to_string_repr(), "42");
+        assert_eq!(Value::Bool(true).to_string_repr(), "true");
+        assert_eq!(Value::Null.to_string_repr(), "null");
+    }
+
+    #[test]
+    fn test_value_get_type() {
+        assert_eq!(Value::String("hello".to_string()).get_type(), Type::String);
+        assert_eq!(Value::Int(42).get_type(), Type::Int);
+        assert_eq!(Value::Bool(true).get_type(), Type::Bool);
+        assert_eq!(Value::Null.get_type(), Type::Null);
+    }
+
+    #[test]
+    fn test_value_is_null() {
+        assert!(Value::Null.is_null());
+        assert!(!Value::Int(0).is_null());
+    }
 }

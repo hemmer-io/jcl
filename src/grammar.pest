@@ -1,0 +1,359 @@
+// JCL Grammar v1.0 - PEG specification using Pest
+// Corresponds to LANGUAGE_SPEC.md v1.0
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* | "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+// Entry point
+program = { SOI ~ statement* ~ EOI }
+
+statement = {
+    import_stmt
+  | function_def
+  | assignment
+  | for_loop
+  | expression
+}
+
+// ============================================================================
+// IMPORTS
+// ============================================================================
+
+import_stmt = {
+    "import" ~ import_items ~ "from" ~ string
+}
+
+import_items = {
+    "*"
+  | "(" ~ import_item ~ ("," ~ import_item)* ~ ")"
+  | import_item
+}
+
+import_item = {
+    identifier ~ ("as" ~ identifier)?
+}
+
+// ============================================================================
+// FUNCTION DEFINITIONS
+// ============================================================================
+
+function_def = {
+    "fn" ~ identifier ~ "(" ~ param_list? ~ ")" ~ type_annotation? ~ "=" ~ expression
+}
+
+param_list = {
+    param ~ ("," ~ param)*
+}
+
+param = {
+    identifier ~ type_annotation?
+}
+
+type_annotation = {
+    ":" ~ type_expr
+}
+
+type_expr = {
+    "string" | "int" | "float" | "bool" | "any"
+  | "list" ~ "<" ~ type_expr ~ ">"
+  | "map" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">"
+}
+
+// ============================================================================
+// ASSIGNMENTS
+// ============================================================================
+
+assignment = {
+    "mut"? ~ identifier ~ type_annotation? ~ "=" ~ expression
+}
+
+// ============================================================================
+// IDENTIFIERS AND LITERALS
+// ============================================================================
+
+identifier = @{
+    (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")*
+}
+
+// Keywords that cannot be identifiers
+keyword = {
+    "if" | "then" | "else" | "when" | "match" | "for" | "in"
+  | "fn" | "mut" | "import" | "from" | "as"
+  | "true" | "false" | "null"
+  | "and" | "or" | "not"
+  | "string" | "int" | "float" | "bool" | "list" | "map" | "any"
+}
+
+// Strings
+string = ${
+    quoted_string | interpolated_string | multiline_string | simple_identifier
+}
+
+quoted_string = @{
+    "\"" ~ (escape_sequence | !("\"" | "\\") ~ ANY)* ~ "\""
+}
+
+multiline_string = @{
+    "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\""
+}
+
+// For simple identifiers without quotes (like us-west-2)
+simple_identifier = @{
+    !keyword ~ (ASCII_ALPHANUMERIC | "-" | "_" | "." | "/")+
+}
+
+escape_sequence = @{
+    "\\" ~ ("n" | "t" | "r" | "\"" | "\\" | "${")
+}
+
+// String interpolation: "Hello, ${name}!"
+interpolated_string = ${
+    "\"" ~ interpolation_part* ~ "\""
+}
+
+interpolation_part = {
+    interpolation | string_literal_part
+}
+
+string_literal_part = @{
+    (!("${" | "\"") ~ ANY)+
+}
+
+interpolation = ${
+    "${" ~ expression ~ "}"
+}
+
+// Numbers
+number = @{
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?
+}
+
+// Booleans
+boolean = { "true" | "false" }
+
+// Null
+null = { "null" }
+
+// ============================================================================
+// COLLECTIONS
+// ============================================================================
+
+// Lists use square brackets []
+list = {
+    "[" ~ "]"
+  | "[" ~ expression ~ ("," ~ expression)* ~ ","? ~ "]"
+}
+
+// Maps use parentheses ()
+map = {
+    "(" ~ ")"
+  | "(" ~ map_entry ~ ("," ~ map_entry)* ~ ","? ~ ")"
+}
+
+map_entry = {
+    identifier ~ ("=" | ":") ~ expression
+}
+
+// ============================================================================
+// EXPRESSIONS
+// ============================================================================
+
+expression = {
+    ternary_expr
+}
+
+ternary_expr = {
+    pipeline_expr ~ ("?" ~ pipeline_expr ~ ":" ~ pipeline_expr)?
+}
+
+pipeline_expr = {
+    or_expr ~ ("|" ~ or_expr)*
+}
+
+or_expr = {
+    and_expr ~ ("or" ~ and_expr)*
+}
+
+and_expr = {
+    comparison_expr ~ ("and" ~ comparison_expr)*
+}
+
+comparison_expr = {
+    null_coalesce_expr ~ (comparison_op ~ null_coalesce_expr)*
+}
+
+comparison_op = {
+    "==" | "!=" | "<=" | ">=" | "<" | ">"
+}
+
+null_coalesce_expr = {
+    additive_expr ~ ("??" ~ additive_expr)*
+}
+
+additive_expr = {
+    multiplicative_expr ~ (("+" | "-") ~ multiplicative_expr)*
+}
+
+multiplicative_expr = {
+    unary_expr ~ (("*" | "/" | "%") ~ unary_expr)*
+}
+
+unary_expr = {
+    "not" ~ unary_expr
+  | "-" ~ unary_expr
+  | postfix_expr
+}
+
+postfix_expr = {
+    primary_expr ~ postfix_op*
+}
+
+postfix_op = {
+    optional_chain
+  | member_access
+  | index_access
+  | function_call_op
+}
+
+// Optional chaining: config?.database?.host
+optional_chain = {
+    "?." ~ identifier
+}
+
+// Member access: config.database.host
+member_access = {
+    "." ~ identifier
+}
+
+// Index access: list[0] or map["key"]
+index_access = {
+    "[" ~ expression ~ "]"
+}
+
+// Function call: function(arg1, arg2)
+function_call_op = {
+    "(" ~ argument_list? ~ ")"
+}
+
+argument_list = {
+    expression ~ ("," ~ expression)*
+}
+
+primary_expr = {
+    "(" ~ expression ~ ")"
+  | when_expr
+  | if_expr
+  | lambda
+  | list_comprehension
+  | map_comprehension
+  | list
+  | map
+  | function_call
+  | multiline_string
+  | quoted_string
+  | number
+  | boolean
+  | null
+  | identifier
+}
+
+// ============================================================================
+// CONTROL FLOW
+// ============================================================================
+
+// Note: Ternary is now handled inline in ternary_expr rule above
+//       if_expr and when_expr reference pipeline_expr to avoid left recursion
+
+// If expression: if condition then value1 else value2
+if_expr = {
+    "if" ~ pipeline_expr ~ "then" ~ pipeline_expr ~ ("else" ~ pipeline_expr)?
+}
+
+// When expression: when value ( pattern => result, ... )
+when_expr = {
+    "when" ~ pipeline_expr ~ "(" ~ when_arm ~ ("," ~ when_arm)* ~ ","? ~ ")"
+}
+
+when_arm = {
+    when_pattern ~ "=>" ~ pipeline_expr
+}
+
+when_pattern = {
+    "_" | "*"  // Default/wildcard
+  | when_pattern_tuple
+  | when_pattern_guard
+  | pipeline_expr
+}
+
+when_pattern_tuple = {
+    "(" ~ pipeline_expr ~ ("," ~ pipeline_expr)* ~ ")"
+}
+
+when_pattern_guard = {
+    identifier ~ "if" ~ pipeline_expr
+}
+
+// ============================================================================
+// FUNCTIONS
+// ============================================================================
+
+function_call = {
+    identifier ~ "(" ~ argument_list? ~ ")"
+}
+
+// Lambda: x => x * 2 or (x, y) => x + y
+lambda = {
+    lambda_params ~ "=>" ~ pipeline_expr
+}
+
+lambda_params = {
+    identifier
+  | "(" ~ identifier ~ ("," ~ identifier)* ~ ")"
+}
+
+// ============================================================================
+// COMPREHENSIONS
+// ============================================================================
+
+// List comprehension: [x * 2 for x in list if x > 0]
+list_comprehension = {
+    "[" ~ pipeline_expr ~ "for" ~ comprehension_clause ~ (comprehension_filter)? ~ "]"
+}
+
+// Map comprehension: {k: v * 2 for k, v in map if v > 0}
+map_comprehension = {
+    "{" ~ pipeline_expr ~ ":" ~ pipeline_expr ~ "for" ~ comprehension_clause ~ (comprehension_filter)? ~ "}"
+}
+
+comprehension_clause = {
+    identifier ~ ("," ~ identifier)? ~ "in" ~ pipeline_expr
+}
+
+comprehension_filter = {
+    "if" ~ pipeline_expr
+}
+
+// ============================================================================
+// FOR LOOPS
+// ============================================================================
+
+for_loop = {
+    "for" ~ for_variables ~ "in" ~ for_iterables ~ "(" ~ statement* ~ ")"
+}
+
+for_variables = {
+    identifier ~ ("," ~ identifier)*
+}
+
+for_iterables = {
+    expression ~ ("," ~ expression)*
+}
+
+// ============================================================================
+// UTILITY RULES
+// ============================================================================
+
+// Range: 0..10
+range = {
+    expression ~ ".." ~ expression
+}
