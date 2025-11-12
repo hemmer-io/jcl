@@ -9,6 +9,7 @@ use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
 /// Evaluated module with all expressions resolved
+#[derive(Debug)]
 pub struct EvaluatedModule {
     pub bindings: HashMap<String, Value>,
 }
@@ -36,8 +37,22 @@ impl Evaluator {
 
         for statement in module.statements {
             match statement {
-                Statement::Assignment { name, value, .. } => {
+                Statement::Assignment { name, value, type_annotation, .. } => {
                     let evaluated_value = self.evaluate_expression(&value)?;
+
+                    // Validate type annotation if present
+                    if let Some(expected_type) = type_annotation {
+                        let actual_type = evaluated_value.get_type();
+                        if !self.type_matches(&actual_type, &expected_type) {
+                            return Err(anyhow!(
+                                "Type mismatch for variable '{}': expected {}, got {}",
+                                name,
+                                expected_type,
+                                actual_type
+                            ));
+                        }
+                    }
+
                     self.variables.insert(name.clone(), evaluated_value.clone());
                     bindings.insert(name, evaluated_value);
                 }
@@ -684,6 +699,59 @@ impl Evaluator {
         Ok(accumulator)
     }
 
+    /// Check if an actual type matches an expected type
+    fn type_matches(&self, actual: &crate::ast::Type, expected: &crate::ast::Type) -> bool {
+        use crate::ast::Type;
+
+        match (actual, expected) {
+            // Any matches anything
+            (_, Type::Any) | (Type::Any, _) => true,
+
+            // Exact matches
+            (Type::String, Type::String) => true,
+            (Type::Int, Type::Int) => true,
+            (Type::Float, Type::Float) => true,
+            (Type::Bool, Type::Bool) => true,
+            (Type::Null, Type::Null) => true,
+
+            // Int can be used as Float
+            (Type::Int, Type::Float) => true,
+
+            // List types must have compatible element types
+            (Type::List(actual_elem), Type::List(expected_elem)) => {
+                self.type_matches(actual_elem, expected_elem)
+            }
+
+            // Map types must have compatible key and value types
+            (Type::Map(actual_key, actual_val), Type::Map(expected_key, expected_val)) => {
+                self.type_matches(actual_key, expected_key)
+                    && self.type_matches(actual_val, expected_val)
+            }
+
+            // Function types must have compatible signatures
+            (
+                Type::Function {
+                    params: actual_params,
+                    return_type: actual_return,
+                },
+                Type::Function {
+                    params: expected_params,
+                    return_type: expected_return,
+                },
+            ) => {
+                actual_params.len() == expected_params.len()
+                    && actual_params
+                        .iter()
+                        .zip(expected_params.iter())
+                        .all(|(a, e)| self.type_matches(a, e))
+                    && self.type_matches(actual_return, expected_return)
+            }
+
+            // Everything else doesn't match
+            _ => false,
+        }
+    }
+
     /// Register built-in functions
     fn register_builtins(&mut self) {
         // Built-in functions are implemented in the functions module
@@ -1142,5 +1210,45 @@ mod tests {
             result.bindings.get("result").unwrap(),
             &Value::Int(10)
         );
+    }
+
+    #[test]
+    fn test_type_validation_success() {
+        let input = r#"
+            name: string = "John"
+            age: int = 25
+            price: float = 19.99
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_type_validation_failure() {
+        let input = r#"
+            count: string = 42
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Type mismatch"));
+    }
+
+    #[test]
+    fn test_type_validation_int_to_float() {
+        let input = r#"
+            price: float = 42
+        "#;
+        let module = crate::parser::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module);
+
+        // Int should be allowed where Float is expected
+        assert!(result.is_ok());
     }
 }
