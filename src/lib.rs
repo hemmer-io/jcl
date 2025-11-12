@@ -6,6 +6,7 @@
 pub mod ast;
 pub mod error;
 pub mod evaluator;
+pub mod formatter;
 pub mod functions;
 pub mod parser;
 pub mod repl;

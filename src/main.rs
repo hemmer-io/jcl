@@ -233,6 +233,20 @@ fn main() -> Result<()> {
 
         Commands::Fmt { check, path } => {
             let target = path.unwrap_or_else(|| ".".to_string());
+            let path_buf = std::path::PathBuf::from(&target);
+
+            let files = if path_buf.is_file() {
+                vec![path_buf]
+            } else if path_buf.is_dir() {
+                // Find all .jcl files in directory
+                glob::glob(&format!("{}/**/*.jcl", target))
+                    .expect("Failed to read glob pattern")
+                    .filter_map(Result::ok)
+                    .collect()
+            } else {
+                eprintln!("{} Path not found: {}", "Error:".red().bold(), target);
+                std::process::exit(1);
+            };
 
             if check {
                 println!("{} {}", "Checking formatting:".cyan().bold(), target);
@@ -240,8 +254,60 @@ fn main() -> Result<()> {
                 println!("{} {}", "Formatting:".cyan().bold(), target);
             }
 
-            println!("{}", "Note: Formatter not yet implemented".yellow());
-            println!("{}", "✓ Formatting complete".green());
+            let mut formatted_count = 0;
+            let mut errors = 0;
+
+            for file_path in files {
+                let path_str = file_path.display().to_string();
+
+                match jcl::parser::parse_file(&path_str) {
+                    Ok(module) => {
+                        match jcl::formatter::format(&module) {
+                            Ok(formatted_code) => {
+                                if check {
+                                    // Read original file and compare
+                                    let original = std::fs::read_to_string(&file_path).unwrap_or_default();
+                                    if original.trim() != formatted_code.trim() {
+                                        println!("{} {}", "✗".red().bold(), path_str);
+                                        errors += 1;
+                                    } else {
+                                        formatted_count += 1;
+                                    }
+                                } else {
+                                    // Write formatted code back to file
+                                    if let Err(e) = std::fs::write(&file_path, formatted_code) {
+                                        eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
+                                        errors += 1;
+                                    } else {
+                                        println!("{} {}", "✓".green(), path_str);
+                                        formatted_count += 1;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
+                                errors += 1;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
+                        errors += 1;
+                    }
+                }
+            }
+
+            println!();
+            if errors == 0 {
+                if check {
+                    println!("{} {} file(s) correctly formatted", "✓".green().bold(), formatted_count);
+                } else {
+                    println!("{} {} file(s) formatted", "✓".green().bold(), formatted_count);
+                }
+            } else {
+                eprintln!("{} {} error(s), {} file(s) processed", "✗".red().bold(), errors, formatted_count);
+                std::process::exit(1);
+            }
         }
 
         Commands::Repl => {
