@@ -145,6 +145,16 @@ impl Default for FunctionRegistry {
     }
 }
 
+// Global function registry using lazy_static
+lazy_static::lazy_static! {
+    static ref GLOBAL_REGISTRY: FunctionRegistry = FunctionRegistry::new();
+}
+
+/// Call a built-in function by name
+pub fn call_builtin(name: &str, args: Vec<Value>) -> Result<Value> {
+    GLOBAL_REGISTRY.call(name, &args)
+}
+
 // =============================================================================
 // STRING FUNCTIONS
 // =============================================================================

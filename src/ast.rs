@@ -250,7 +250,7 @@ pub enum Value {
     Map(HashMap<String, Value>),
     Function {
         params: Vec<Parameter>,
-        body: Expression,
+        body: Box<Expression>,
     },
     Null,
 }

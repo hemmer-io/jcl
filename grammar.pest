@@ -1,5 +1,5 @@
-// JCL Grammar v1.0 - PEG specification using Pest
-// Corresponds to LANGUAGE_SPEC.md v1.0
+// JCL Grammar v1.0 - PEG specification using Pest with Pratt Parser
+// Refactored to eliminate left-recursion using Pratt parsing for expressions
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ "#" ~ (!"\n" ~ ANY)* | "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
@@ -68,55 +68,211 @@ assignment = {
 }
 
 // ============================================================================
-// IDENTIFIERS AND LITERALS
+// FOR LOOPS
 // ============================================================================
 
-identifier = @{
-    (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")*
+for_loop = {
+    "for" ~ for_variables ~ "in" ~ for_iterables ~ "(" ~ statement* ~ ")"
 }
 
-// Keywords that cannot be identifiers
+for_variables = {
+    identifier ~ ("," ~ identifier)*
+}
+
+for_iterables = {
+    expression ~ ("," ~ expression)*
+}
+
+// ============================================================================
+// EXPRESSIONS (Pratt Parser)
+// ============================================================================
+
+// Main expression entry point - uses Pratt parsing
+// Keep operators at top level so Pratt parser can see them directly
+expression = {
+    prefix* ~ primary ~ postfix* ~
+    (infix ~ prefix* ~ primary ~ postfix*)*
+}
+
+// Prefix operators
+prefix = _{ neg | not }
+neg = { "-" }
+not = { "not" | "!" }
+
+// Infix operators (for binary operations)
+infix = _{
+    or_op | and_op
+  | eq_op | ne_op | le_op | ge_op | lt_op | gt_op
+  | null_coalesce_op
+  | add_op | sub_op
+  | mul_op | div_op | mod_op
+  | pipe_op
+  | ternary_op
+}
+
+or_op = { "or" }
+and_op = { "and" }
+eq_op = { "==" }
+ne_op = { "!=" }
+le_op = { "<=" }
+ge_op = { ">=" }
+lt_op = { "<" }
+gt_op = { ">" }
+null_coalesce_op = { "??" }
+add_op = { "+" }
+sub_op = { "-" }
+mul_op = { "*" }
+div_op = { "/" }
+mod_op = { "%" }
+pipe_op = { "|" }
+ternary_op = { "?" ~ expression ~ ":" }
+
+// Postfix operators
+postfix = _{
+    optional_chain
+  | member_access
+  | index_access
+  | call_args
+}
+
+optional_chain = { "?." ~ identifier }
+member_access = { "." ~ identifier }
+index_access = { "[" ~ expression ~ "]" }
+call_args = { "(" ~ argument_list? ~ ")" }
+
+argument_list = {
+    expression ~ ("," ~ expression)*
+}
+
+// Primary expressions (atoms - no recursion here)
+primary = {
+    "(" ~ expression ~ ")"
+  | if_expr
+  | when_expr
+  | lambda
+  | list_comprehension
+  | try_expr
+  | list
+  | map
+  | multiline_string
+  | interpolated_string
+  | quoted_string
+  | number
+  | boolean
+  | null
+  | identifier
+}
+
+// ============================================================================
+// CONTROL FLOW
+// ============================================================================
+
+// If expression
+if_expr = {
+    "if" ~ expression ~ "then" ~ expression ~ ("else" ~ expression)?
+}
+
+// When expression (pattern matching)
+when_expr = {
+    "when" ~ expression ~ "(" ~ when_arm ~ ("," ~ when_arm)* ~ ","? ~ ")"
+}
+
+when_arm = {
+    when_pattern ~ ("if" ~ expression)? ~ "=>" ~ expression
+}
+
+when_pattern = {
+    "_" | "*"
+  | "(" ~ expression ~ ("," ~ expression)* ~ ")"
+  | literal_value
+  | identifier
+}
+
+literal_value = {
+    quoted_string | number | boolean | null
+}
+
+// Try expression
+try_expr = {
+    "try" ~ "(" ~ expression ~ ("," ~ expression)? ~ ")"
+}
+
+// ============================================================================
+// FUNCTIONS
+// ============================================================================
+
+// Lambda: x => x * 2 or (x, y) => x + y
+lambda = {
+    lambda_params ~ "=>" ~ expression
+}
+
+lambda_params = {
+    identifier
+  | "(" ~ identifier ~ ("," ~ identifier)* ~ ")"
+}
+
+// ============================================================================
+// COMPREHENSIONS
+// ============================================================================
+
+// List comprehension: [x * 2 for x in list if x > 0]
+list_comprehension = {
+    "[" ~ expression ~ "for" ~ comprehension_clause ~ comprehension_filter? ~ "]"
+}
+
+comprehension_clause = {
+    identifier ~ ("," ~ identifier)? ~ "in" ~ expression
+}
+
+comprehension_filter = {
+    "if" ~ expression
+}
+
+// ============================================================================
+// LITERALS
+// ============================================================================
+
+// Identifiers
+identifier = @{
+    !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")*
+}
+
+// Keywords (type names are NOT keywords - they're only special in type contexts)
 keyword = {
     "if" | "then" | "else" | "when" | "match" | "for" | "in"
-  | "fn" | "mut" | "import" | "from" | "as"
+  | "fn" | "mut" | "import" | "from" | "as" | "try"
   | "true" | "false" | "null"
   | "and" | "or" | "not"
-  | "string" | "int" | "float" | "bool" | "list" | "map" | "any"
 }
 
 // Strings
-string = ${
-    quoted_string | interpolated_string | multiline_string | simple_identifier
+string = {
+    multiline_string | interpolated_string | quoted_string
 }
 
 quoted_string = @{
-    "\"" ~ (escape_sequence | !("\"" | "\\") ~ ANY)* ~ "\""
+    "\"" ~ (!"\"" ~ !"${" ~ (escape_sequence | ANY))* ~ "\""
 }
 
 multiline_string = @{
     "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\""
 }
 
-// For simple identifiers without quotes (like us-west-2)
-simple_identifier = @{
-    !keyword ~ (ASCII_ALPHANUMERIC | "-" | "_" | "." | "/")+
-}
-
 escape_sequence = @{
-    "\\" ~ ("n" | "t" | "r" | "\"" | "\\" | "${")
+    "\\" ~ ("n" | "t" | "r" | "\"" | "\\" | "$")
 }
 
 // String interpolation: "Hello, ${name}!"
 interpolated_string = ${
-    "\"" ~ interpolation_part* ~ "\""
+    "\"" ~ interpolation_part+ ~ "\""
 }
 
 interpolation_part = {
-    interpolation | string_literal_part
+    string_literal_part | interpolation
 }
 
 string_literal_part = @{
-    (!("${" | "\"") ~ ANY)+
+    (!"${" ~ !"\"" ~ (escape_sequence | ANY))+
 }
 
 interpolation = ${
@@ -152,207 +308,4 @@ map = {
 
 map_entry = {
     identifier ~ ("=" | ":") ~ expression
-}
-
-// ============================================================================
-// EXPRESSIONS
-// ============================================================================
-
-expression = {
-    pipeline_expr
-}
-
-pipeline_expr = {
-    or_expr ~ ("|" ~ or_expr)*
-}
-
-or_expr = {
-    and_expr ~ ("or" ~ and_expr)*
-}
-
-and_expr = {
-    comparison_expr ~ ("and" ~ comparison_expr)*
-}
-
-comparison_expr = {
-    null_coalesce_expr ~ (comparison_op ~ null_coalesce_expr)*
-}
-
-comparison_op = {
-    "==" | "!=" | "<=" | ">=" | "<" | ">"
-}
-
-null_coalesce_expr = {
-    additive_expr ~ ("??" ~ additive_expr)*
-}
-
-additive_expr = {
-    multiplicative_expr ~ (("+" | "-") ~ multiplicative_expr)*
-}
-
-multiplicative_expr = {
-    unary_expr ~ (("*" | "/" | "%") ~ unary_expr)*
-}
-
-unary_expr = {
-    "not" ~ unary_expr
-  | "-" ~ unary_expr
-  | postfix_expr
-}
-
-postfix_expr = {
-    primary_expr ~ postfix_op*
-}
-
-postfix_op = {
-    optional_chain
-  | member_access
-  | index_access
-  | function_call_op
-}
-
-// Optional chaining: config?.database?.host
-optional_chain = {
-    "?." ~ identifier
-}
-
-// Member access: config.database.host
-member_access = {
-    "." ~ identifier
-}
-
-// Index access: list[0] or map["key"]
-index_access = {
-    "[" ~ expression ~ "]"
-}
-
-// Function call: function(arg1, arg2)
-function_call_op = {
-    "(" ~ argument_list? ~ ")"
-}
-
-argument_list = {
-    expression ~ ("," ~ expression)*
-}
-
-primary_expr = {
-    "(" ~ expression ~ ")"
-  | ternary
-  | when_expr
-  | if_expr
-  | lambda
-  | list_comprehension
-  | map_comprehension
-  | list
-  | map
-  | function_call
-  | multiline_string
-  | quoted_string
-  | number
-  | boolean
-  | null
-  | identifier
-}
-
-// ============================================================================
-// CONTROL FLOW
-// ============================================================================
-
-// Ternary: condition ? true_val : false_val
-ternary = {
-    expression ~ "?" ~ expression ~ ":" ~ expression
-}
-
-// If expression: if condition then value1 else value2
-if_expr = {
-    "if" ~ expression ~ "then" ~ expression ~ "else" ~ expression
-}
-
-// When expression: when value ( pattern => result, ... )
-when_expr = {
-    "when" ~ expression ~ "(" ~ when_arm ~ ("," ~ when_arm)* ~ ","? ~ ")"
-}
-
-when_arm = {
-    when_pattern ~ "=>" ~ expression
-}
-
-when_pattern = {
-    "_" | "*"  // Default/wildcard
-  | when_pattern_tuple
-  | when_pattern_guard
-  | expression
-}
-
-when_pattern_tuple = {
-    "(" ~ expression ~ ("," ~ expression)* ~ ")"
-}
-
-when_pattern_guard = {
-    identifier ~ "if" ~ expression
-}
-
-// ============================================================================
-// FUNCTIONS
-// ============================================================================
-
-function_call = {
-    identifier ~ "(" ~ argument_list? ~ ")"
-}
-
-// Lambda: x => x * 2 or (x, y) => x + y
-lambda = {
-    lambda_params ~ "=>" ~ expression
-}
-
-lambda_params = {
-    identifier
-  | "(" ~ identifier ~ ("," ~ identifier)* ~ ")"
-}
-
-// ============================================================================
-// COMPREHENSIONS
-// ============================================================================
-
-// List comprehension: [x * 2 for x in list if x > 0]
-list_comprehension = {
-    "[" ~ expression ~ "for" ~ comprehension_clause ~ (comprehension_filter)? ~ "]"
-}
-
-// Map comprehension: {k: v * 2 for k, v in map if v > 0}
-map_comprehension = {
-    "{" ~ expression ~ ":" ~ expression ~ "for" ~ comprehension_clause ~ (comprehension_filter)? ~ "}"
-}
-
-comprehension_clause = {
-    identifier ~ ("," ~ identifier)? ~ "in" ~ expression
-}
-
-comprehension_filter = {
-    "if" ~ expression
-}
-
-// ============================================================================
-// FOR LOOPS
-// ============================================================================
-
-for_loop = {
-    "for" ~ for_variables ~ "in" ~ for_iterables ~ "(" ~ statement* ~ ")"
-}
-
-for_variables = {
-    identifier ~ ("," ~ identifier)*
-}
-
-for_iterables = {
-    expression ~ ("," ~ expression)*
-}
-
-// ============================================================================
-// UTILITY RULES
-// ============================================================================
-
-// Range: 0..10
-range = {
-    expression ~ ".." ~ expression
 }

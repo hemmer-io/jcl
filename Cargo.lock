@@ -640,6 +640,7 @@ dependencies = [
  "criterion",
  "futures",
  "handlebars",
+ "lazy_static",
  "md5",
  "pest",
  "pest_derive",

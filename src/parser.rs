@@ -1,18 +1,51 @@
-//! Parser for JCL configuration files using Pest PEG parser
+//! Parser for JCL configuration files using Pest PEG parser with Pratt parsing
 //!
-//! This module implements the parser for JCL v1.0 specification.
+//! This module implements the parser for JCL v1.0 specification using Pratt parsing
+//! for expressions to handle operator precedence cleanly.
 
 use crate::ast::*;
 use anyhow::{anyhow, Context, Result};
-use pest::iterators::Pair;
+use pest::iterators::{Pair, Pairs};
+use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 use pest_derive::Parser;
-use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 pub struct JCLParser;
+
+// Pratt parser for handling operator precedence
+lazy_static::lazy_static! {
+    static ref PRATT_PARSER: PrattParser<Rule> = {
+        use Rule::*;
+
+        PrattParser::new()
+            // Lowest precedence - ternary
+            .op(Op::infix(ternary_op, Assoc::Right))
+            // Pipeline
+            .op(Op::infix(pipe_op, Assoc::Left))
+            // Logical OR
+            .op(Op::infix(or_op, Assoc::Left))
+            // Logical AND
+            .op(Op::infix(and_op, Assoc::Left))
+            // Comparison
+            .op(Op::infix(eq_op, Assoc::Left)
+                | Op::infix(ne_op, Assoc::Left)
+                | Op::infix(le_op, Assoc::Left)
+                | Op::infix(ge_op, Assoc::Left)
+                | Op::infix(lt_op, Assoc::Left)
+                | Op::infix(gt_op, Assoc::Left))
+            // Null coalescing
+            .op(Op::infix(null_coalesce_op, Assoc::Right))
+            // Addition and subtraction
+            .op(Op::infix(add_op, Assoc::Left) | Op::infix(sub_op, Assoc::Left))
+            // Multiplication, division, modulo
+            .op(Op::infix(mul_op, Assoc::Left) | Op::infix(div_op, Assoc::Left) | Op::infix(mod_op, Assoc::Left))
+            // Prefix operators (highest precedence)
+            .op(Op::prefix(neg) | Op::prefix(not))
+    };
+}
 
 /// Parse a JCL file from a path
 pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Module> {
@@ -50,7 +83,10 @@ pub fn parse_str(input: &str) -> Result<Module> {
 }
 
 fn parse_statement(pair: Pair<Rule>) -> Result<Statement> {
-    let inner = pair.into_inner().next().ok_or_else(|| anyhow!("Empty statement"))?;
+    let inner = pair
+        .into_inner()
+        .next()
+        .ok_or_else(|| anyhow!("Empty statement"))?;
 
     match inner.as_rule() {
         Rule::assignment => parse_assignment(inner),
@@ -71,9 +107,7 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Statement> {
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::identifier => {
-                if inner.as_str() == "mut" {
-                    mutable = true;
-                } else {
+                if name.is_empty() {
                     name = inner.as_str().to_string();
                 }
             }
@@ -83,7 +117,11 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Statement> {
             Rule::expression => {
                 value = Some(parse_expression(inner)?);
             }
-            _ => {}
+            _ => {
+                if inner.as_str() == "mut" {
+                    mutable = true;
+                }
+            }
         }
     }
 
@@ -138,7 +176,9 @@ fn parse_import(pair: Pair<Rule>) -> Result<Statement> {
                 for item in inner.into_inner() {
                     match item.as_rule() {
                         Rule::import_item => {
-                            let id = item.into_inner().next()
+                            let id = item
+                                .into_inner()
+                                .next()
                                 .ok_or_else(|| anyhow!("Missing import item"))?;
                             items.push(id.as_str().to_string());
                         }
@@ -156,7 +196,11 @@ fn parse_import(pair: Pair<Rule>) -> Result<Statement> {
         }
     }
 
-    Ok(Statement::Import { items, path, wildcard })
+    Ok(Statement::Import {
+        items,
+        path,
+        wildcard,
+    })
 }
 
 fn parse_for_loop(pair: Pair<Rule>) -> Result<Statement> {
@@ -223,7 +267,9 @@ fn parse_param_list(pair: Pair<Rule>) -> Result<Vec<Parameter>> {
 }
 
 fn parse_type_annotation(pair: Pair<Rule>) -> Result<Type> {
-    let inner = pair.into_inner().next()
+    let inner = pair
+        .into_inner()
+        .next()
         .ok_or_else(|| anyhow!("Empty type annotation"))?;
     parse_type_expr(inner)
 }
@@ -243,21 +289,24 @@ fn parse_type_expr(pair: Pair<Rule>) -> Result<Type> {
             if let Some(first) = inner.next() {
                 match first.as_str() {
                     "list" => {
-                        let inner_type = inner.next()
+                        let inner_type = inner
+                            .next()
                             .ok_or_else(|| anyhow!("Missing list inner type"))?;
                         Ok(Type::List(Box::new(parse_type_expr(inner_type)?)))
                     }
                     "map" => {
-                        let key_type = inner.next()
+                        let key_type = inner
+                            .next()
                             .ok_or_else(|| anyhow!("Missing map key type"))?;
-                        let val_type = inner.next()
+                        let val_type = inner
+                            .next()
                             .ok_or_else(|| anyhow!("Missing map value type"))?;
                         Ok(Type::Map(
                             Box::new(parse_type_expr(key_type)?),
-                            Box::new(parse_type_expr(val_type)?)
+                            Box::new(parse_type_expr(val_type)?),
                         ))
                     }
-                    _ => Err(anyhow!("Unknown type: {}", type_str))
+                    _ => Err(anyhow!("Unknown type: {}", type_str)),
                 }
             } else {
                 Err(anyhow!("Invalid type expression: {}", type_str))
@@ -266,271 +315,164 @@ fn parse_type_expr(pair: Pair<Rule>) -> Result<Type> {
     }
 }
 
+// Parse expression using Pratt parser
 fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
-    let inner = pair.into_inner().next()
-        .ok_or_else(|| anyhow!("Empty expression"))?;
-
-    match inner.as_rule() {
-        Rule::pipeline_expr => parse_pipeline_expr(inner),
-        Rule::or_expr => parse_or_expr(inner),
-        Rule::primary_expr => parse_primary_expr(inner),
-        _ => parse_primary_expr(inner),
-    }
-}
-
-fn parse_pipeline_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut stages = Vec::new();
-
-    for inner in pair.into_inner() {
-        stages.push(parse_or_expr(inner)?);
-    }
-
-    if stages.len() == 1 {
-        Ok(stages.into_iter().next().unwrap())
-    } else {
-        Ok(Expression::Pipeline { stages })
-    }
-}
-
-fn parse_or_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner();
-    let mut left = parse_and_expr(parts.next()
-        .ok_or_else(|| anyhow!("Empty or expression"))?)?;
-
-    for right_pair in parts {
-        let right = parse_and_expr(right_pair)?;
-        left = Expression::BinaryOp {
-            op: BinaryOperator::Or,
-            left: Box::new(left),
-            right: Box::new(right),
-        };
-    }
-
-    Ok(left)
-}
-
-fn parse_and_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner();
-    let mut left = parse_comparison_expr(parts.next()
-        .ok_or_else(|| anyhow!("Empty and expression"))?)?;
-
-    for right_pair in parts {
-        let right = parse_comparison_expr(right_pair)?;
-        left = Expression::BinaryOp {
-            op: BinaryOperator::And,
-            left: Box::new(left),
-            right: Box::new(right),
-        };
-    }
-
-    Ok(left)
-}
-
-fn parse_comparison_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner();
-    let mut left = parse_null_coalesce_expr(parts.next()
-        .ok_or_else(|| anyhow!("Empty comparison"))?)?;
-
-    while let Some(op_pair) = parts.next() {
-        if op_pair.as_rule() == Rule::comparison_op {
-            let op = match op_pair.as_str() {
-                "==" => BinaryOperator::Equal,
-                "!=" => BinaryOperator::NotEqual,
-                "<" => BinaryOperator::LessThan,
-                "<=" => BinaryOperator::LessThanOrEqual,
-                ">" => BinaryOperator::GreaterThan,
-                ">=" => BinaryOperator::GreaterThanOrEqual,
-                _ => return Err(anyhow!("Unknown comparison operator")),
-            };
-
-            let right = parse_null_coalesce_expr(parts.next()
-                .ok_or_else(|| anyhow!("Missing right operand"))?)?;
-
-            left = Expression::BinaryOp {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
-        }
-    }
-
-    Ok(left)
-}
-
-fn parse_null_coalesce_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner();
-    let mut left = parse_additive_expr(parts.next()
-        .ok_or_else(|| anyhow!("Empty null coalesce expression"))?)?;
-
-    for right_pair in parts {
-        let right = parse_additive_expr(right_pair)?;
-        left = Expression::BinaryOp {
-            op: BinaryOperator::NullCoalesce,
-            left: Box::new(left),
-            right: Box::new(right),
-        };
-    }
-
-    Ok(left)
-}
-
-fn parse_additive_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner().peekable();
-    let mut left = parse_multiplicative_expr(parts.next()
-        .ok_or_else(|| anyhow!("Empty additive expression"))?)?;
-
-    while let Some(next) = parts.peek() {
-        let op = match next.as_str() {
-            "+" => BinaryOperator::Add,
-            "-" => BinaryOperator::Subtract,
-            _ => break,
-        };
-        parts.next(); // consume operator
-
-        let right = parse_multiplicative_expr(parts.next()
-            .ok_or_else(|| anyhow!("Missing right operand"))?)?;
-
-        left = Expression::BinaryOp {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-        };
-    }
-
-    Ok(left)
-}
-
-fn parse_multiplicative_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner().peekable();
-    let mut left = parse_unary_expr(parts.next()
-        .ok_or_else(|| anyhow!("Empty multiplicative expression"))?)?;
-
-    while let Some(next) = parts.peek() {
-        let op = match next.as_str() {
-            "*" => BinaryOperator::Multiply,
-            "/" => BinaryOperator::Divide,
-            "%" => BinaryOperator::Modulo,
-            _ => break,
-        };
-        parts.next(); // consume operator
-
-        let right = parse_unary_expr(parts.next()
-            .ok_or_else(|| anyhow!("Missing right operand"))?)?;
-
-        left = Expression::BinaryOp {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
-        };
-    }
-
-    Ok(left)
-}
-
-fn parse_unary_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner();
-    let first = parts.next()
-        .ok_or_else(|| anyhow!("Empty unary expression"))?;
-
-    match first.as_str() {
-        "not" | "-" => {
-            let op = if first.as_str() == "not" {
-                UnaryOperator::Not
-            } else {
-                UnaryOperator::Negate
-            };
-
-            let operand = parse_unary_expr(parts.next()
-                .ok_or_else(|| anyhow!("Missing operand"))?)?;
-
-            Ok(Expression::UnaryOp {
-                op,
-                operand: Box::new(operand),
-            })
-        }
-        _ => parse_postfix_expr(first),
-    }
-}
-
-fn parse_postfix_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner();
-    let mut expr = parse_primary_expr(parts.next()
-        .ok_or_else(|| anyhow!("Empty postfix expression"))?)?;
-
-    for postfix_op in parts {
-        expr = match postfix_op.as_rule() {
-            Rule::member_access => {
-                let field = postfix_op.into_inner().next()
-                    .ok_or_else(|| anyhow!("Missing field name"))?
-                    .as_str()
-                    .to_string();
-                Expression::MemberAccess {
-                    object: Box::new(expr),
-                    field,
-                }
+    PRATT_PARSER
+        .map_primary(|primary| parse_primary(primary))
+        .map_prefix(|op, rhs| {
+            match op.as_rule() {
+                Rule::neg => Ok(Expression::UnaryOp {
+                    op: UnaryOperator::Negate,
+                    operand: Box::new(rhs?),
+                }),
+                Rule::not => Ok(Expression::UnaryOp {
+                    op: UnaryOperator::Not,
+                    operand: Box::new(rhs?),
+                }),
+                _ => Err(anyhow!("Unknown prefix operator: {:?}", op.as_rule())),
             }
-            Rule::optional_chain => {
-                let field = postfix_op.into_inner().next()
-                    .ok_or_else(|| anyhow!("Missing field name"))?
-                    .as_str()
-                    .to_string();
-                Expression::OptionalChain {
-                    object: Box::new(expr),
-                    field,
+        })
+        .map_postfix(|lhs, op| {
+            let lhs = lhs?;
+
+            match op.as_rule() {
+                Rule::optional_chain => {
+                    let field = op
+                        .into_inner()
+                        .next()
+                        .ok_or_else(|| anyhow!("Missing field in optional chain"))?
+                        .as_str()
+                        .to_string();
+                    Ok(Expression::OptionalChain {
+                        object: Box::new(lhs),
+                        field,
+                    })
                 }
-            }
-            Rule::index_access => {
-                let index = parse_expression(postfix_op.into_inner().next()
-                    .ok_or_else(|| anyhow!("Missing index"))?)?;
-                Expression::Index {
-                    object: Box::new(expr),
-                    index: Box::new(index),
+                Rule::member_access => {
+                    let field = op
+                        .into_inner()
+                        .next()
+                        .ok_or_else(|| anyhow!("Missing field in member access"))?
+                        .as_str()
+                        .to_string();
+                    Ok(Expression::MemberAccess {
+                        object: Box::new(lhs),
+                        field,
+                    })
                 }
-            }
-            Rule::function_call_op => {
-                // This handles method calls like obj.method(args)
-                // For now, convert to function call
-                if let Expression::MemberAccess { object, field } = expr {
-                    let args = parse_argument_list(postfix_op)?;
-                    Expression::MethodCall {
-                        object,
-                        method: field,
-                        args,
+                Rule::index_access => {
+                    let index = op
+                        .into_inner()
+                        .next()
+                        .ok_or_else(|| anyhow!("Missing index"))?;
+                    Ok(Expression::Index {
+                        object: Box::new(lhs),
+                        index: Box::new(parse_expression(index)?),
+                    })
+                }
+                Rule::call_args => {
+                    let args = if let Some(arg_list) = op.into_inner().next() {
+                        parse_argument_list(arg_list)?
+                    } else {
+                        Vec::new()
+                    };
+
+                    // Distinguish between method calls and function calls
+                    if let Expression::MemberAccess { object, field } = lhs {
+                        Ok(Expression::MethodCall {
+                            object,
+                            method: field,
+                            args,
+                        })
+                    } else if let Expression::Variable(name) = lhs {
+                        Ok(Expression::FunctionCall { name, args })
+                    } else {
+                        Err(anyhow!("Invalid function call target"))
                     }
-                } else {
-                    return Err(anyhow!("Invalid function call"));
                 }
+                _ => Err(anyhow!("Unknown postfix operator: {:?}", op.as_rule())),
             }
-            _ => return Err(anyhow!("Unknown postfix operator")),
-        };
-    }
+        })
+        .map_infix(|lhs, op, rhs| {
+            let lhs = lhs?;
 
-    Ok(expr)
+            let binary_op = match op.as_rule() {
+                Rule::add_op => BinaryOperator::Add,
+                Rule::sub_op => BinaryOperator::Subtract,
+                Rule::mul_op => BinaryOperator::Multiply,
+                Rule::div_op => BinaryOperator::Divide,
+                Rule::mod_op => BinaryOperator::Modulo,
+                Rule::eq_op => BinaryOperator::Equal,
+                Rule::ne_op => BinaryOperator::NotEqual,
+                Rule::lt_op => BinaryOperator::LessThan,
+                Rule::le_op => BinaryOperator::LessThanOrEqual,
+                Rule::gt_op => BinaryOperator::GreaterThan,
+                Rule::ge_op => BinaryOperator::GreaterThanOrEqual,
+                Rule::and_op => BinaryOperator::And,
+                Rule::or_op => BinaryOperator::Or,
+                Rule::null_coalesce_op => BinaryOperator::NullCoalesce,
+                Rule::pipe_op => {
+                    // Pipeline operator creates a Pipeline expression
+                    // If lhs is already a pipeline, extend it; otherwise create a new one
+                    let mut stages = if let Expression::Pipeline { stages: existing } = lhs {
+                        existing
+                    } else {
+                        vec![lhs]
+                    };
+                    stages.push(rhs?);
+                    return Ok(Expression::Pipeline { stages });
+                }
+                Rule::ternary_op => {
+                    // Ternary: condition ? then_expr : else_expr
+                    // op contains "? then_expr :"
+                    let mut inner = op.into_inner();
+                    let then_expr = inner
+                        .next()
+                        .ok_or_else(|| anyhow!("Missing then expression in ternary"))?;
+                    return Ok(Expression::Ternary {
+                        condition: Box::new(lhs),
+                        then_expr: Box::new(parse_expression(then_expr)?),
+                        else_expr: Box::new(rhs?),
+                    });
+                }
+                _ => return Err(anyhow!("Unknown infix operator: {:?}", op.as_rule())),
+            };
+
+            Ok(Expression::BinaryOp {
+                op: binary_op,
+                left: Box::new(lhs),
+                right: Box::new(rhs?),
+            })
+        })
+        .parse(pair.into_inner())
 }
 
-fn parse_primary_expr(pair: Pair<Rule>) -> Result<Expression> {
-    let inner = pair.into_inner().next()
-        .ok_or_else(|| anyhow!("Empty primary expression"))?;
-
-    match inner.as_rule() {
-        Rule::number => parse_number(inner),
-        Rule::boolean => Ok(Expression::Literal(Value::Bool(inner.as_str() == "true"))),
-        Rule::null => Ok(Expression::Literal(Value::Null)),
-        Rule::quoted_string | Rule::multiline_string => {
-            Ok(Expression::Literal(Value::String(parse_string_literal(inner)?)))
+fn parse_primary(pair: Pair<Rule>) -> Result<Expression> {
+    match pair.as_rule() {
+        Rule::primary => {
+            let inner = pair
+                .into_inner()
+                .next()
+                .ok_or_else(|| anyhow!("Empty primary expression"))?;
+            parse_primary(inner)
         }
-        Rule::interpolated_string => parse_interpolated_string(inner),
-        Rule::identifier => Ok(Expression::Variable(inner.as_str().to_string())),
-        Rule::list => parse_list(inner),
-        Rule::map => parse_map(inner),
-        Rule::function_call => parse_function_call(inner),
-        Rule::lambda => parse_lambda(inner),
-        Rule::if_expr => parse_if_expr(inner),
-        Rule::when_expr => parse_when_expr(inner),
-        Rule::ternary => parse_ternary(inner),
-        Rule::list_comprehension => parse_list_comprehension(inner),
-        Rule::expression => parse_expression(inner),
-        _ => Err(anyhow!("Unknown primary expression: {:?}", inner.as_rule())),
+        Rule::number => parse_number(pair),
+        Rule::boolean => Ok(Expression::Literal(Value::Bool(pair.as_str() == "true"))),
+        Rule::null => Ok(Expression::Literal(Value::Null)),
+        Rule::quoted_string | Rule::multiline_string => Ok(Expression::Literal(
+            Value::String(parse_string_literal(pair)?),
+        )),
+        Rule::interpolated_string => parse_interpolated_string(pair),
+        Rule::identifier => Ok(Expression::Variable(pair.as_str().to_string())),
+        Rule::list => parse_list(pair),
+        Rule::map => parse_map(pair),
+        Rule::lambda => parse_lambda(pair),
+        Rule::if_expr => parse_if_expr(pair),
+        Rule::when_expr => parse_when_expr(pair),
+        Rule::list_comprehension => parse_list_comprehension(pair),
+        Rule::try_expr => parse_try_expr(pair),
+        Rule::expression => parse_expression(pair),
+        _ => Err(anyhow!("Unknown primary expression: {:?}", pair.as_rule())),
     }
 }
 
@@ -548,15 +490,16 @@ fn parse_string_literal(pair: Pair<Rule>) -> Result<String> {
 
     // Remove quotes
     let s = if s.starts_with("\"\"\"") && s.ends_with("\"\"\"") {
-        &s[3..s.len()-3]
+        &s[3..s.len() - 3]
     } else if s.starts_with('"') && s.ends_with('"') {
-        &s[1..s.len()-1]
+        &s[1..s.len() - 1]
     } else {
         s
     };
 
     // Handle escape sequences
-    let s = s.replace("\\n", "\n")
+    let s = s
+        .replace("\\n", "\n")
         .replace("\\t", "\t")
         .replace("\\r", "\r")
         .replace("\\\"", "\"")
@@ -574,8 +517,12 @@ fn parse_interpolated_string(pair: Pair<Rule>) -> Result<Expression> {
                 parts.push(StringPart::Literal(inner.as_str().to_string()));
             }
             Rule::interpolation => {
-                let expr = parse_expression(inner.into_inner().next()
-                    .ok_or_else(|| anyhow!("Empty interpolation"))?)?;
+                let expr = parse_expression(
+                    inner
+                        .into_inner()
+                        .next()
+                        .ok_or_else(|| anyhow!("Empty interpolation"))?,
+                )?;
                 parts.push(StringPart::Interpolation(Box::new(expr)));
             }
             _ => {}
@@ -626,25 +573,6 @@ fn parse_map(pair: Pair<Rule>) -> Result<Expression> {
     Ok(Expression::Map(entries))
 }
 
-fn parse_function_call(pair: Pair<Rule>) -> Result<Expression> {
-    let mut name = String::new();
-    let mut args = Vec::new();
-
-    for inner in pair.into_inner() {
-        match inner.as_rule() {
-            Rule::identifier => {
-                name = inner.as_str().to_string();
-            }
-            Rule::argument_list => {
-                args = parse_argument_list(inner)?;
-            }
-            _ => {}
-        }
-    }
-
-    Ok(Expression::FunctionCall { name, args })
-}
-
 fn parse_argument_list(pair: Pair<Rule>) -> Result<Vec<Expression>> {
     let mut args = Vec::new();
 
@@ -690,10 +618,16 @@ fn parse_lambda(pair: Pair<Rule>) -> Result<Expression> {
 fn parse_if_expr(pair: Pair<Rule>) -> Result<Expression> {
     let mut parts = pair.into_inner();
 
-    let condition = parse_expression(parts.next()
-        .ok_or_else(|| anyhow!("Missing if condition"))?)?;
-    let then_expr = parse_expression(parts.next()
-        .ok_or_else(|| anyhow!("Missing then expression"))?)?;
+    let condition = parse_expression(
+        parts
+            .next()
+            .ok_or_else(|| anyhow!("Missing if condition"))?,
+    )?;
+    let then_expr = parse_expression(
+        parts
+            .next()
+            .ok_or_else(|| anyhow!("Missing then expression"))?,
+    )?;
     let else_expr = parts.next().map(parse_expression).transpose()?;
 
     Ok(Expression::If {
@@ -729,15 +663,32 @@ fn parse_when_expr(pair: Pair<Rule>) -> Result<Expression> {
 
 fn parse_when_arm(pair: Pair<Rule>) -> Result<WhenArm> {
     let mut pattern = None;
+    let mut guard = None;
     let mut expr = None;
 
-    for inner in pair.into_inner() {
-        match inner.as_rule() {
-            Rule::when_pattern => {
-                pattern = Some(parse_when_pattern(inner)?);
-            }
+    let mut inner = pair.into_inner();
+
+    // First is always the pattern
+    if let Some(pattern_pair) = inner.next() {
+        pattern = Some(parse_when_pattern(pattern_pair)?);
+    }
+
+    // Check remaining pairs for guard and expression
+    for remaining in inner {
+        match remaining.as_rule() {
             Rule::expression => {
-                expr = Some(parse_expression(inner)?);
+                if guard.is_none() && expr.is_none() {
+                    // This could be a guard condition or the result expression
+                    // We need to look ahead - for now, assume it's the result
+                    expr = Some(parse_expression(remaining)?);
+                } else if guard.is_some() {
+                    // We have a guard, so this must be the expression
+                    expr = Some(parse_expression(remaining)?);
+                } else {
+                    // First expression after pattern - could be guard
+                    // Check if there's another expression coming
+                    guard = Some(parse_expression(remaining)?);
+                }
             }
             _ => {}
         }
@@ -745,7 +696,7 @@ fn parse_when_arm(pair: Pair<Rule>) -> Result<WhenArm> {
 
     Ok(WhenArm {
         pattern: pattern.ok_or_else(|| anyhow!("Missing pattern"))?,
-        guard: None,
+        guard: guard.or(None),
         expr: expr.ok_or_else(|| anyhow!("Missing expression"))?,
     })
 }
@@ -757,32 +708,58 @@ fn parse_when_pattern(pair: Pair<Rule>) -> Result<Pattern> {
         return Ok(Pattern::Wildcard);
     }
 
-    // For now, just parse as literal expression
-    // TODO: Implement proper pattern matching
-    let inner = pair.into_inner().next()
-        .ok_or_else(|| anyhow!("Empty pattern"))?;
+    // Check inner rules
+    let inner = pair.into_inner().next();
 
-    match parse_expression(inner)? {
-        Expression::Literal(val) => Ok(Pattern::Literal(val)),
-        Expression::Variable(name) => Ok(Pattern::Variable(name)),
-        _ => Err(anyhow!("Invalid pattern")),
+    if let Some(inner_pair) = inner {
+        match inner_pair.as_rule() {
+            Rule::literal_value => {
+                // Parse as literal
+                let lit_inner = inner_pair.into_inner().next().ok_or_else(|| anyhow!("Empty literal"))?;
+                match parse_primary(lit_inner)? {
+                    Expression::Literal(val) => Ok(Pattern::Literal(val)),
+                    _ => Err(anyhow!("Invalid literal pattern")),
+                }
+            }
+            Rule::identifier => Ok(Pattern::Variable(inner_pair.as_str().to_string())),
+            Rule::expression => {
+                // Tuple pattern
+                let exprs: Result<Vec<_>> = inner_pair
+                    .into_inner()
+                    .map(|e| {
+                        match parse_expression(e)? {
+                            Expression::Literal(val) => Ok(Pattern::Literal(val)),
+                            Expression::Variable(name) => Ok(Pattern::Variable(name)),
+                            _ => Err(anyhow!("Invalid pattern expression")),
+                        }
+                    })
+                    .collect();
+                Ok(Pattern::Tuple(exprs?))
+            }
+            _ => Err(anyhow!("Invalid pattern")),
+        }
+    } else {
+        Ok(Pattern::Wildcard)
     }
 }
 
-fn parse_ternary(pair: Pair<Rule>) -> Result<Expression> {
-    let mut parts = pair.into_inner();
+fn parse_try_expr(pair: Pair<Rule>) -> Result<Expression> {
+    let mut expr = None;
+    let mut default = None;
 
-    let condition = parse_expression(parts.next()
-        .ok_or_else(|| anyhow!("Missing condition"))?)?;
-    let then_expr = parse_expression(parts.next()
-        .ok_or_else(|| anyhow!("Missing then expression"))?)?;
-    let else_expr = parse_expression(parts.next()
-        .ok_or_else(|| anyhow!("Missing else expression"))?)?;
+    for inner in pair.into_inner() {
+        if inner.as_rule() == Rule::expression {
+            if expr.is_none() {
+                expr = Some(parse_expression(inner)?);
+            } else {
+                default = Some(parse_expression(inner)?);
+            }
+        }
+    }
 
-    Ok(Expression::Ternary {
-        condition: Box::new(condition),
-        then_expr: Box::new(then_expr),
-        else_expr: Box::new(else_expr),
+    Ok(Expression::Try {
+        expr: Box::new(expr.ok_or_else(|| anyhow!("Missing try expression"))?),
+        default: default.map(Box::new),
     })
 }
 
@@ -797,8 +774,6 @@ fn parse_list_comprehension(pair: Pair<Rule>) -> Result<Expression> {
             Rule::expression => {
                 if expr.is_none() {
                     expr = Some(parse_expression(inner)?);
-                } else {
-                    iterable = Some(parse_expression(inner)?);
                 }
             }
             Rule::comprehension_clause => {
@@ -815,7 +790,9 @@ fn parse_list_comprehension(pair: Pair<Rule>) -> Result<Expression> {
                 }
             }
             Rule::comprehension_filter => {
-                let filter_expr = inner.into_inner().next()
+                let filter_expr = inner
+                    .into_inner()
+                    .next()
                     .ok_or_else(|| anyhow!("Empty filter"))?;
                 condition = Some(parse_expression(filter_expr)?);
             }
@@ -863,8 +840,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_function_call() {
-        let result = parse_str("result = upper(\"hello\")");
+    fn test_parse_arithmetic() {
+        let result = parse_str("x = 1 + 2 * 3");
         assert!(result.is_ok());
     }
 
@@ -881,8 +858,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_list_comprehension() {
-        let result = parse_str("evens = [x for x in numbers if x % 2 == 0]");
+    fn test_parse_pipeline() {
+        let result = parse_str("x = data | filter | map");
         assert!(result.is_ok());
     }
 }

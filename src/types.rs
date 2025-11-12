@@ -47,17 +47,7 @@ impl TypeChecker {
                 Ok(())
             }
 
-            (Value::Map(map), Type::Object(schema)) => {
-                for (key, expected_type) in schema {
-                    match map.get(key) {
-                        Some(value) => self.check(value, expected_type)?,
-                        None => {
-                            return Err(anyhow!("Missing required field: {}", key));
-                        }
-                    }
-                }
-                Ok(())
-            }
+            // Object type checking removed - use Map instead
 
             _ => Err(anyhow!(
                 "Type mismatch: expected {:?}, got {:?}",
@@ -90,7 +80,7 @@ impl TypeChecker {
                     Type::Map(Box::new(Type::String), Box::new(self.infer(first_value)))
                 }
             }
-            Value::Expression(_) => Type::Any, // Expressions need evaluation first
+            Value::Function { .. } => Type::Any, // Functions have complex types
         }
     }
 
