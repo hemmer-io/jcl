@@ -1,373 +1,358 @@
-// JCL Grammar - PEG specification using Pest
+// JCL Grammar v1.0 - PEG specification using Pest
+// Corresponds to LANGUAGE_SPEC.md v1.0
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* | "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
 // Entry point
 program = { SOI ~ statement* ~ EOI }
 
 statement = {
-    environment_decl
-  | stack_decl
-  | resource_decl
-  | data_decl
-  | variable_decl
-  | output_decl
+    import_stmt
+  | function_def
+  | assignment
   | for_loop
-  | configure_block
+  | expression
 }
 
-// Identifiers and literals
-identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+// ============================================================================
+// IMPORTS
+// ============================================================================
 
-// Allow identifiers without quotes for common patterns
-simple_value = @{
-    (ASCII_ALPHANUMERIC | "-" | "_" | "." | "/" | ":")+
+import_stmt = {
+    "import" ~ import_items ~ "from" ~ string
 }
 
-string = @{
-    "\"" ~ ("\\\"" | !("\"") ~ ANY)* ~ "\""
-  | simple_value
+import_items = {
+    "*"
+  | "(" ~ import_item ~ ("," ~ import_item)* ~ ")"
+  | import_item
+}
+
+import_item = {
+    identifier ~ ("as" ~ identifier)?
+}
+
+// ============================================================================
+// FUNCTION DEFINITIONS
+// ============================================================================
+
+function_def = {
+    "fn" ~ identifier ~ "(" ~ param_list? ~ ")" ~ type_annotation? ~ "=" ~ expression
+}
+
+param_list = {
+    param ~ ("," ~ param)*
+}
+
+param = {
+    identifier ~ type_annotation?
+}
+
+type_annotation = {
+    ":" ~ type_expr
+}
+
+type_expr = {
+    "string" | "int" | "float" | "bool" | "any"
+  | "list" ~ "<" ~ type_expr ~ ">"
+  | "map" ~ "<" ~ type_expr ~ "," ~ type_expr ~ ">"
+}
+
+// ============================================================================
+// ASSIGNMENTS
+// ============================================================================
+
+assignment = {
+    "mut"? ~ identifier ~ type_annotation? ~ "=" ~ expression
+}
+
+// ============================================================================
+// IDENTIFIERS AND LITERALS
+// ============================================================================
+
+identifier = @{
+    (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")*
+}
+
+// Keywords that cannot be identifiers
+keyword = {
+    "if" | "then" | "else" | "when" | "match" | "for" | "in"
+  | "fn" | "mut" | "import" | "from" | "as"
+  | "true" | "false" | "null"
+  | "and" | "or" | "not"
+  | "string" | "int" | "float" | "bool" | "list" | "map" | "any"
+}
+
+// Strings
+string = ${
+    quoted_string | interpolated_string | multiline_string | simple_identifier
+}
+
+quoted_string = @{
+    "\"" ~ (escape_sequence | !("\"" | "\\") ~ ANY)* ~ "\""
 }
 
 multiline_string = @{
     "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\""
 }
 
+// For simple identifiers without quotes (like us-west-2)
+simple_identifier = @{
+    !keyword ~ (ASCII_ALPHANUMERIC | "-" | "_" | "." | "/")+
+}
+
+escape_sequence = @{
+    "\\" ~ ("n" | "t" | "r" | "\"" | "\\" | "${")
+}
+
+// String interpolation: "Hello, ${name}!"
+interpolated_string = ${
+    "\"" ~ interpolation_part* ~ "\""
+}
+
+interpolation_part = {
+    interpolation | string_literal_part
+}
+
+string_literal_part = @{
+    (!("${" | "\"") ~ ANY)+
+}
+
+interpolation = ${
+    "${" ~ expression ~ "}"
+}
+
+// Numbers
 number = @{
     "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?
 }
 
+// Booleans
 boolean = { "true" | "false" }
 
-// Lists (using parentheses)
+// Null
+null = { "null" }
+
+// ============================================================================
+// COLLECTIONS
+// ============================================================================
+
+// Lists use square brackets []
 list = {
-    "(" ~ (value ~ ("," ~ value)*)? ~ ")"
+    "[" ~ "]"
+  | "[" ~ expression ~ ("," ~ expression)* ~ ","? ~ "]"
 }
 
-// Maps/Objects (using parentheses with key = value)
+// Maps use parentheses ()
 map = {
-    "(" ~ (map_entry ~ ","?)* ~ ")"
+    "(" ~ ")"
+  | "(" ~ map_entry ~ ("," ~ map_entry)* ~ ","? ~ ")"
 }
 
 map_entry = {
-    identifier ~ "=" ~ value
+    identifier ~ ("=" | ":") ~ expression
 }
 
-// Values
-value = {
-    multiline_string
-  | string
-  | number
-  | boolean
+// ============================================================================
+// EXPRESSIONS
+// ============================================================================
+
+expression = {
+    pipeline_expr
+}
+
+pipeline_expr = {
+    or_expr ~ ("|" ~ or_expr)*
+}
+
+or_expr = {
+    and_expr ~ ("or" ~ and_expr)*
+}
+
+and_expr = {
+    comparison_expr ~ ("and" ~ comparison_expr)*
+}
+
+comparison_expr = {
+    null_coalesce_expr ~ (comparison_op ~ null_coalesce_expr)*
+}
+
+comparison_op = {
+    "==" | "!=" | "<=" | ">=" | "<" | ">"
+}
+
+null_coalesce_expr = {
+    additive_expr ~ ("??" ~ additive_expr)*
+}
+
+additive_expr = {
+    multiplicative_expr ~ (("+" | "-") ~ multiplicative_expr)*
+}
+
+multiplicative_expr = {
+    unary_expr ~ (("*" | "/" | "%") ~ unary_expr)*
+}
+
+unary_expr = {
+    "not" ~ unary_expr
+  | "-" ~ unary_expr
+  | postfix_expr
+}
+
+postfix_expr = {
+    primary_expr ~ postfix_op*
+}
+
+postfix_op = {
+    optional_chain
+  | member_access
+  | index_access
+  | function_call_op
+}
+
+// Optional chaining: config?.database?.host
+optional_chain = {
+    "?." ~ identifier
+}
+
+// Member access: config.database.host
+member_access = {
+    "." ~ identifier
+}
+
+// Index access: list[0] or map["key"]
+index_access = {
+    "[" ~ expression ~ "]"
+}
+
+// Function call: function(arg1, arg2)
+function_call_op = {
+    "(" ~ argument_list? ~ ")"
+}
+
+argument_list = {
+    expression ~ ("," ~ expression)*
+}
+
+primary_expr = {
+    "(" ~ expression ~ ")"
+  | ternary
+  | when_expr
+  | if_expr
+  | lambda
+  | list_comprehension
+  | map_comprehension
   | list
   | map
-  | interpolation
-  | reference
   | function_call
-  | conditional
-  | lambda
-  | pipeline
+  | multiline_string
+  | quoted_string
+  | number
+  | boolean
+  | null
+  | identifier
 }
 
-// String interpolation
-interpolation = ${
-    "$" ~ identifier
-  | "${" ~ expression ~ "}"
+// ============================================================================
+// CONTROL FLOW
+// ============================================================================
+
+// Ternary: condition ? true_val : false_val
+ternary = {
+    expression ~ "?" ~ expression ~ ":" ~ expression
 }
 
-// References (e.g., vpc.main.id, env.vars.app_version)
-reference = {
-    identifier ~ ("." ~ (identifier | "*"))+ ~ ("[" ~ number ~ "]")?
+// If expression: if condition then value1 else value2
+if_expr = {
+    "if" ~ expression ~ "then" ~ expression ~ "else" ~ expression
 }
 
-// Function calls
-function_call = {
-    identifier ~ "(" ~ (value ~ ("," ~ value)*)? ~ ")"
-}
-
-// Expressions
-expression = {
-    value ~ (operator ~ value)*
-}
-
-operator = {
-    "==" | "!=" | ">=" | "<=" | ">" | "<"
-  | "+" | "-" | "*" | "/" | "%"
-  | "and" | "or" | "not"
-  | "|"  // pipeline operator
-}
-
-// Conditionals
-conditional = {
-    value ~ "?" ~ value ~ ":" ~ value
-}
-
-// Pattern matching
+// When expression: when value ( pattern => result, ... )
 when_expr = {
-    "when" ~ identifier ~ "(" ~ when_arm+ ~ ")"
+    "when" ~ expression ~ "(" ~ when_arm ~ ("," ~ when_arm)* ~ ","? ~ ")"
 }
 
 when_arm = {
-    (value | "*") ~ "=>" ~ value
+    when_pattern ~ "=>" ~ expression
 }
 
-match_expr = {
-    "match" ~ identifier ~ "(" ~ match_arm+ ~ ")"
+when_pattern = {
+    "_" | "*"  // Default/wildcard
+  | when_pattern_tuple
+  | when_pattern_guard
+  | expression
 }
 
-match_arm = {
-    (value | "*") ~ "=>" ~ value
+when_pattern_tuple = {
+    "(" ~ expression ~ ("," ~ expression)* ~ ")"
 }
 
-// Lambda expressions
+when_pattern_guard = {
+    identifier ~ "if" ~ expression
+}
+
+// ============================================================================
+// FUNCTIONS
+// ============================================================================
+
+function_call = {
+    identifier ~ "(" ~ argument_list? ~ ")"
+}
+
+// Lambda: x => x * 2 or (x, y) => x + y
 lambda = {
-    (identifier | "(" ~ identifier ~ ("," ~ identifier)* ~ ")") ~ "=>" ~ expression
+    lambda_params ~ "=>" ~ expression
 }
 
-// Pipeline
-pipeline = {
-    value ~ ("|" ~ (function_call | lambda))+
+lambda_params = {
+    identifier
+  | "(" ~ identifier ~ ("," ~ identifier)* ~ ")"
 }
 
-// Environment declaration
-environment_decl = {
-    "environment" ~ identifier ~ ("(" ~ environment_body ~ ")")?
+// ============================================================================
+// COMPREHENSIONS
+// ============================================================================
+
+// List comprehension: [x * 2 for x in list if x > 0]
+list_comprehension = {
+    "[" ~ expression ~ "for" ~ comprehension_clause ~ (comprehension_filter)? ~ "]"
 }
 
-environment_body = {
-    (environment_attr)*
+// Map comprehension: {k: v * 2 for k, v in map if v > 0}
+map_comprehension = {
+    "{" ~ expression ~ ":" ~ expression ~ "for" ~ comprehension_clause ~ (comprehension_filter)? ~ "}"
 }
 
-environment_attr = {
-    "region" ~ "=" ~ value
-  | "account" ~ "=" ~ value
-  | "vars" ~ map
-  | "tags" ~ map
-  | "provider" ~ identifier ~ map
+comprehension_clause = {
+    identifier ~ ("," ~ identifier)? ~ "in" ~ expression
 }
 
-// Stack declaration
-stack_decl = {
-    "stack" ~ identifier ~ ("(" ~ stack_body ~ ")")?
+comprehension_filter = {
+    "if" ~ expression
 }
 
-stack_body = {
-    (stack_attr | resource_decl | data_decl | output_decl)*
-}
+// ============================================================================
+// FOR LOOPS
+// ============================================================================
 
-stack_attr = {
-    "env" ~ "=" ~ identifier
-  | "depends_on" ~ "=" ~ list
-  | "vars" ~ map
-}
-
-// Resource declaration (managed)
-resource_decl = {
-    (resource_type ~ identifier | identifier ~ identifier) ~ ("(" ~ resource_body ~ ")")?
-}
-
-resource_type = {
-    identifier ~ ("_" ~ identifier)+
-}
-
-resource_body = {
-    (resource_attr | configure_block)*
-}
-
-resource_attr = {
-    identifier ~ "=" ~ value
-  | "count" ~ "=" ~ value
-  | "tags" ~ map
-  | "lifecycle" ~ map
-  | "depends_on" ~ "=" ~ list
-}
-
-// Data source (read-only)
-data_decl = {
-    ("data" | "read") ~ resource_type ~ identifier ~ ("(" ~ data_body ~ ")")?
-}
-
-data_body = {
-    (data_attr)*
-}
-
-data_attr = {
-    identifier ~ "=" ~ value
-  | "tags" ~ map
-  | "lifecycle" ~ map
-  | "readonly" ~ "=" ~ boolean
-}
-
-// Variable declaration
-variable_decl = {
-    ("var" ~ identifier ~ (":" ~ type_annotation)? ~ "=" ~ value)
-  | (identifier ~ "=" ~ value)
-}
-
-type_annotation = {
-    "string" | "int" | "bool" | "float"
-  | "list" ~ "<" ~ type_annotation ~ ">"
-  | "map" ~ "<" ~ type_annotation ~ "," ~ type_annotation ~ ">"
-}
-
-// Output declaration
-output_decl = {
-    "output" ~ identifier ~ "=" ~ value
-}
-
-// For loop
 for_loop = {
-    "for" ~ identifier ~ "in" ~ (range | value) ~ "(" ~ statement* ~ ")"
+    "for" ~ for_variables ~ "in" ~ for_iterables ~ "(" ~ statement* ~ ")"
 }
 
+for_variables = {
+    identifier ~ ("," ~ identifier)*
+}
+
+for_iterables = {
+    expression ~ ("," ~ expression)*
+}
+
+// ============================================================================
+// UTILITY RULES
+// ============================================================================
+
+// Range: 0..10
 range = {
-    number ~ ".." ~ number
-}
-
-// Configuration block
-configure_block = {
-    "configure" ~ ("(" ~ config_statement* ~ ")")?
-}
-
-config_statement = {
-    install_statement
-  | package_statement
-  | file_statement
-  | template_statement
-  | service_statement
-  | user_statement
-  | git_statement
-  | run_statement
-  | systemd_statement
-}
-
-install_statement = {
-    "install" ~ "(" ~ package_list ~ ")"
-  | "install" ~ package_list
-}
-
-package_list = {
-    package_spec ~ ("," ~ package_spec)*
-}
-
-package_spec = {
-    identifier ~ ("@" ~ (identifier | number))?
-}
-
-package_statement = {
-    "package" ~ identifier ~ ("(" ~ package_attrs ~ ")")?
-}
-
-package_attrs = {
-    package_attr ~ ","?
-}
-
-package_attr = {
-    "state" ~ "=" ~ ("present" | "absent" | "latest")
-  | "version" ~ "=" ~ value
-}
-
-file_statement = {
-    "file" ~ string ~ ("(" ~ file_attrs ~ ")")?
-  | "file" ~ string ~ "from" ~ string
-  | "file" ~ string ~ "from" ~ "=" ~ string
-}
-
-file_attrs = {
-    (file_attr ~ ","?)*
-}
-
-file_attr = {
-    "content" ~ "=" ~ (multiline_string | string)
-  | "from" ~ "=" ~ string
-  | "mode" ~ "=" ~ value
-  | "owner" ~ "=" ~ identifier
-  | "group" ~ "=" ~ identifier
-}
-
-template_statement = {
-    "template" ~ string ~ "from" ~ string ~ ("(" ~ template_attrs ~ ")")?
-}
-
-template_attrs = {
-    "vars" ~ map
-  | "mode" ~ "=" ~ value
-  | "owner" ~ "=" ~ identifier
-}
-
-service_statement = {
-    "service" ~ identifier ~ ("(" ~ service_attrs ~ ")")?
-  | "service" ~ identifier ~ service_state ~ service_enabled?
-}
-
-service_attrs = {
-    (service_attr ~ ","?)*
-}
-
-service_attr = {
-    "state" ~ "=" ~ service_state
-  | "enabled" ~ "=" ~ boolean
-}
-
-service_state = {
-    "running" | "stopped" | "restarted" | "reloaded" | "start" | "stop"
-}
-
-service_enabled = {
-    "enabled"
-}
-
-user_statement = {
-    "user" ~ identifier ~ ("(" ~ user_attrs ~ ")")?
-}
-
-user_attrs = {
-    (user_attr ~ ","?)*
-}
-
-user_attr = {
-    "shell" ~ "=" ~ string
-  | "home" ~ "=" ~ string
-  | "system" ~ "=" ~ boolean
-}
-
-git_statement = {
-    "git" ~ "clone" ~ string ~ ("to" ~ string)? ~ ("(" ~ git_attrs ~ ")")?
-}
-
-git_attrs = {
-    (git_attr ~ ","?)*
-}
-
-git_attr = {
-    "version" ~ "=" ~ value
-  | "owner" ~ "=" ~ identifier
-  | "branch" ~ "=" ~ identifier
-}
-
-run_statement = {
-    "run" ~ string ~ ("at" ~ string)? ~ ("(" ~ run_attrs ~ ")")?
-}
-
-run_attrs = {
-    (run_attr ~ ","?)*
-}
-
-run_attr = {
-    "user" ~ "=" ~ identifier
-  | "creates" ~ "=" ~ string
-  | "unless" ~ "=" ~ string
-}
-
-systemd_statement = {
-    "systemd_unit" ~ identifier ~ ("(" ~ systemd_attrs ~ ")")?
-}
-
-systemd_attrs = {
-    (systemd_attr ~ ","?)*
-}
-
-systemd_attr = {
-    identifier ~ "=" ~ value
+    expression ~ ".." ~ expression
 }
