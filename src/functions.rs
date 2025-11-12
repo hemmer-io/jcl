@@ -3,8 +3,9 @@
 //! JCL provides a rich standard library of functions for data manipulation,
 //! encoding/decoding, string operations, and more.
 
-use crate::ast::{Expression, Value};
+use crate::ast::Value;
 use anyhow::{anyhow, Result};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde_json;
 use std::collections::HashMap;
 
@@ -249,13 +250,13 @@ fn fn_strlen(args: &[Value]) -> Result<Value> {
 fn fn_base64encode(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "base64encode")?;
     let s = as_string(&args[0])?;
-    Ok(Value::String(base64::encode(s)))
+    Ok(Value::String(STANDARD.encode(s)))
 }
 
 fn fn_base64decode(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "base64decode")?;
     let s = as_string(&args[0])?;
-    let decoded = base64::decode(&s)?;
+    let decoded = STANDARD.decode(s)?;
     Ok(Value::String(String::from_utf8(decoded)?))
 }
 

@@ -1,7 +1,7 @@
 //! Evaluator for JCL - resolves variables, functions, and expressions
 
 use crate::ast::{
-    BinaryOperator, Expression, Module, Parameter, Pattern, Statement, StringPart,
+    BinaryOperator, Expression, Module, Pattern, Statement, StringPart,
     UnaryOperator, Value, WhenArm,
 };
 use crate::functions;
@@ -217,7 +217,7 @@ impl Evaluator {
                         let mut results = Vec::new();
                         for item in items {
                             // Create new scope with loop variable
-                            let mut scoped_eval = self.clone_with_var(variable, item);
+                            let scoped_eval = self.clone_with_var(variable, item);
 
                             // Check condition if present
                             let should_include = if let Some(cond) = condition {
@@ -598,5 +598,345 @@ mod tests {
         let expr = Expression::Literal(Value::String("hello".to_string()));
         let result = evaluator.evaluate_expression(&expr);
         assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::String("hello".to_string()));
+    }
+
+    #[test]
+    fn test_evaluate_arithmetic() {
+        let evaluator = Evaluator::new();
+
+        // Addition
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::Add,
+            left: Box::new(Expression::Literal(Value::Int(5))),
+            right: Box::new(Expression::Literal(Value::Int(3))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(8));
+
+        // Subtraction
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::Subtract,
+            left: Box::new(Expression::Literal(Value::Int(10))),
+            right: Box::new(Expression::Literal(Value::Int(4))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(6));
+
+        // Multiplication
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::Multiply,
+            left: Box::new(Expression::Literal(Value::Int(6))),
+            right: Box::new(Expression::Literal(Value::Int(7))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(42));
+
+        // Division
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::Divide,
+            left: Box::new(Expression::Literal(Value::Int(20))),
+            right: Box::new(Expression::Literal(Value::Int(4))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(5));
+    }
+
+    #[test]
+    fn test_evaluate_comparison() {
+        let evaluator = Evaluator::new();
+
+        // Equal
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::Equal,
+            left: Box::new(Expression::Literal(Value::Int(5))),
+            right: Box::new(Expression::Literal(Value::Int(5))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
+
+        // Not equal
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::NotEqual,
+            left: Box::new(Expression::Literal(Value::Int(5))),
+            right: Box::new(Expression::Literal(Value::Int(3))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
+
+        // Less than
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::LessThan,
+            left: Box::new(Expression::Literal(Value::Int(3))),
+            right: Box::new(Expression::Literal(Value::Int(5))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
+
+        // Greater than
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::GreaterThan,
+            left: Box::new(Expression::Literal(Value::Int(7))),
+            right: Box::new(Expression::Literal(Value::Int(3))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
+    }
+
+    #[test]
+    fn test_evaluate_logical() {
+        let evaluator = Evaluator::new();
+
+        // AND - true and true
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::And,
+            left: Box::new(Expression::Literal(Value::Bool(true))),
+            right: Box::new(Expression::Literal(Value::Bool(true))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
+
+        // AND - false and true
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::And,
+            left: Box::new(Expression::Literal(Value::Bool(false))),
+            right: Box::new(Expression::Literal(Value::Bool(true))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(false));
+
+        // OR - false or true
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::Or,
+            left: Box::new(Expression::Literal(Value::Bool(false))),
+            right: Box::new(Expression::Literal(Value::Bool(true))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
+
+        // NOT
+        let expr = Expression::UnaryOp {
+            op: UnaryOperator::Not,
+            operand: Box::new(Expression::Literal(Value::Bool(true))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(false));
+    }
+
+    #[test]
+    fn test_evaluate_null_coalesce() {
+        let evaluator = Evaluator::new();
+
+        // Null ?? value
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::NullCoalesce,
+            left: Box::new(Expression::Literal(Value::Null)),
+            right: Box::new(Expression::Literal(Value::Int(42))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(42));
+
+        // value ?? other
+        let expr = Expression::BinaryOp {
+            op: BinaryOperator::NullCoalesce,
+            left: Box::new(Expression::Literal(Value::Int(10))),
+            right: Box::new(Expression::Literal(Value::Int(42))),
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(10));
+    }
+
+    #[test]
+    fn test_evaluate_ternary() {
+        let evaluator = Evaluator::new();
+
+        // true ? "yes" : "no"
+        let expr = Expression::Ternary {
+            condition: Box::new(Expression::Literal(Value::Bool(true))),
+            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
+            else_expr: Box::new(Expression::Literal(Value::String("no".to_string()))),
+        };
+        assert_eq!(
+            evaluator.evaluate_expression(&expr).unwrap(),
+            Value::String("yes".to_string())
+        );
+
+        // false ? "yes" : "no"
+        let expr = Expression::Ternary {
+            condition: Box::new(Expression::Literal(Value::Bool(false))),
+            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
+            else_expr: Box::new(Expression::Literal(Value::String("no".to_string()))),
+        };
+        assert_eq!(
+            evaluator.evaluate_expression(&expr).unwrap(),
+            Value::String("no".to_string())
+        );
+    }
+
+    #[test]
+    fn test_evaluate_if_expression() {
+        let evaluator = Evaluator::new();
+
+        // if true then "yes" else "no"
+        let expr = Expression::If {
+            condition: Box::new(Expression::Literal(Value::Bool(true))),
+            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
+            else_expr: Some(Box::new(Expression::Literal(Value::String("no".to_string())))),
+        };
+        assert_eq!(
+            evaluator.evaluate_expression(&expr).unwrap(),
+            Value::String("yes".to_string())
+        );
+
+        // if false then "yes" (no else)
+        let expr = Expression::If {
+            condition: Box::new(Expression::Literal(Value::Bool(false))),
+            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
+            else_expr: None,
+        };
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Null);
+    }
+
+    #[test]
+    fn test_evaluate_list() {
+        let evaluator = Evaluator::new();
+
+        let expr = Expression::List(vec![
+            Expression::Literal(Value::Int(1)),
+            Expression::Literal(Value::Int(2)),
+            Expression::Literal(Value::Int(3)),
+        ]);
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+        );
+    }
+
+    #[test]
+    fn test_evaluate_map() {
+        let evaluator = Evaluator::new();
+
+        let mut entries = Vec::new();
+        entries.push(("name".to_string(), Expression::Literal(Value::String("Alice".to_string()))));
+        entries.push(("age".to_string(), Expression::Literal(Value::Int(30))));
+
+        let expr = Expression::Map(entries);
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+
+        if let Value::Map(map) = result {
+            assert_eq!(map.get("name"), Some(&Value::String("Alice".to_string())));
+            assert_eq!(map.get("age"), Some(&Value::Int(30)));
+        } else {
+            panic!("Expected Map value");
+        }
+    }
+
+    #[test]
+    fn test_evaluate_member_access() {
+        let mut evaluator = Evaluator::new();
+
+        // Create a map variable
+        let mut map = HashMap::new();
+        map.insert("name".to_string(), Value::String("Bob".to_string()));
+        evaluator.variables.insert("person".to_string(), Value::Map(map));
+
+        // person.name
+        let expr = Expression::MemberAccess {
+            object: Box::new(Expression::Variable("person".to_string())),
+            field: "name".to_string(),
+        };
+
+        assert_eq!(
+            evaluator.evaluate_expression(&expr).unwrap(),
+            Value::String("Bob".to_string())
+        );
+    }
+
+    #[test]
+    fn test_evaluate_index_access() {
+        let mut evaluator = Evaluator::new();
+
+        // Create a list variable
+        let list = Value::List(vec![Value::Int(10), Value::Int(20), Value::Int(30)]);
+        evaluator.variables.insert("numbers".to_string(), list);
+
+        // numbers[1]
+        let expr = Expression::Index {
+            object: Box::new(Expression::Variable("numbers".to_string())),
+            index: Box::new(Expression::Literal(Value::Int(1))),
+        };
+
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(20));
+    }
+
+    #[test]
+    fn test_evaluate_string_interpolation() {
+        let mut evaluator = Evaluator::new();
+
+        evaluator.variables.insert("name".to_string(), Value::String("World".to_string()));
+        evaluator.variables.insert("count".to_string(), Value::Int(42));
+
+        // "Hello ${name}, count: ${count}"
+        let expr = Expression::InterpolatedString {
+            parts: vec![
+                StringPart::Literal("Hello ".to_string()),
+                StringPart::Interpolation(Box::new(Expression::Variable("name".to_string()))),
+                StringPart::Literal(", count: ".to_string()),
+                StringPart::Interpolation(Box::new(Expression::Variable("count".to_string()))),
+            ],
+        };
+
+        assert_eq!(
+            evaluator.evaluate_expression(&expr).unwrap(),
+            Value::String("Hello World, count: 42".to_string())
+        );
+    }
+
+    #[test]
+    fn test_evaluate_list_comprehension() {
+        let mut evaluator = Evaluator::new();
+
+        // Set up list [1, 2, 3, 4, 5]
+        evaluator.variables.insert(
+            "numbers".to_string(),
+            Value::List(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4),
+                Value::Int(5),
+            ]),
+        );
+
+        // [x * 2 for x in numbers if x > 2]
+        let expr = Expression::ListComprehension {
+            expr: Box::new(Expression::BinaryOp {
+                op: BinaryOperator::Multiply,
+                left: Box::new(Expression::Variable("x".to_string())),
+                right: Box::new(Expression::Literal(Value::Int(2))),
+            }),
+            variable: "x".to_string(),
+            iterable: Box::new(Expression::Variable("numbers".to_string())),
+            condition: Some(Box::new(Expression::BinaryOp {
+                op: BinaryOperator::GreaterThan,
+                left: Box::new(Expression::Variable("x".to_string())),
+                right: Box::new(Expression::Literal(Value::Int(2))),
+            })),
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![Value::Int(6), Value::Int(8), Value::Int(10)])
+        );
+    }
+
+    #[test]
+    fn test_evaluate_try_expression() {
+        let evaluator = Evaluator::new();
+
+        // try undefined_var else 42
+        let expr = Expression::Try {
+            expr: Box::new(Expression::Variable("undefined".to_string())),
+            default: Some(Box::new(Expression::Literal(Value::Int(42)))),
+        };
+
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(42));
+
+        // try valid_literal
+        let expr = Expression::Try {
+            expr: Box::new(Expression::Literal(Value::Int(100))),
+            default: None,
+        };
+
+        assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(100));
     }
 }

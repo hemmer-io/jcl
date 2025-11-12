@@ -5,7 +5,7 @@
 
 use crate::ast::*;
 use anyhow::{anyhow, Context, Result};
-use pest::iterators::{Pair, Pairs};
+use pest::iterators::Pair;
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 use pest_derive::Parser;
