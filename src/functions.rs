@@ -7,6 +7,8 @@ use crate::ast::Value;
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde_json;
+use sha1::Sha1;
+use sha2::{Digest, Sha256, Sha512};
 use std::collections::HashMap;
 
 /// Function signature
@@ -576,14 +578,49 @@ fn fn_tobool(args: &[Value]) -> Result<Value> {
     Ok(Value::Bool(result))
 }
 
-fn fn_tolist(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement
-    Ok(Value::List(vec![]))
+fn fn_tolist(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "tolist")?;
+
+    match &args[0] {
+        Value::List(l) => Ok(Value::List(l.clone())),
+        Value::Map(m) => {
+            // Convert map to list of [key, value] pairs
+            let pairs: Vec<Value> = m
+                .iter()
+                .map(|(k, v)| Value::List(vec![Value::String(k.clone()), v.clone()]))
+                .collect();
+            Ok(Value::List(pairs))
+        }
+        Value::String(s) => {
+            // Convert string to list of characters
+            let chars: Vec<Value> = s.chars().map(|c| Value::String(c.to_string())).collect();
+            Ok(Value::List(chars))
+        }
+        other => Ok(Value::List(vec![other.clone()])),
+    }
 }
 
-fn fn_tomap(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement
-    Ok(Value::Map(HashMap::new()))
+fn fn_tomap(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "tomap")?;
+
+    match &args[0] {
+        Value::Map(m) => Ok(Value::Map(m.clone())),
+        Value::List(items) => {
+            // Convert list of [key, value] pairs to map
+            let mut map = HashMap::new();
+            for item in items {
+                if let Value::List(pair) = item {
+                    if pair.len() == 2 {
+                        if let Value::String(key) = &pair[0] {
+                            map.insert(key.clone(), pair[1].clone());
+                        }
+                    }
+                }
+            }
+            Ok(Value::Map(map))
+        }
+        _ => Err(anyhow!("Cannot convert value to map")),
+    }
 }
 
 // =============================================================================
@@ -596,19 +633,31 @@ fn fn_md5(args: &[Value]) -> Result<Value> {
     Ok(Value::String(format!("{:x}", md5::compute(s))))
 }
 
-fn fn_sha1(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement with sha1 crate
-    Ok(Value::String("TODO: sha1".to_string()))
+fn fn_sha1(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "sha1")?;
+    let s = as_string(&args[0])?;
+    let mut hasher = Sha1::new();
+    hasher.update(s.as_bytes());
+    let result = hasher.finalize();
+    Ok(Value::String(format!("{:x}", result)))
 }
 
-fn fn_sha256(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement with sha2 crate
-    Ok(Value::String("TODO: sha256".to_string()))
+fn fn_sha256(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "sha256")?;
+    let s = as_string(&args[0])?;
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    let result = hasher.finalize();
+    Ok(Value::String(format!("{:x}", result)))
 }
 
-fn fn_sha512(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement with sha2 crate
-    Ok(Value::String("TODO: sha512".to_string()))
+fn fn_sha512(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "sha512")?;
+    let s = as_string(&args[0])?;
+    let mut hasher = Sha512::new();
+    hasher.update(s.as_bytes());
+    let result = hasher.finalize();
+    Ok(Value::String(format!("{:x}", result)))
 }
 
 // =============================================================================
@@ -621,14 +670,24 @@ fn fn_timestamp(_args: &[Value]) -> Result<Value> {
     Ok(Value::Int(now.as_secs() as i64))
 }
 
-fn fn_formatdate(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement with chrono
-    Ok(Value::String("TODO: formatdate".to_string()))
+fn fn_formatdate(args: &[Value]) -> Result<Value> {
+    require_args_min(args, 2, "formatdate")?;
+    let format_str = as_string(&args[0])?;
+    let timestamp = as_int(&args[1])?;
+
+    let datetime = chrono::DateTime::from_timestamp(timestamp, 0)
+        .ok_or_else(|| anyhow!("Invalid timestamp: {}", timestamp))?;
+
+    Ok(Value::String(datetime.format(&format_str).to_string()))
 }
 
-fn fn_timeadd(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement
-    Ok(Value::String("TODO: timeadd".to_string()))
+fn fn_timeadd(args: &[Value]) -> Result<Value> {
+    require_args(args, 2, "timeadd")?;
+    let timestamp = as_int(&args[0])?;
+    let seconds_to_add = as_int(&args[1])?;
+
+    let new_timestamp = timestamp + seconds_to_add;
+    Ok(Value::Int(new_timestamp))
 }
 
 // =============================================================================
