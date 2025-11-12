@@ -15,8 +15,8 @@ pub struct EvaluatedModule {
 
 /// Evaluator context
 pub struct Evaluator {
-    variables: HashMap<String, Value>,
-    functions: HashMap<String, Value>,
+    pub variables: HashMap<String, Value>,
+    pub functions: HashMap<String, Value>,
 }
 
 impl Evaluator {

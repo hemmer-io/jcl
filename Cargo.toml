@@ -24,6 +24,7 @@ toml = "0.8"
 # CLI
 clap = { version = "4.4", features = ["derive", "color", "suggestions"] }
 colored = "2.1"
+rustyline = "14.0"
 
 # Error handling
 anyhow = "1.0"

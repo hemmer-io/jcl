@@ -7,6 +7,7 @@ pub mod ast;
 pub mod evaluator;
 pub mod functions;
 pub mod parser;
+pub mod repl;
 pub mod types;
 
 // Re-export commonly used types

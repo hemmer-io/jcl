@@ -65,6 +65,9 @@ enum Commands {
         /// Path to format (defaults to current directory)
         path: Option<String>,
     },
+
+    /// Start interactive REPL (Read-Eval-Print Loop)
+    Repl,
 }
 
 fn main() -> Result<()> {
@@ -239,6 +242,10 @@ fn main() -> Result<()> {
 
             println!("{}", "Note: Formatter not yet implemented".yellow());
             println!("{}", "✓ Formatting complete".green());
+        }
+
+        Commands::Repl => {
+            jcl::repl::run_repl()?;
         }
     }
 
