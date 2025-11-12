@@ -4,6 +4,7 @@
 //! for expressions to handle operator precedence cleanly.
 
 use crate::ast::*;
+use crate::error;
 use anyhow::{anyhow, Context, Result};
 use pest::iterators::Pair;
 use pest::pratt_parser::{Assoc, Op, PrattParser};
@@ -59,8 +60,13 @@ pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Module> {
 
 /// Parse JCL from a string
 pub fn parse_str(input: &str) -> Result<Module> {
-    let pairs = JCLParser::parse(Rule::program, input)
-        .with_context(|| "Failed to parse JCL input")?;
+    let pairs = match JCLParser::parse(Rule::program, input) {
+        Ok(pairs) => pairs,
+        Err(pest_error) => {
+            // Use our improved error formatting
+            return Err(error::create_parse_error(pest_error, input));
+        }
+    };
 
     let mut statements = Vec::new();
 

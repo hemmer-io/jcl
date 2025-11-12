@@ -4,6 +4,7 @@
 //! that prioritizes safety, ease of use, and flexibility.
 
 pub mod ast;
+pub mod error;
 pub mod evaluator;
 pub mod functions;
 pub mod parser;
