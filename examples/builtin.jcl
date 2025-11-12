@@ -31,13 +31,11 @@ total = sum([1, 2, 3, 4, 5])
 
 # Type conversion
 str_num = str(42)
-int_val = int("123")
-float_val = float("3.14")
+num_from_str = tonumber("123")
 
 # Encoding functions
 encoded = base64encode("Hello, JCL!")
 url_safe = urlencode("hello world?")
-json_str = json((name = "JCL", version = 1.0))
 
 # Hashing functions
 text_hash = hash("JCL")

@@ -41,6 +41,7 @@ impl FunctionRegistry {
         registry.register("base64encode", fn_base64encode);
         registry.register("base64decode", fn_base64decode);
         registry.register("jsonencode", fn_jsonencode);
+        registry.register("json", fn_jsonencode); // Alias for jsonencode
         registry.register("jsondecode", fn_jsondecode);
         registry.register("yamlencode", fn_yamlencode);
         registry.register("yamldecode", fn_yamldecode);
@@ -51,6 +52,7 @@ impl FunctionRegistry {
 
         // Collection functions
         registry.register("length", fn_length);
+        registry.register("len", fn_length); // Alias for length
         registry.register("contains", fn_contains);
         registry.register("keys", fn_keys);
         registry.register("values", fn_values);
@@ -58,6 +60,7 @@ impl FunctionRegistry {
         registry.register("lookup", fn_lookup);
         registry.register("reverse", fn_reverse);
         registry.register("sort", fn_sort);
+        registry.register("slice", fn_slice);
         registry.register("distinct", fn_distinct);
         registry.register("flatten", fn_flatten);
         registry.register("compact", fn_compact);
@@ -74,7 +77,10 @@ impl FunctionRegistry {
 
         // Type conversion
         registry.register("tostring", fn_tostring);
+        registry.register("str", fn_tostring); // Alias for tostring
         registry.register("tonumber", fn_tonumber);
+        registry.register("int", fn_tonumber); // Alias for tonumber
+        registry.register("float", fn_tonumber); // Alias for tonumber
         registry.register("tobool", fn_tobool);
         registry.register("tolist", fn_tolist);
         registry.register("tomap", fn_tomap);
@@ -84,6 +90,7 @@ impl FunctionRegistry {
         registry.register("sha1", fn_sha1);
         registry.register("sha256", fn_sha256);
         registry.register("sha512", fn_sha512);
+        registry.register("hash", fn_sha256); // Alias for sha256
 
         // Date/Time functions
         registry.register("timestamp", fn_timestamp);
@@ -404,6 +411,18 @@ fn fn_sort(args: &[Value]) -> Result<Value> {
         }
     });
     Ok(Value::List(list))
+}
+
+fn fn_slice(args: &[Value]) -> Result<Value> {
+    require_args(args, 3, "slice")?;
+    let list = as_list(&args[0])?;
+    let start = as_int(&args[1])? as usize;
+    let end = as_int(&args[2])? as usize;
+
+    let end = end.min(list.len());
+    let start = start.min(end);
+
+    Ok(Value::List(list[start..end].to_vec()))
 }
 
 fn fn_distinct(args: &[Value]) -> Result<Value> {
