@@ -66,6 +66,16 @@ enum Commands {
         path: Option<String>,
     },
 
+    /// Lint JCL files for style issues and best practices
+    Lint {
+        /// Path to lint (file or directory)
+        path: Option<String>,
+
+        /// Show all issues (including info level)
+        #[arg(long)]
+        all: bool,
+    },
+
     /// Start interactive REPL (Read-Eval-Print Loop)
     Repl,
 }
@@ -307,6 +317,95 @@ fn main() -> Result<()> {
             } else {
                 eprintln!("{} {} error(s), {} file(s) processed", "✗".red().bold(), errors, formatted_count);
                 std::process::exit(1);
+            }
+        }
+
+        Commands::Lint { path, all } => {
+            let target = path.unwrap_or_else(|| ".".to_string());
+            let path_buf = std::path::PathBuf::from(&target);
+
+            let files = if path_buf.is_file() {
+                vec![path_buf]
+            } else if path_buf.is_dir() {
+                glob::glob(&format!("{}/**/*.jcl", target))
+                    .expect("Failed to read glob pattern")
+                    .filter_map(Result::ok)
+                    .collect()
+            } else {
+                eprintln!("{} Path not found: {}", "Error:".red().bold(), target);
+                std::process::exit(1);
+            };
+
+            println!("{} {}", "Linting".cyan().bold(), target);
+            println!();
+
+            let mut total_issues = 0;
+            let mut total_errors = 0;
+            let mut total_warnings = 0;
+
+            for file_path in files {
+                let path_str = file_path.display().to_string();
+
+                match jcl::parser::parse_file(&path_str) {
+                    Ok(module) => {
+                        match jcl::linter::lint(&module) {
+                            Ok(issues) => {
+                                let filtered_issues: Vec<_> = if all {
+                                    issues
+                                } else {
+                                    issues.into_iter().filter(|i| i.severity != jcl::linter::Severity::Info).collect()
+                                };
+
+                                if !filtered_issues.is_empty() {
+                                    println!("{}", path_str.bold());
+                                    for issue in &filtered_issues {
+                                        let severity_str = match issue.severity {
+                                            jcl::linter::Severity::Error => "error".red().bold(),
+                                            jcl::linter::Severity::Warning => "warning".yellow().bold(),
+                                            jcl::linter::Severity::Info => "info".blue(),
+                                        };
+                                        println!("  {} [{}] {}", severity_str, issue.rule.dimmed(), issue.message);
+                                        if let Some(suggestion) = &issue.suggestion {
+                                            println!("    {}: {}", "help".cyan(), suggestion.dimmed());
+                                        }
+
+                                        match issue.severity {
+                                            jcl::linter::Severity::Error => total_errors += 1,
+                                            jcl::linter::Severity::Warning => total_warnings += 1,
+                                            jcl::linter::Severity::Info => {},
+                                        }
+                                        total_issues += 1;
+                                    }
+                                    println!();
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
+                        total_errors += 1;
+                    }
+                }
+            }
+
+            if total_issues == 0 {
+                println!("{} No issues found", "✓".green().bold());
+            } else {
+                println!("{}", "Summary:".bold());
+                if total_errors > 0 {
+                    println!("  {} {}", "Errors:".red().bold(), total_errors);
+                }
+                if total_warnings > 0 {
+                    println!("  {} {}", "Warnings:".yellow().bold(), total_warnings);
+                }
+                println!("  {} {}", "Total issues:", total_issues);
+
+                if total_errors > 0 {
+                    std::process::exit(1);
+                }
             }
         }
 
