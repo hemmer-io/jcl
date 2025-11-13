@@ -76,6 +76,7 @@ impl Linter {
                 value,
                 type_annotation,
                 mutable,
+                doc_comments: _,
             } => {
                 // Check naming convention
                 if !Self::is_snake_case(name) {

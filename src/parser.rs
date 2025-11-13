@@ -91,22 +91,48 @@ pub fn parse_str(input: &str) -> Result<Module> {
 }
 
 fn parse_statement(pair: Pair<Rule>) -> Result<Statement> {
-    let inner = pair
-        .into_inner()
-        .next()
-        .ok_or_else(|| anyhow!("Empty statement"))?;
+    let mut doc_comments = None;
+    let mut stmt_pair = None;
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::doccomments => {
+                let comments: Vec<String> = inner
+                    .into_inner()
+                    .map(|dc| {
+                        let text = dc.as_str();
+                        // Remove "///" prefix and trim
+                        text.strip_prefix("///")
+                            .unwrap_or(text)
+                            .trim()
+                            .to_string()
+                    })
+                    .collect();
+                doc_comments = Some(comments);
+            }
+            Rule::stmtbody => {
+                stmt_pair = Some(inner);
+            }
+            _ => {}
+        }
+    }
+
+    let stmt_inner = stmt_pair.ok_or_else(|| anyhow!("Empty statement"))?;
+
+    // Get the actual statement from stmtbody
+    let inner = stmt_inner.into_inner().next().ok_or_else(|| anyhow!("Empty stmtbody"))?;
 
     match inner.as_rule() {
-        Rule::assignment => parse_assignment(inner),
-        Rule::function_def => parse_function_def(inner),
-        Rule::import_stmt => parse_import(inner),
-        Rule::for_loop => parse_for_loop(inner),
+        Rule::assignment => parse_assignment(inner, doc_comments),
+        Rule::function_def => parse_function_def(inner, doc_comments),
+        Rule::import_stmt => parse_import(inner, doc_comments),
+        Rule::for_loop => parse_for_loop(inner, doc_comments),
         Rule::expression => Ok(Statement::Expression(parse_expression(inner)?)),
         _ => Err(anyhow!("Unknown statement type: {:?}", inner.as_rule())),
     }
 }
 
-fn parse_assignment(pair: Pair<Rule>) -> Result<Statement> {
+fn parse_assignment(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result<Statement> {
     let mut mutable = false;
     let mut name = String::new();
     let mut type_annotation = None;
@@ -138,10 +164,11 @@ fn parse_assignment(pair: Pair<Rule>) -> Result<Statement> {
         mutable,
         value: value.ok_or_else(|| anyhow!("Missing value in assignment"))?,
         type_annotation,
+        doc_comments,
     })
 }
 
-fn parse_function_def(pair: Pair<Rule>) -> Result<Statement> {
+fn parse_function_def(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result<Statement> {
     let mut name = String::new();
     let mut params = Vec::new();
     let mut return_type = None;
@@ -170,10 +197,11 @@ fn parse_function_def(pair: Pair<Rule>) -> Result<Statement> {
         params,
         return_type,
         body: body.ok_or_else(|| anyhow!("Missing body in function definition"))?,
+        doc_comments,
     })
 }
 
-fn parse_import(pair: Pair<Rule>) -> Result<Statement> {
+fn parse_import(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result<Statement> {
     let mut items = Vec::new();
     let mut path = String::new();
     let mut wildcard = false;
@@ -208,10 +236,11 @@ fn parse_import(pair: Pair<Rule>) -> Result<Statement> {
         items,
         path,
         wildcard,
+        doc_comments,
     })
 }
 
-fn parse_for_loop(pair: Pair<Rule>) -> Result<Statement> {
+fn parse_for_loop(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result<Statement> {
     let mut variables = Vec::new();
     let mut iterables = Vec::new();
     let mut body = Vec::new();
@@ -240,6 +269,7 @@ fn parse_for_loop(pair: Pair<Rule>) -> Result<Statement> {
         iterables,
         body,
         condition: None,
+        doc_comments,
     })
 }
 

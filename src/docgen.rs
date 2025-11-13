@@ -52,7 +52,20 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 params,
                 return_type,
                 body,
+                doc_comments,
             } => {
+                // Use doc comments if available, otherwise infer from name
+                let description = doc_comments
+                    .as_ref()
+                    .and_then(|comments| {
+                        if comments.is_empty() {
+                            None
+                        } else {
+                            Some(comments.join("\n"))
+                        }
+                    })
+                    .or_else(|| infer_function_description(name, body));
+
                 doc.functions.push(FunctionDoc {
                     name: name.clone(),
                     params: params
@@ -64,7 +77,7 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                         })
                         .collect(),
                     return_type: return_type.clone(),
-                    description: infer_function_description(name, body),
+                    description,
                 });
             }
 
@@ -73,6 +86,7 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 value,
                 type_annotation,
                 mutable,
+                doc_comments: _,
             } => {
                 doc.variables.push(VariableDoc {
                     name: name.clone(),

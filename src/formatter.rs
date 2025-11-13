@@ -68,8 +68,20 @@ impl Formatter {
     /// Format a statement
     fn format_statement(&mut self, stmt: &Statement) -> Result<String> {
         match stmt {
-            Statement::Assignment { name, mutable, value, type_annotation } => {
-                let mut result = self.indent();
+            Statement::Assignment { name, mutable, value, type_annotation, doc_comments } => {
+                let mut result = String::new();
+
+                // Format doc comments
+                if let Some(comments) = doc_comments {
+                    for comment in comments {
+                        result.push_str(&self.indent());
+                        result.push_str("/// ");
+                        result.push_str(comment);
+                        result.push('\n');
+                    }
+                }
+
+                result.push_str(&self.indent());
                 if *mutable {
                     result.push_str("mut ");
                 }
@@ -84,8 +96,20 @@ impl Formatter {
                 Ok(result)
             }
 
-            Statement::FunctionDef { name, params, body, return_type } => {
-                let mut result = self.indent();
+            Statement::FunctionDef { name, params, body, return_type, doc_comments } => {
+                let mut result = String::new();
+
+                // Format doc comments
+                if let Some(comments) = doc_comments {
+                    for comment in comments {
+                        result.push_str(&self.indent());
+                        result.push_str("/// ");
+                        result.push_str(comment);
+                        result.push('\n');
+                    }
+                }
+
+                result.push_str(&self.indent());
                 result.push_str("fn ");
                 result.push_str(name);
                 result.push('(');

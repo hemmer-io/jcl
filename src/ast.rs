@@ -21,6 +21,7 @@ pub enum Statement {
         mutable: bool,
         value: Expression,
         type_annotation: Option<Type>,
+        doc_comments: Option<Vec<String>>,
     },
 
     /// Function definition: `fn name(params) = expr`
@@ -29,6 +30,7 @@ pub enum Statement {
         params: Vec<Parameter>,
         return_type: Option<Type>,
         body: Expression,
+        doc_comments: Option<Vec<String>>,
     },
 
     /// Import statement: `import (items) from "path"`
@@ -36,6 +38,7 @@ pub enum Statement {
         items: Vec<String>,
         path: String,
         wildcard: bool, // true for `import * from "path"`
+        doc_comments: Option<Vec<String>>,
     },
 
     /// For loop: `for x in list (body)`
@@ -44,6 +47,7 @@ pub enum Statement {
         iterables: Vec<Expression>,
         body: Vec<Statement>,
         condition: Option<Expression>, // Optional filter condition
+        doc_comments: Option<Vec<String>>,
     },
 
     /// Expression statement (for side effects)

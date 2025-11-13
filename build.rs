@@ -1,4 +1,5 @@
 fn main() {
     // Tell cargo to rerun the build script if the grammar file changes
-    println!("cargo:rerun-if-changed=src/grammar.pest");
+    // Note: The actual grammar file used is ./grammar.pest (root), not src/grammar.pest
+    println!("cargo:rerun-if-changed=grammar.pest");
 }
