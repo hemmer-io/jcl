@@ -2,12 +2,22 @@
 // Refactored to eliminate left-recursion using Pratt parsing for expressions
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+// Doc comments (compound atomic to preserve content without whitespace splitting)
+doc_comment = ${ "///" ~ (!"\n" ~ ANY)* }
+doc_comments = { doc_comment+ }
+
+// Regular comments (silent)
 COMMENT = _{ "#" ~ (!"\n" ~ ANY)* | "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
 // Entry point
 program = { SOI ~ statement* ~ EOI }
 
 statement = {
+    doc_comments? ~ stmtinner
+}
+
+stmtinner = {
     import_stmt
   | function_def
   | assignment
