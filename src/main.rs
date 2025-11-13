@@ -76,6 +76,16 @@ enum Commands {
         all: bool,
     },
 
+    /// Generate documentation from JCL files
+    Doc {
+        /// Path to JCL file
+        path: String,
+
+        /// Output file (defaults to stdout)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+
     /// Start interactive REPL (Read-Eval-Print Loop)
     Repl,
 }
@@ -404,6 +414,47 @@ fn main() -> Result<()> {
                 println!("  {} {}", "Total issues:", total_issues);
 
                 if total_errors > 0 {
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        Commands::Doc { path, output } => {
+            println!("{} {}", "Generating documentation:".cyan().bold(), path);
+
+            match jcl::parser::parse_file(&path) {
+                Ok(module) => {
+                    match jcl::docgen::generate(&module) {
+                        Ok(doc) => {
+                            // Extract module name from path
+                            let module_name = std::path::Path::new(&path)
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("module");
+
+                            let markdown = jcl::docgen::format_markdown(&doc, module_name);
+
+                            if let Some(output_path) = output {
+                                // Write to file
+                                if let Err(e) = std::fs::write(&output_path, &markdown) {
+                                    eprintln!("{} Failed to write output: {}", "✗".red().bold(), e);
+                                    std::process::exit(1);
+                                }
+                                println!("{} Documentation written to {}", "✓".green().bold(), output_path);
+                            } else {
+                                // Print to stdout
+                                println!();
+                                println!("{}", markdown);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("{} Documentation generation failed: {}", "✗".red().bold(), e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{} Parse failed: {}", "✗".red().bold(), e);
                     std::process::exit(1);
                 }
             }
