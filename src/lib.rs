@@ -23,6 +23,10 @@ pub mod repl;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
+// C FFI support
+#[cfg(feature = "ffi")]
+pub mod ffi;
+
 // Re-export commonly used types
 pub use ast::{Expression, Module, Statement, Value};
 pub use parser::{parse_file, parse_str};

@@ -82,6 +82,7 @@ wasm-bindgen-test = "0.3"
 default = ["cli"]
 cli = ["clap", "colored", "rustyline", "glob", "tokio", "futures", "tower-lsp", "uuid"]
 wasm = ["console_error_panic_hook", "wee_alloc", "uuid"]
+ffi = ["uuid"]
 
 [[bin]]
 name = "jcl"
