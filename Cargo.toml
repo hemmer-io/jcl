@@ -35,6 +35,9 @@ thiserror = "1.0"
 tokio = { version = "1.35", features = ["full"] }
 futures = "0.3"
 
+# LSP
+tower-lsp = "0.20"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -69,6 +72,10 @@ proptest = "1.4"
 [[bin]]
 name = "jcl"
 path = "src/main.rs"
+
+[[bin]]
+name = "jcl-lsp"
+path = "src/bin/jcl-lsp.rs"
 
 [lib]
 name = "jcl"
