@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JCL Playground - Try JCL in Your Browser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        header {
+            background-color: #2d2d30;
+            padding: 15px 20px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #4CAF50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .version {
+            font-size: 12px;
+            color: #888;
+            font-weight: normal;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .github-link {
+            color: #888;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .github-link:hover {
+            color: #4CAF50;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #3e3e42;
+            min-width: 0;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .panel-header {
+            background-color: #252526;
+            padding: 10px 15px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #cccccc;
+        }
+
+        .examples-dropdown {
+            background-color: #3c3c3c;
+            color: #cccccc;
+            border: 1px solid #3e3e42;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .examples-dropdown:hover {
+            background-color: #505050;
+        }
+
+        .editor-container {
+            flex: 1;
+            overflow: auto;
+            background-color: #1e1e1e;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+        }
+
+        .toolbar {
+            background-color: #252526;
+            padding: 10px 15px;
+            border-top: 1px solid #3e3e42;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 3px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #1177bb;
+        }
+
+        button:disabled {
+            background-color: #3e3e42;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background-color: #3c3c3c;
+        }
+
+        button.secondary:hover:not(:disabled) {
+            background-color: #505050;
+        }
+
+        button.success {
+            background-color: #4CAF50;
+        }
+
+        button.success:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        .output-container {
+            flex: 1;
+            overflow: auto;
+            background-color: #1e1e1e;
+            padding: 15px;
+        }
+
+        .output-content {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .status-bar {
+            background-color: #007acc;
+            color: white;
+            padding: 5px 15px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .status-bar.loading {
+            background-color: #f59e0b;
+        }
+
+        .status-bar.error {
+            background-color: #dc2626;
+        }
+
+        .status-bar.success {
+            background-color: #16a34a;
+        }
+
+        .tabs {
+            display: flex;
+            background-color: #252526;
+            border-bottom: 1px solid #3e3e42;
+            flex-shrink: 0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-size: 13px;
+            color: #969696;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #cccccc;
+        }
+
+        .tab.active {
+            color: #ffffff;
+            border-bottom-color: #007acc;
+        }
+
+        .output-section {
+            display: none;
+        }
+
+        .output-section.active {
+            display: block;
+        }
+
+        .lint-issue {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-left: 3px solid;
+            background-color: #2d2d30;
+            border-radius: 3px;
+        }
+
+        .lint-issue.error {
+            border-left-color: #f48771;
+        }
+
+        .lint-issue.warning {
+            border-left-color: #cca700;
+        }
+
+        .lint-issue.info {
+            border-left-color: #75beff;
+        }
+
+        .lint-issue-header {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .lint-issue-message {
+            margin-bottom: 5px;
+        }
+
+        .lint-issue-suggestion {
+            font-style: italic;
+            color: #888;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .left-panel {
+                border-right: none;
+                border-bottom: 1px solid #3e3e42;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>
+            🚀 JCL Playground
+            <span class="version" id="version"></span>
+        </h1>
+        <div class="header-actions">
+            <a href="https://github.com/turner-hemmer/jcl" class="github-link" target="_blank">
+                📖 Documentation
+            </a>
+        </div>
+    </header>
+
+    <div id="status" class="status-bar loading">
+        ⏳ Loading JCL WebAssembly module...
+    </div>
+
+    <div class="container">
+        <div class="left-panel">
+            <div class="panel-header">
+                <span class="panel-title">📝 Editor</span>
+                <select class="examples-dropdown" onchange="loadExample(this.value)">
+                    <option value="">Examples...</option>
+                    <option value="hello">Hello World</option>
+                    <option value="functions">Functions</option>
+                    <option value="collections">Collections</option>
+                    <option value="templates">Templates</option>
+                    <option value="conditional">Conditionals</option>
+                    <option value="loops">Loops</option>
+                    <option value="complex">Complex Example</option>
+                </select>
+            </div>
+            <div class="editor-container">
+                <textarea id="editor" spellcheck="false">/// Calculates the sum of two numbers
+/// Returns the result as an integer
+fn add(x: int, y: int): int = x + y
+
+/// Greets a person by name
+fn greet(name: string) = "Hello, " + name + "!"
+
+result = add(5, 3)
+message = greet("World")</textarea>
+            </div>
+            <div class="toolbar">
+                <button onclick="runAction('parse')" disabled id="parseBtn" title="Parse the code">
+                    ✓ Parse
+                </button>
+                <button onclick="runAction('format')" disabled id="formatBtn" class="success" title="Format the code">
+                    ✨ Format
+                </button>
+                <button onclick="runAction('lint')" disabled id="lintBtn" class="secondary" title="Lint the code">
+                    🔍 Lint
+                </button>
+                <button onclick="runAction('docs')" disabled id="docsBtn" class="secondary" title="Generate documentation">
+                    📄 Docs
+                </button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('output')">Output</div>
+                <div class="tab" onclick="switchTab('formatted')">Formatted</div>
+                <div class="tab" onclick="switchTab('lint')">Lint Results</div>
+                <div class="tab" onclick="switchTab('docs')">Documentation</div>
+            </div>
+            <div class="output-container">
+                <div id="output-tab" class="output-section active">
+                    <div class="output-content" id="output">
+                        Welcome to the JCL Playground! 👋
+
+Try these actions:
+• ✓ Parse - Check if your code is valid
+• ✨ Format - Auto-format your code
+• 🔍 Lint - Check for code quality issues
+• 📄 Docs - Generate documentation
+
+Select an example from the dropdown to get started.
+                    </div>
+                </div>
+                <div id="formatted-tab" class="output-section">
+                    <div class="output-content" id="formatted">No formatted output yet.</div>
+                </div>
+                <div id="lint-tab" class="output-section">
+                    <div id="lint-results">No lint results yet.</div>
+                </div>
+                <div id="docs-tab" class="output-section">
+                    <div class="output-content" id="docs">No documentation generated yet.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        let jcl;
+        let currentTab = 'output';
+
+        const examples = {
+            hello: `/// A simple hello world example
+message = "Hello, World!"
+
+/// Calculate a simple sum
+result = 5 + 3`,
+
+            functions: `/// Calculates the total price including tax
+/// @param price The base price
+/// @param tax The tax rate (e.g., 0.08 for 8%)
+fn calculate_total(price: float, tax: float): float =
+    price * (1.0 + tax)
+
+/// Validates an email address
+/// @param email The email to validate
+fn is_valid_email(email: string): bool =
+    email.contains("@") and email.contains(".")
+
+/// Formats a person's full name
+fn format_name(first: string, last: string) =
+    first + " " + last
+
+total = calculate_total(100.0, 0.08)
+valid = is_valid_email("user@example.com")
+name = format_name("John", "Doe")`,
+
+            collections: `/// List of server configurations
+servers = [
+    (name = "web-1", host = "10.0.1.10", port = 8080),
+    (name = "web-2", host = "10.0.1.11", port = 8080),
+    (name = "api-1", host = "10.0.2.10", port = 3000),
+    (name = "db-1", host = "10.0.3.10", port = 5432)
+]
+
+/// Configuration map
+config = (
+    database = "postgresql",
+    max_connections = 100,
+    ssl_enabled = true,
+    timeout_seconds = 30
+)
+
+/// Extract server names
+server_names = [s.name for s in servers]
+
+/// Filter web servers
+web_servers = [s for s in servers if s.name.contains("web")]`,
+
+            templates: `/// Template for greeting messages
+greeting_template = "Hello, {{name}}! Welcome to {{place}}."
+
+/// Configuration values
+user_name = "Alice"
+location = "Wonderland"
+
+/// Render template
+message = template(greeting_template, (
+    name = user_name,
+    place = location
+))
+
+/// SQL query template
+query_template = "SELECT * FROM {{table}} WHERE {{condition}}"
+
+query = template(query_template, (
+    table = "users",
+    condition = "age > 18"
+))`,
+
+            conditional: `/// Configuration based on environment
+environment = "production"
+
+/// Use conditional expressions
+db_host = if environment == "production"
+    then "prod-db.example.com"
+    else "localhost"
+
+/// Use when for pattern matching
+log_level = when environment (
+    "production" => "error",
+    "staging" => "warn",
+    "development" => "debug",
+    _ => "info"
+)
+
+/// Conditional port assignment
+port = if environment == "production" then 443 else 8080`,
+
+            loops: `/// Generate a range of numbers
+numbers = [1, 2, 3, 4, 5]
+
+/// Transform with list comprehension
+squares = [x * x for x in numbers]
+
+/// Filter with condition
+even_squares = [x * x for x in numbers if x % 2 == 0]
+
+/// Iterate over multiple lists
+colors = ["red", "green", "blue"]
+sizes = ["small", "medium", "large"]
+
+/// Cartesian product with for loop
+combinations = []
+for color, size in colors, sizes (
+    item = (color = color, size = size)
+    combinations = combinations + [item]
+)`,
+
+            complex: `/// Complex configuration example demonstrating multiple features
+
+/// Database configuration
+db_config = (
+    host = "localhost",
+    port = 5432,
+    database = "myapp",
+    ssl = true
+)
+
+/// Server configuration with calculated values
+server_config = (
+    host = "0.0.0.0",
+    port = 8080,
+    workers = 4,
+    connection_string = "postgresql://" + db_config.host + ":" + str(db_config.port)
+)
+
+/// Environment-specific settings
+fn get_log_level(env: string) =
+    when env (
+        "production" => "error",
+        "staging" => "warn",
+        _ => "debug"
+    )
+
+environment = "development"
+log_level = get_log_level(environment)
+
+/// Generate server instances
+fn create_server(id: int, base_port: int) =
+    (
+        id = id,
+        name = "server-" + str(id),
+        port = base_port + id,
+        enabled = true
+    )
+
+servers = [create_server(i, 8000) for i in [1, 2, 3, 4]]
+
+/// Filter enabled servers
+active_servers = [s for s in servers if s.enabled]
+active_count = length(active_servers)`
+        };
+
+        window.loadExample = function(exampleKey) {
+            if (exampleKey && examples[exampleKey]) {
+                document.getElementById('editor').value = examples[exampleKey];
+                updateOutput('Example loaded! Try parsing or formatting the code.', 'output');
+            }
+        };
+
+        window.switchTab = function(tabName) {
+            currentTab = tabName;
+
+            // Update tab UI
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.output-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(tabName + '-tab').classList.add('active');
+        };
+
+        function updateStatus(message, type = 'loading') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status-bar ' + type;
+        }
+
+        function updateOutput(content, tabName = null) {
+            const outputEl = document.getElementById(tabName || currentTab);
+            if (outputEl) {
+                if (tabName === 'lint') {
+                    outputEl.innerHTML = content;
+                } else {
+                    outputEl.textContent = content;
+                }
+            }
+        }
+
+        window.runAction = function(action) {
+            const code = document.getElementById('editor').value;
+
+            try {
+                switch (action) {
+                    case 'parse':
+                        const parseResult = jcl.parse(code);
+                        if (parseResult.is_success()) {
+                            updateOutput('✅ Parse successful!\n\n' + parseResult.value(), 'output');
+                            updateStatus('Parse successful', 'success');
+                            switchTabByName('output');
+                        } else {
+                            updateOutput('❌ Parse error:\n\n' + parseResult.error(), 'output');
+                            updateStatus('Parse failed', 'error');
+                            switchTabByName('output');
+                        }
+                        break;
+
+                    case 'format':
+                        const formatResult = jcl.format(code);
+                        if (formatResult.is_success()) {
+                            document.getElementById('editor').value = formatResult.value();
+                            updateOutput(formatResult.value(), 'formatted');
+                            updateStatus('Code formatted successfully', 'success');
+                            switchTabByName('formatted');
+                        } else {
+                            updateOutput('❌ Format error:\n\n' + formatResult.error(), 'formatted');
+                            updateStatus('Format failed', 'error');
+                            switchTabByName('formatted');
+                        }
+                        break;
+
+                    case 'lint':
+                        const lintResult = jcl.lint(code);
+                        if (lintResult.is_success()) {
+                            const value = lintResult.value();
+                            if (value === "No issues found") {
+                                updateOutput('<div style="color: #4CAF50; padding: 20px; text-align: center;">✅ No lint issues found!</div>', 'lint');
+                                updateStatus('No lint issues', 'success');
+                            } else {
+                                try {
+                                    const issues = JSON.parse(value);
+                                    let html = '';
+                                    issues.forEach(issue => {
+                                        const severity = issue.severity.toLowerCase();
+                                        html += `<div class="lint-issue ${severity}">`;
+                                        html += `<div class="lint-issue-header">${severity.toUpperCase()}: ${issue.rule}</div>`;
+                                        html += `<div class="lint-issue-message">${issue.message}</div>`;
+                                        if (issue.suggestion) {
+                                            html += `<div class="lint-issue-suggestion">💡 ${issue.suggestion}</div>`;
+                                        }
+                                        html += '</div>';
+                                    });
+                                    updateOutput(html, 'lint');
+                                    updateStatus(`Found ${issues.length} lint issue(s)`, 'error');
+                                } catch (e) {
+                                    updateOutput(value, 'lint');
+                                    updateStatus('Lint completed', 'success');
+                                }
+                            }
+                            switchTabByName('lint');
+                        } else {
+                            updateOutput('❌ Lint error:\n\n' + lintResult.error(), 'lint');
+                            updateStatus('Lint failed', 'error');
+                            switchTabByName('lint');
+                        }
+                        break;
+
+                    case 'docs':
+                        const docsResult = jcl.generate_docs(code, 'example');
+                        if (docsResult.is_success()) {
+                            updateOutput(docsResult.value(), 'docs');
+                            updateStatus('Documentation generated', 'success');
+                            switchTabByName('docs');
+                        } else {
+                            updateOutput('❌ Documentation error:\n\n' + docsResult.error(), 'docs');
+                            updateStatus('Documentation generation failed', 'error');
+                            switchTabByName('docs');
+                        }
+                        break;
+                }
+            } catch (error) {
+                updateOutput('❌ Unexpected error:\n\n' + error.message, currentTab);
+                updateStatus('Error occurred', 'error');
+            }
+        };
+
+        function switchTabByName(tabName) {
+            currentTab = tabName;
+            document.querySelectorAll('.tab').forEach((tab, index) => {
+                tab.classList.remove('active');
+                if (tab.textContent.toLowerCase().includes(tabName)) {
+                    tab.classList.add('active');
+                }
+            });
+            document.querySelectorAll('.output-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        async function initWasm() {
+            try {
+                const wasmModule = await import('./pkg/jcl.js');
+                await wasmModule.default();
+                jcl = new wasmModule.Jcl();
+
+                const version = wasmModule.Jcl.version();
+                document.getElementById('version').textContent = `v${version}`;
+                updateStatus(`✅ JCL v${version} ready`, 'success');
+
+                // Enable buttons
+                ['parseBtn', 'formatBtn', 'lintBtn', 'docsBtn'].forEach(id => {
+                    document.getElementById(id).disabled = false;
+                });
+            } catch (error) {
+                updateStatus('❌ Failed to load WASM module', 'error');
+                updateOutput(
+                    'Failed to load JCL WebAssembly module.\n\n' +
+                    'Error: ' + error.message + '\n\n' +
+                    'Make sure you have:\n' +
+                    '1. Built the WASM module\n' +
+                    '2. Generated JS bindings with wasm-bindgen\n' +
+                    '3. Placed the files in the pkg/ directory\n' +
+                    '4. Are serving this page from a web server\n\n' +
+                    'See WASM_README.md for instructions.',
+                    'output'
+                );
+                console.error('WASM initialization error:', error);
+            }
+        }
+
+        // Add keyboard shortcuts
+        document.getElementById('editor').addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + S = Format
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (!document.getElementById('formatBtn').disabled) {
+                    runAction('format');
+                }
+            }
+            // Ctrl/Cmd + Enter = Parse
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (!document.getElementById('parseBtn').disabled) {
+                    runAction('parse');
+                }
+            }
+        });
+
+        // Initialize
+        initWasm();
+    </script>
+</body>
+</html>
