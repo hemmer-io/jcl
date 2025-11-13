@@ -1,0 +1,51 @@
+{
+  "name": "jcl",
+  "displayName": "JCL - Jack-of-All Configuration Language",
+  "description": "Syntax highlighting and language support for JCL (Jack-of-All Configuration Language)",
+  "version": "0.1.0",
+  "publisher": "jcl",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/turner-hemmer/jcl"
+  },
+  "license": "MIT OR Apache-2.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "jcl",
+    "configuration",
+    "config",
+    "infrastructure",
+    "iac"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "jcl",
+        "aliases": [
+          "JCL",
+          "jcl"
+        ],
+        "extensions": [
+          ".jcl"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/jcl-icon.png",
+          "dark": "./images/jcl-icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jcl",
+        "scopeName": "source.jcl",
+        "path": "./syntaxes/jcl.tmLanguage.json"
+      }
+    ]
+  }
+}

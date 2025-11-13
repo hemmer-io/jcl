@@ -1,0 +1,194 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "JCL",
+  "scopeName": "source.jcl",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#functions" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#booleans" },
+    { "include": "#operators" },
+    { "include": "#variables" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.jcl",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.jcl",
+          "match": "\\b(if|then|else|when|for|in|import|return|break|continue)\\b"
+        },
+        {
+          "name": "keyword.other.jcl",
+          "match": "\\b(fn|mut)\\b"
+        },
+        {
+          "name": "constant.language.jcl",
+          "match": "\\b(null)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.jcl",
+          "match": "\\b(string|int|float|bool|list|map|any)\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.jcl",
+          "match": "\\b(upper|lower|trim|trimprefix|trimsuffix|replace|split|join|format|substr|strlen|base64encode|base64decode|jsonencode|jsondecode|yamlencode|yamldecode|tomlencode|tomldecode|urlencode|urldecode|length|len|contains|keys|values|merge|lookup|reverse|sort|slice|distinct|flatten|compact|min|max|sum|avg|abs|ceil|floor|round|tostring|str|tonumber|int|float|tobool|tolist|tomap|md5|sha1|sha256|sha512|hash|timestamp|formatdate|timeadd|file|fileexists|dirname|basename|abspath|template|templatefile|range|zipmap|coalesce|try|cartesian|combinations|permutations|product|map|filter|reduce)\\b"
+        },
+        {
+          "name": "entity.name.function.jcl",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()"
+        },
+        {
+          "name": "entity.name.function.definition.jcl",
+          "match": "(?<=fn\\s+)([a-zA-Z_][a-zA-Z0-9_]*)"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.jcl",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.jcl",
+              "match": "\\\\([\"\\\\/bfnrt]|u[0-9a-fA-F]{4})"
+            },
+            {
+              "name": "meta.embedded.expression.jcl",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "patterns": [
+                { "include": "#keywords" },
+                { "include": "#functions" },
+                { "include": "#operators" },
+                { "include": "#variables" },
+                { "include": "#numbers" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.jcl",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.jcl",
+              "match": "\\\\(['\\\\/bfnrt]|u[0-9a-fA-F]{4})"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.triple.jcl",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "patterns": [
+            {
+              "name": "meta.embedded.expression.jcl",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "patterns": [
+                { "include": "#keywords" },
+                { "include": "#functions" },
+                { "include": "#operators" },
+                { "include": "#variables" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.jcl",
+          "match": "\\b\\d+\\.\\d+([eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.jcl",
+          "match": "\\b\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.hex.jcl",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        }
+      ]
+    },
+    "booleans": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.jcl",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.jcl",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.operator.comparison.jcl",
+          "match": "(==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.assignment.jcl",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.arithmetic.jcl",
+          "match": "(\\+\\+|\\*\\*|\\+|-|\\*|/|%)"
+        },
+        {
+          "name": "keyword.operator.lambda.jcl",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.null-coalescing.jcl",
+          "match": "(\\?\\?|\\?\\.)"
+        },
+        {
+          "name": "keyword.operator.pipe.jcl",
+          "match": "\\|"
+        },
+        {
+          "name": "keyword.operator.ternary.jcl",
+          "match": "[?:]"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.parameter.jcl",
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b(?=\\s*:)"
+        },
+        {
+          "name": "variable.other.jcl",
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}
