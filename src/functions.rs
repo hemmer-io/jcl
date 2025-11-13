@@ -99,15 +99,19 @@ impl FunctionRegistry {
         registry.register("formatdate", fn_formatdate);
         registry.register("timeadd", fn_timeadd);
 
-        // Filesystem functions
-        registry.register("file", fn_file);
-        registry.register("fileexists", fn_fileexists);
-        registry.register("dirname", fn_dirname);
-        registry.register("basename", fn_basename);
-        registry.register("abspath", fn_abspath);
+        // Filesystem functions (not available in WASM)
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            registry.register("file", fn_file);
+            registry.register("fileexists", fn_fileexists);
+            registry.register("dirname", fn_dirname);
+            registry.register("basename", fn_basename);
+            registry.register("abspath", fn_abspath);
+        }
 
         // Template functions
         registry.register("template", fn_template);
+        #[cfg(not(target_arch = "wasm32"))]
         registry.register("templatefile", fn_templatefile);
 
         // Utility functions
@@ -694,6 +698,7 @@ fn fn_timeadd(args: &[Value]) -> Result<Value> {
 // FILESYSTEM FUNCTIONS
 // =============================================================================
 
+#[cfg(not(target_arch = "wasm32"))]
 fn fn_file(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "file")?;
     let path = as_string(&args[0])?;
@@ -701,12 +706,14 @@ fn fn_file(args: &[Value]) -> Result<Value> {
     Ok(Value::String(content))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn fn_fileexists(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "fileexists")?;
     let path = as_string(&args[0])?;
     Ok(Value::Bool(std::path::Path::new(&path).exists()))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn fn_dirname(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "dirname")?;
     let path = as_string(&args[0])?;
@@ -717,6 +724,7 @@ fn fn_dirname(args: &[Value]) -> Result<Value> {
     Ok(Value::String(parent.to_string()))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn fn_basename(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "basename")?;
     let path = as_string(&args[0])?;
@@ -727,6 +735,7 @@ fn fn_basename(args: &[Value]) -> Result<Value> {
     Ok(Value::String(name.to_string()))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn fn_abspath(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "abspath")?;
     let path = as_string(&args[0])?;
@@ -757,6 +766,7 @@ fn fn_template(args: &[Value]) -> Result<Value> {
     Ok(Value::String(rendered))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn fn_templatefile(args: &[Value]) -> Result<Value> {
     require_args(args, 2, "templatefile")?;
     let path = as_string(&args[0])?;

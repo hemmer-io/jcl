@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JCL WebAssembly Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #output {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 100px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .status.loading {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .example-buttons {
+            margin: 10px 0;
+        }
+        .example-buttons button {
+            background-color: #007bff;
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+        .example-buttons button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 JCL WebAssembly Demo</h1>
+
+    <div id="status" class="status loading">
+        ⏳ Loading JCL WebAssembly module...
+    </div>
+
+    <div class="container">
+        <h2>📝 Input Code</h2>
+        <div class="example-buttons">
+            <strong>Examples:</strong>
+            <button onclick="loadExample('basic')">Basic</button>
+            <button onclick="loadExample('functions')">Functions</button>
+            <button onclick="loadExample('collections')">Collections</button>
+            <button onclick="loadExample('templates')">Templates</button>
+        </div>
+        <textarea id="input" rows="15">/// Calculates the sum of two numbers
+fn add(x: int, y: int): int = x + y
+
+/// Greets a person by name
+fn greet(name: string) = "Hello, " + name + "!"
+
+result = add(5, 3)
+message = greet("World")</textarea>
+    </div>
+
+    <div class="container">
+        <h2>⚡ Actions</h2>
+        <button onclick="parseCode()" disabled id="parseBtn">✓ Parse</button>
+        <button onclick="formatCode()" disabled id="formatBtn">✨ Format</button>
+        <button onclick="lintCode()" disabled id="lintBtn">🔍 Lint</button>
+        <button onclick="generateDocs()" disabled id="docsBtn">📄 Generate Docs</button>
+    </div>
+
+    <div class="container">
+        <h2>📤 Output</h2>
+        <pre id="output">Output will appear here...</pre>
+    </div>
+
+    <script type="module">
+        // NOTE: This example assumes you've built the WASM module with wasm-bindgen
+        // and placed the generated files in a 'pkg' directory.
+        //
+        // To build:
+        // cargo install wasm-bindgen-cli
+        // cargo build --target wasm32-unknown-unknown --lib --no-default-features --features wasm --release
+        // wasm-bindgen target/wasm32-unknown-unknown/release/jcl.wasm --out-dir pkg --target web
+
+        // For this demo to work, you need to:
+        // 1. Build the WASM module (see above)
+        // 2. Start a local web server (e.g., `python -m http.server`)
+        // 3. Open this HTML file in your browser
+
+        let jcl;
+
+        async function initWasm() {
+            const statusEl = document.getElementById('status');
+
+            try {
+                // Import the WASM module
+                // NOTE: Update this path if you've placed the pkg directory elsewhere
+                const wasmModule = await import('./pkg/jcl.js');
+                await wasmModule.default();
+                jcl = new wasmModule.Jcl();
+
+                statusEl.className = 'status success';
+                statusEl.textContent = '✅ JCL WebAssembly module loaded successfully! Version: ' +
+                    wasmModule.Jcl.version();
+
+                // Enable buttons
+                document.getElementById('parseBtn').disabled = false;
+                document.getElementById('formatBtn').disabled = false;
+                document.getElementById('lintBtn').disabled = false;
+                document.getElementById('docsBtn').disabled = false;
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ Failed to load WASM module: ' + error.message +
+                    '\n\nMake sure you have built the WASM module and are running this from a web server.';
+                console.error('Error loading WASM:', error);
+            }
+        }
+
+        window.parseCode = function() {
+            const input = document.getElementById('input').value;
+            const result = jcl.parse(input);
+
+            if (result.is_success()) {
+                document.getElementById('output').textContent =
+                    '✅ Parse successful!\n\n' + result.value();
+            } else {
+                document.getElementById('output').textContent =
+                    '❌ Parse error:\n\n' + result.error();
+            }
+        };
+
+        window.formatCode = function() {
+            const input = document.getElementById('input').value;
+            const result = jcl.format(input);
+
+            if (result.is_success()) {
+                document.getElementById('input').value = result.value();
+                document.getElementById('output').textContent =
+                    '✅ Code formatted successfully!';
+            } else {
+                document.getElementById('output').textContent =
+                    '❌ Format error:\n\n' + result.error();
+            }
+        };
+
+        window.lintCode = function() {
+            const input = document.getElementById('input').value;
+            const result = jcl.lint(input);
+
+            if (result.is_success()) {
+                document.getElementById('output').textContent = result.value();
+            } else {
+                document.getElementById('output').textContent =
+                    '❌ Linter error:\n\n' + result.error();
+            }
+        };
+
+        window.generateDocs = function() {
+            const input = document.getElementById('input').value;
+            const result = jcl.generate_docs(input, 'example');
+
+            if (result.is_success()) {
+                document.getElementById('output').textContent = result.value();
+            } else {
+                document.getElementById('output').textContent =
+                    '❌ Documentation generation error:\n\n' + result.error();
+            }
+        };
+
+        const examples = {
+            basic: `/// A simple configuration example
+port: int = 8080
+host = "localhost"
+debug = true`,
+
+            functions: `/// Calculates the total price including tax
+fn calculate_total(price: float, tax: float): float = price * (1.0 + tax)
+
+/// Validates an email address
+fn is_valid_email(email: string): bool =
+    email.contains("@") and email.contains(".")
+
+total = calculate_total(100.0, 0.08)
+valid = is_valid_email("user@example.com")`,
+
+            collections: `/// List of server configurations
+servers = [
+    (name = "web-1", port = 8080),
+    (name = "web-2", port = 8081),
+    (name = "api-1", port = 3000)
+]
+
+/// Configuration map
+config = (
+    database = "postgresql",
+    max_connections = 100,
+    ssl_enabled = true
+)`,
+
+            templates: `/// Template for greeting messages
+greeting_template = "Hello, {{name}}! Welcome to {{place}}."
+
+/// Configuration values
+user_name = "Alice"
+location = "Wonderland"
+
+/// Render template (note: template() works, but templatefile() needs filesystem access)
+message = template(greeting_template, (name = user_name, place = location))`
+        };
+
+        window.loadExample = function(exampleName) {
+            document.getElementById('input').value = examples[exampleName];
+            document.getElementById('output').textContent = 'Example loaded. Try parsing or formatting the code!';
+        };
+
+        // Initialize WASM module when page loads
+        initWasm();
+    </script>
+
+    <div class="container" style="margin-top: 30px; background-color: #f0f8ff; border: 1px solid #b0d4f1;">
+        <h2>ℹ️ Instructions</h2>
+        <ol>
+            <li>Build the WASM module:
+                <pre style="background-color: white; padding: 10px; border-radius: 4px; overflow-x: auto;">
+# Install wasm-bindgen-cli if not already installed
+cargo install wasm-bindgen-cli
+
+# Build the WASM module
+cargo build --target wasm32-unknown-unknown --lib --no-default-features --features wasm --release
+
+# Generate JavaScript bindings
+wasm-bindgen target/wasm32-unknown-unknown/release/jcl.wasm --out-dir pkg --target web</pre>
+            </li>
+            <li>Start a local web server:
+                <pre style="background-color: white; padding: 10px; border-radius: 4px;">
+# Using Python 3
+python -m http.server 8000
+
+# Or using Python 2
+python -m SimpleHTTPServer 8000
+
+# Or using Node.js with npx
+npx http-server</pre>
+            </li>
+            <li>Open <code>http://localhost:8000/wasm-example.html</code> in your browser</li>
+            <li>Try the examples and actions above!</li>
+        </ol>
+    </div>
+</body>
+</html>

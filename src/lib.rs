@@ -10,10 +10,18 @@ pub mod evaluator;
 pub mod formatter;
 pub mod functions;
 pub mod linter;
-pub mod lsp;
 pub mod parser;
-pub mod repl;
 pub mod types;
+
+// CLI-only modules
+#[cfg(feature = "cli")]
+pub mod lsp;
+#[cfg(feature = "cli")]
+pub mod repl;
+
+// WebAssembly support
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
 
 // Re-export commonly used types
 pub use ast::{Expression, Module, Statement, Value};

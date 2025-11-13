@@ -3,10 +3,29 @@
 //! Provides detailed, user-friendly error messages for parse and evaluation errors
 
 use anyhow::anyhow;
+#[cfg(not(target_arch = "wasm32"))]
 use colored::Colorize;
 use pest::error::{Error as PestError, LineColLocation};
 
 use crate::parser::Rule;
+
+// Mock colored trait for WASM
+#[cfg(target_arch = "wasm32")]
+trait Colorize {
+    fn red(&self) -> &Self { self }
+    fn yellow(&self) -> &Self { self }
+    fn blue(&self) -> &Self { self }
+    fn green(&self) -> &Self { self }
+    fn cyan(&self) -> &Self { self }
+    fn dimmed(&self) -> &Self { self }
+    fn bold(&self) -> &Self { self }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Colorize for &str {}
+
+#[cfg(target_arch = "wasm32")]
+impl Colorize for String {}
 
 /// Format a Pest parsing error with context and helpful information
 pub fn format_parse_error(error: &PestError<Rule>, input: &str) -> String {

@@ -2,10 +2,11 @@
 
 use crate::ast::{Expression, Module, Statement, Value};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 /// Severity level for lint issues
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Severity {
     Error,
     Warning,
@@ -13,7 +14,7 @@ pub enum Severity {
 }
 
 /// A lint issue found in the code
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LintIssue {
     pub severity: Severity,
     pub message: String,
