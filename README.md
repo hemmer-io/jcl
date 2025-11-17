@@ -28,10 +28,16 @@ JCL v1.0 is feature-complete with advanced programming capabilities:
 - ✅ Code formatter (`jcl fmt`) with style rules
 - ✅ Template rendering: `template()` and `templatefile()` with Handlebars
 - ✅ Lambda variable calls (call lambdas stored in variables)
-- ✅ 62 unit tests + 9 integration tests (100% passing)
+- ✅ Language Server Protocol (LSP) with diagnostics and autocomplete
+- ✅ Comprehensive linter with 9 lint rules
+- ✅ VSCode and Vim/Neovim syntax highlighting
+- ✅ Documentation generator from function definitions
+- ✅ WebAssembly compilation and online playground
+- ✅ C Foreign Function Interface (FFI) for embedding
+- ✅ 70 unit tests + 9 integration tests (100% passing)
 - ✅ Zero compiler warnings
 
-**Next:** LSP support, syntax highlighting, and advanced tooling ecosystem.
+**Next:** Phase 3 - Enhanced LSP features, Python bindings, and advanced type inference.
 
 ## Key Features
 
@@ -131,14 +137,14 @@ JCL v1.0 is now fully implemented and tested! All core features are working:
 
 Next step: Phase 2 - Higher-order functions, advanced type checking, LSP, and tooling ecosystem.
 
-## Integration with Hemmer
+## Integration
 
-JCL is designed as a configuration language that can be used by other tools. **Hemmer** is a companion tool that uses JCL for infrastructure as code:
+JCL is designed as a general-purpose configuration language that can be embedded in other tools:
 
 - **JCL**: The configuration language with syntax, parser, type system, and built-in functions
-- **Hemmer**: Infrastructure provisioning tool that uses JCL for configuration (handles modules, registry, cloud providers, etc.)
+- **Embedding**: Use C FFI, WebAssembly, or future Python bindings to integrate JCL into your tools
 
-This separation allows JCL to be a general-purpose configuration language that can be embedded in multiple tools, not just IaC.
+This separation allows JCL to be a versatile configuration language that can be embedded in multiple applications.
 
 ## Architecture
 
@@ -155,36 +161,41 @@ Built in Rust for:
 
 ## Roadmap
 
-**Core Language:**
-- [x] Language specification and grammar (Pest PEG parser) - **v1.0 Complete!**
-- [x] Built-in functions library (56+ functions) - **Phase 1 Complete!**
+**Phase 1 - Core Language (Complete):**
+- [x] Language specification and grammar (Pest PEG parser)
+- [x] Built-in functions library (56+ functions)
 - [x] Templating patterns documentation
-- [x] Parser implementation (Pratt parser for expressions) - **Phase 1 Complete!**
-- [x] Expression evaluator with all operators - **Phase 1 Complete!**
-- [x] String interpolation engine - **Phase 1 Complete!**
-- [x] Basic type system with inference - **Phase 1 Complete!**
-- [x] Parser with error recovery and comprehensive error messages - **Phase 1 Complete!**
-- [x] REPL for interactive testing - **Phase 1 Complete!**
-- [x] Higher-order functions (map, filter, reduce) with lambda support - **Phase 2 Complete!**
-- [x] Runtime type validation during evaluation - **Phase 2 Complete!**
-- [x] Template rendering (template, templatefile) with Handlebars - **Phase 2 Complete!**
-- [ ] Language server protocol (LSP) support
-- [ ] Advanced static type inference
+- [x] Parser implementation (Pratt parser for expressions)
+- [x] Expression evaluator with all operators
+- [x] String interpolation engine
+- [x] Basic type system with inference
+- [x] Parser with error recovery and comprehensive error messages
+- [x] REPL for interactive testing
 
-**Tooling:**
-- [x] Basic CLI for standalone use (parse, validate, init, fmt, repl) - **Phase 1 Complete!**
-- [x] Code formatter with style rules (jcl fmt) - **Phase 2 Complete!**
-- [ ] Linter with style checks and best practices
-- [ ] Syntax highlighting (VSCode extension)
-- [ ] Vim/Neovim syntax files
-- [ ] Documentation generator from function definitions
+**Phase 2 - Tooling & Integration (Complete):**
+- [x] Higher-order functions (map, filter, reduce) with lambda support
+- [x] Runtime type validation during evaluation
+- [x] Template rendering (template, templatefile) with Handlebars
+- [x] Code formatter with style rules (jcl fmt)
+- [x] Language Server Protocol (LSP) with diagnostics and autocomplete
+- [x] Comprehensive linter with 9 lint rules
+- [x] Syntax highlighting (VSCode extension)
+- [x] Vim/Neovim syntax files
+- [x] Documentation generator from function definitions
+- [x] C FFI for embedding in other languages
+- [x] WebAssembly compilation
+- [x] Online playground with WASM
 
-**Integration:**
-- [ ] C FFI for embedding in other languages
+**Phase 3 - Advanced Features (Planned):**
+- [ ] Printf-style `format()` function implementation
+- [ ] Expression-level try/catch error handling
+- [ ] LSP: Go to Definition
+- [ ] LSP: Find References
+- [ ] LSP: Rename Symbol
+- [ ] LSP: Code Actions and Quick Fixes
+- [ ] LSP: Position-aware diagnostics (line/column precision)
 - [ ] Python bindings (PyO3)
-- [ ] WebAssembly compilation
-- [ ] Online playground with WASM
-- [ ] Integration examples with Hemmer
+- [ ] Advanced static type inference
 
 ## Why JCL?
 
