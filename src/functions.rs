@@ -1332,20 +1332,24 @@ mod tests {
 
     #[test]
     fn test_templatefile() {
-        // Create temporary template file
-        let temp_file = "/tmp/jcl_test_template_unique.txt";
-        std::fs::write(temp_file, "Hello, {{name}}!").unwrap();
+        // Create temporary template file using platform-appropriate temp directory
+        let temp_dir = std::env::temp_dir();
+        let temp_file = temp_dir.join("jcl_test_template_unique.txt");
+        std::fs::write(&temp_file, "Hello, {{name}}!").unwrap();
 
         let vars = vec![("name".to_string(), Value::String("World".to_string()))]
             .into_iter()
             .collect();
 
-        let result =
-            fn_templatefile(&[Value::String(temp_file.to_string()), Value::Map(vars)]).unwrap();
+        let result = fn_templatefile(&[
+            Value::String(temp_file.to_string_lossy().to_string()),
+            Value::Map(vars),
+        ])
+        .unwrap();
 
         assert_eq!(result, Value::String("Hello, World!".to_string()));
 
         // Cleanup
-        std::fs::remove_file(temp_file).ok();
+        std::fs::remove_file(&temp_file).ok();
     }
 }
