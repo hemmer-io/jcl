@@ -6,74 +6,65 @@ A modern, safe, and flexible general-purpose configuration language with powerfu
 
 JCL is a general-purpose configuration language designed to be human-readable, type-safe, and powerful. It provides a rich standard library of functions for data manipulation, encoding/decoding (YAML, JSON, Base64), templating, string operations, and more. Built in Rust for performance and safety, JCL can be embedded in other tools (like Hemmer for IaC) or used standalone for configuration management.
 
-## Status
+## Installation
 
-**Phase 4 Complete! 🚀**
+### Via Cargo (Rust)
 
-JCL v1.0 is production-ready with comprehensive tooling, multi-language bindings, and complete documentation:
+```bash
+cargo install jcl
+```
 
-**Phase 1 (Complete):**
-- ✅ Complete Pratt parser with proper operator precedence
-- ✅ Full expression evaluator (arithmetic, logical, comparison, null-safety)
-- ✅ String interpolation with `${...}` syntax
-- ✅ List comprehensions, pipelines, pattern matching
-- ✅ Lambda functions and user-defined functions
-- ✅ 56+ built-in functions (string, encoding, collections, numeric, hashing, time)
-- ✅ Interactive REPL with history and state management
-- ✅ Comprehensive error messages with context and hints
+### Via Binary Download
 
-**Phase 2 (Complete):**
-- ✅ Higher-order functions: `map()`, `filter()`, `reduce()` with lambda support
-- ✅ Runtime type validation with annotations
-- ✅ Advanced static type inference with expression-level checking
-- ✅ Code formatter (`jcl fmt`) with style rules
-- ✅ Template rendering: `template()` and `templatefile()` with Handlebars
-- ✅ Lambda variable calls (call lambdas stored in variables)
-- ✅ Language Server Protocol (LSP) with diagnostics and autocomplete
-- ✅ Comprehensive linter with 9 lint rules
-- ✅ VSCode and Vim/Neovim syntax highlighting
-- ✅ Documentation generator from function definitions
-- ✅ WebAssembly compilation and online playground
-- ✅ C Foreign Function Interface (FFI) for embedding
-- ✅ 117 unit tests + 9 integration tests (100% passing)
-- ✅ Zero compiler warnings
+Download pre-built binaries from the [releases page](https://github.com/turner-hemmer/jcl/releases).
 
-**Phase 3 (Complete):**
-- ✅ Printf-style `format()` function with full specifier support
-- ✅ Expression-level try/catch error handling
-- ✅ Schema validation tool (`jcl-validate`)
-- ✅ Format migration tool (`jcl-migrate`) for JSON/YAML/TOML
-- ✅ Auto-format watcher (`jcl-watch`)
-- ✅ Performance benchmarking tool (`jcl-bench`)
-- ✅ LSP: Go to Definition with symbol table
-- ✅ LSP: Find References
-- ✅ LSP: Rename Symbol
-- ✅ LSP: Position-aware diagnostics with line/column precision
-- ✅ Multi-language bindings: Python, Node.js, Go, Java, Ruby
+### From Source
 
-**Phase 4 (Complete):**
-- ✅ Comprehensive documentation site with Jekyll
-- ✅ Getting started guide with tutorials
-- ✅ Complete CLI tools reference
-- ✅ 70+ built-in functions documented
-- ✅ Comparison guide (vs JSON/YAML/TOML/HCL)
-- ✅ GitHub Pages deployment workflow
+```bash
+git clone https://github.com/turner-hemmer/jcl.git
+cd jcl
+cargo build --release
+```
 
-**Next:** Testing (integration tests for CLI, LSP, and language bindings) and publishing to package registries (crates.io, PyPI, npm).
+## Quick Start
+
+```bash
+# Run the interactive REPL
+jcl
+
+# Evaluate a JCL file
+jcl eval config.jcl
+
+# Format JCL files
+jcl-fmt config.jcl
+
+# Validate against a schema
+jcl-validate --schema schema.jcl config.jcl
+
+# Migrate from other formats
+jcl-migrate config.json --from json
+```
+
+## Documentation
+
+- **[Getting Started Guide](https://turner-hemmer.github.io/jcl/getting-started/)** - Learn JCL basics
+- **[Language Specification](https://turner-hemmer.github.io/jcl/reference/language-spec)** - Complete syntax reference
+- **[Built-in Functions](https://turner-hemmer.github.io/jcl/reference/functions)** - 70+ functions documented
+- **[CLI Tools](https://turner-hemmer.github.io/jcl/reference/cli-tools)** - Command-line utilities
+- **[Comparison Guide](https://turner-hemmer.github.io/jcl/guides/comparison)** - JCL vs other formats
 
 ## Key Features
 
 🎯 **General-Purpose Configuration**
 - Clean, human-readable syntax with minimal punctuation
-- Rich standard library of 56+ built-in functions
+- Rich standard library of 70+ built-in functions
 - Can be embedded or used standalone
 
-🔒 **Safety First**
+🔒 **Type Safety**
 - Advanced static type inference catches errors before runtime
-- Strong type system with expression-level checking
+- Expression-level type checking with Hindley-Milner style inference
+- Runtime type validation with annotations
 - Immutability by default
-- Validation at every stage
-- Dry-run and plan before apply
 
 🚀 **Powerful Built-in Functions**
 - **String operations**: upper, lower, trim, replace, split, join, format
@@ -140,34 +131,43 @@ nginx_config = templatefile(nginx.conf.tpl, (
 ))
 ```
 
-## Project Status
+## Features
 
-🎉 **Phase 1 Complete - Fully Functional!** 🎉
+### Core Language
+- **Type System**: Advanced static type inference with expression-level checking
+- **Collections**: Lists `[]` and maps `()` with comprehensive manipulation functions
+- **String Interpolation**: `"Hello, ${name}!"` syntax for dynamic strings
+- **Null Safety**: `?.` optional chaining and `??` null coalescing operators
+- **Functions**: Lambda expressions (`x => x * 2`) and named functions (`fn double(x) = x * 2`)
+- **Control Flow**: Ternary operators, if/then/else, when expressions
+- **List Comprehensions**: `[x * 2 for x in numbers if x > 0]`
+- **Error Handling**: `try()` for graceful error recovery
+- **Import System**: Modular configuration files
 
-JCL v1.0 is now fully implemented and tested! All core features are working:
-- ✅ Language syntax and grammar (see [LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md))
-- ✅ Collection syntax: `[]` for lists, `()` for maps
-- ✅ String interpolation with `${...}`
-- ✅ Null safety operators: `?.` and `??`
-- ✅ Control flow: ternary, if/then/else, when expressions
-- ✅ Functions: lambda (`x => x * 2`) and named (`fn name(x) = ...`)
-- ✅ For loops and list comprehensions
-- ✅ Import system
-- ✅ Error handling with `try()` and fail-fast
-- ✅ Templating patterns (see [TEMPLATING.md](docs/TEMPLATING.md))
-- ✅ Interactive REPL with history
-- ✅ Comprehensive error messages
+### Tooling Ecosystem
+- **REPL**: Interactive shell with history and state management
+- **Formatter** (`jcl-fmt`): Automatic code formatting with configurable style
+- **Linter**: 9 comprehensive lint rules for code quality
+- **LSP**: Full Language Server Protocol support (diagnostics, autocomplete, go-to-definition, rename)
+- **Validator** (`jcl-validate`): Schema-based validation
+- **Migrator** (`jcl-migrate`): Convert from JSON, YAML, TOML to JCL
+- **Watcher** (`jcl-watch`): Auto-format on file changes
+- **Benchmarking** (`jcl-bench`): Performance measurement tools
 
-Next step: Phase 2 - Higher-order functions, advanced type checking, LSP, and tooling ecosystem.
+### Multi-Language Support
+- **Rust**: Native implementation (crate available on crates.io)
+- **Python**: PyO3 bindings for Python integration
+- **Node.js**: Neon bindings for JavaScript/TypeScript
+- **Go**: cgo bindings for Go projects
+- **Java**: JNI bindings for Java applications
+- **Ruby**: Magnus bindings for Ruby gems
+- **WebAssembly**: Browser and serverless support
+- **C FFI**: Embed in any language with C interop
 
-## Integration
-
-JCL is designed as a general-purpose configuration language that can be embedded in other tools:
-
-- **JCL**: The configuration language with syntax, parser, type system, and built-in functions
-- **Embedding**: Use C FFI, WebAssembly, or future Python bindings to integrate JCL into your tools
-
-This separation allows JCL to be a versatile configuration language that can be embedded in multiple applications.
+### Editor Support
+- **VSCode**: Full syntax highlighting and LSP integration
+- **Vim/Neovim**: Syntax files and LSP support
+- **Any LSP-compatible editor**: Diagnostics, autocomplete, formatting
 
 ## Architecture
 
@@ -182,65 +182,28 @@ Built in Rust for:
 - Easy embedding in other tools
 - Cross-platform support
 
-## Roadmap
+## Project Status
 
-**Phase 1 - Core Language (Complete):**
-- [x] Language specification and grammar (Pest PEG parser)
-- [x] Built-in functions library (56+ functions)
-- [x] Templating patterns documentation
-- [x] Parser implementation (Pratt parser for expressions)
-- [x] Expression evaluator with all operators
-- [x] String interpolation engine
-- [x] Basic type system with inference
-- [x] Parser with error recovery and comprehensive error messages
-- [x] REPL for interactive testing
+JCL v1.0.0 is production-ready! ✅
 
-**Phase 2 - Tooling & Integration (Complete):**
-- [x] Higher-order functions (map, filter, reduce) with lambda support
-- [x] Runtime type validation during evaluation
-- [x] Advanced static type inference with expression-level checking
-- [x] Template rendering (template, templatefile) with Handlebars
-- [x] Code formatter with style rules (jcl fmt)
-- [x] Language Server Protocol (LSP) with diagnostics and autocomplete
-- [x] Comprehensive linter with 9 lint rules
-- [x] Syntax highlighting (VSCode extension)
-- [x] Vim/Neovim syntax files
-- [x] Documentation generator from function definitions
-- [x] C FFI for embedding in other languages
-- [x] WebAssembly compilation
-- [x] Online playground with WASM
+- **144 tests passing** (117 unit + 18 CLI + 9 integration)
+- **Zero compiler warnings**
+- **Complete documentation** with interactive examples
+- **Multi-language bindings** for Python, Node.js, Go, Java, Ruby
+- **Full LSP support** for modern editors
+- **CI/CD pipeline** with automated testing and releases
 
-**Phase 3 - Advanced Features (Complete):**
-- [x] Printf-style `format()` function implementation
-- [x] Expression-level try/catch error handling
-- [x] LSP: Go to Definition
-- [x] LSP: Find References
-- [x] LSP: Rename Symbol
-- [x] LSP: Position-aware diagnostics (line/column precision)
-- [x] Advanced static type inference
-- [x] Python bindings (PyO3)
-- [x] Node.js bindings
-- [x] Go bindings
-- [x] Java bindings
-- [x] Ruby bindings
-
-**Phase 4 - Documentation & GitHub Pages (Complete):**
-- [x] Jekyll-based documentation site setup
-- [x] Comprehensive getting started guide
-- [x] Complete CLI tools reference (7 tools documented)
-- [x] Built-in functions reference (70+ functions)
-- [x] Comparison guide (JCL vs JSON/YAML/TOML/HCL)
-- [x] GitHub Actions workflow for automatic deployment
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Why JCL?
 
 **vs. HCL (HashiCorp Configuration Language):**
 - More human-readable syntax (less verbose, no braces)
-- Richer built-in function library (56+ functions including higher-order functions)
+- Richer built-in function library (70+ functions including higher-order functions)
+- Advanced static type inference catches errors before runtime
 - Runtime type validation with annotations
-- Better type inference
 - Cleaner string interpolation
-- Built-in code formatter
+- Built-in code formatter and linter
 
 **vs. YAML:**
 - Type-safe with validation
@@ -262,13 +225,21 @@ Built in Rust for:
 
 ## Contributing
 
-This project is in early stages. We welcome:
-- Feedback on the design
-- Syntax suggestions
-- Use case examples
-- Architecture discussions
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Code of conduct
+- Development setup
+- Testing requirements
+- Pull request process
+- Coding standards
 
-Please see [DESIGN.md](./DESIGN.md) for the current design thinking.
+For bugs, feature requests, or questions:
+- **Bug Reports**: Use our [bug report template](.github/ISSUE_TEMPLATE/bug_report.md)
+- **Feature Requests**: Use our [feature request template](.github/ISSUE_TEMPLATE/feature_request.md)
+- **Documentation**: Use our [documentation template](.github/ISSUE_TEMPLATE/documentation.md)
+
+## Security
+
+Found a security vulnerability? Please see [SECURITY.md](SECURITY.md) for responsible disclosure guidelines.
 
 ## License
 
@@ -278,6 +249,10 @@ Licensed under either of:
 
 at your option.
 
-## Contact
+## Community
 
-Project is in early development. More information coming soon!
+- **Documentation**: [https://turner-hemmer.github.io/jcl/](https://turner-hemmer.github.io/jcl/)
+- **Repository**: [https://github.com/turner-hemmer/jcl](https://github.com/turner-hemmer/jcl)
+- **Issues**: [https://github.com/turner-hemmer/jcl/issues](https://github.com/turner-hemmer/jcl/issues)
+
+Built with ❤️ in Rust

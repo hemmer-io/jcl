@@ -44,7 +44,7 @@ _site/
 .jekyll-cache/
 .sass-cache/
 
-# Planning and notes (not for publication)
+# Planning and notes (internal, not for publication)
 TODO.md
 PUBLICATION_PLAN.md
 *.local.md
