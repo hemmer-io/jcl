@@ -22,7 +22,7 @@ fn create_temp_file(name: &str, content: &str) -> String {
 
 #[test]
 fn test_jcl_eval_basic() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
         "test_eval_basic.jcl",
         r#"
@@ -47,7 +47,7 @@ z = x + 10
 
 #[test]
 fn test_jcl_eval_json_output() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
         "test_eval_json.jcl",
         r#"
@@ -83,7 +83,7 @@ value = 123
 
 #[test]
 fn test_jcl_eval_yaml_output() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
         "test_eval_yaml.jcl",
         r#"
@@ -114,7 +114,7 @@ config = (host = "localhost", port = 8080)
 
 #[test]
 fn test_jcl_eval_parse_error() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
         "test_eval_error.jcl",
         r#"
@@ -145,7 +145,7 @@ x =
 
 #[test]
 fn test_jcl_eval_nonexistent_file() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
 
     let output = Command::new(&jcl_path)
         .arg("eval")
@@ -370,7 +370,7 @@ fn test_jcl_lsp_help() {
 
 #[test]
 fn test_jcl_eval_with_functions() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
         "test_eval_functions.jcl",
         r#"
@@ -398,7 +398,7 @@ result = double(21)
 
 #[test]
 fn test_jcl_eval_with_lists() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
         "test_eval_lists.jcl",
         r#"
@@ -426,7 +426,7 @@ first = numbers[0]
 
 #[test]
 fn test_jcl_eval_with_maps() {
-    let jcl_path = get_binary_path("jcl");
+    let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
         "test_eval_maps.jcl",
         r#"

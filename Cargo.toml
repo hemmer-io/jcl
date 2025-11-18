@@ -107,7 +107,7 @@ java = ["jni", "uuid"]
 ruby = ["magnus", "uuid"]
 
 [[bin]]
-name = "jcl"
+name = "jcl-cli"
 path = "src/main.rs"
 
 [[bin]]
