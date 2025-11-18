@@ -144,13 +144,6 @@ name = "jcl"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
-# Python extension module
-[[example]]
-name = "jcl_python"
-path = "src/bindings/python.rs"
-crate-type = ["cdylib"]
-required-features = ["python"]
-
 [profile.release]
 opt-level = 3
 lto = true
