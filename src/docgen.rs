@@ -123,7 +123,7 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
         for import in &doc.imports {
             output.push_str(&format!("- `{}`\n", import));
         }
-        output.push_str("\n");
+        output.push('\n');
     }
 
     // Variables/Constants
@@ -201,7 +201,7 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
                         .unwrap_or_default();
                     output.push_str(&format!("- `{}`{}{}\n", param.name, type_str, default_str));
                 }
-                output.push_str("\n");
+                output.push('\n');
             }
 
             // Return type
@@ -348,20 +348,20 @@ fn type_to_string(typ: &Type) -> String {
 /// Infer a basic description from function name and body
 fn infer_function_description(name: &str, _body: &Expression) -> Option<String> {
     // Try to infer purpose from name
-    let description = if name.starts_with("get_") {
-        Some(format!("Gets {}", &name[4..].replace('_', " ")))
-    } else if name.starts_with("set_") {
-        Some(format!("Sets {}", &name[4..].replace('_', " ")))
-    } else if name.starts_with("is_") || name.starts_with("has_") {
-        Some(format!("Checks if {}", &name[3..].replace('_', " ")))
-    } else if name.starts_with("create_") {
-        Some(format!("Creates {}", &name[7..].replace('_', " ")))
-    } else if name.starts_with("delete_") || name.starts_with("remove_") {
-        Some(format!("Deletes {}", &name[7..].replace('_', " ")))
-    } else if name.starts_with("validate_") {
-        Some(format!("Validates {}", &name[9..].replace('_', " ")))
-    } else if name.starts_with("calculate_") || name.starts_with("compute_") {
-        Some(format!("Calculates {}", &name[10..].replace('_', " ")))
+    let description = if let Some(rest) = name.strip_prefix("get_") {
+        Some(format!("Gets {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("set_") {
+        Some(format!("Sets {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("is_").or_else(|| name.strip_prefix("has_")) {
+        Some(format!("Checks if {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("create_") {
+        Some(format!("Creates {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("delete_").or_else(|| name.strip_prefix("remove_")) {
+        Some(format!("Deletes {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("validate_") {
+        Some(format!("Validates {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("calculate_").or_else(|| name.strip_prefix("compute_")) {
+        Some(format!("Calculates {}", rest.replace('_', " ")))
     } else if name == "add" || name == "sum" {
         Some("Adds values together".to_string())
     } else if name == "subtract" || name == "sub" {

@@ -401,7 +401,7 @@ impl Validator {
                 if !valid {
                     errors.push(ValidationError {
                         path: path.to_string(),
-                        message: format!("Value does not match any type in union"),
+                        message: "Value does not match any type in union".to_string(),
                     });
                 }
             }

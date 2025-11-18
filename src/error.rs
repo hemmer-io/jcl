@@ -114,7 +114,7 @@ pub fn format_parse_error(error: &PestError<Rule>, input: &str) -> String {
         } => {
             if !positives.is_empty() {
                 output.push_str(&format!("  {} ", "Expected:".green().bold()));
-                let expected: Vec<String> = positives.iter().map(|r| format_rule_name(r)).collect();
+                let expected: Vec<String> = positives.iter().map(format_rule_name).collect();
                 output.push_str(&expected.join(", "));
                 output.push('\n');
             }
@@ -122,7 +122,7 @@ pub fn format_parse_error(error: &PestError<Rule>, input: &str) -> String {
             if !negatives.is_empty() {
                 output.push_str(&format!("  {} ", "Unexpected:".red().bold()));
                 let unexpected: Vec<String> =
-                    negatives.iter().map(|r| format_rule_name(r)).collect();
+                    negatives.iter().map(format_rule_name).collect();
                 output.push_str(&unexpected.join(", "));
                 output.push('\n');
             }

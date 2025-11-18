@@ -1,0 +1,5 @@
+# Clippy configuration for JCL
+# Allow certain pedantic lints that don't affect correctness
+
+# Allow these lints - they're stylistic preferences
+allow-unwrap-in-tests = true

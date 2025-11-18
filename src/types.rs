@@ -35,6 +35,12 @@ pub struct TypeEnvironment {
     parent: Option<Box<TypeEnvironment>>,
 }
 
+impl Default for TypeEnvironment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TypeEnvironment {
     /// Create a new empty environment
     pub fn new() -> Self {
@@ -485,7 +491,7 @@ impl TypeChecker {
                         Ok(*elem_type)
                     }
                     Type::Map(key_type, value_type) => {
-                        if !self.is_compatible(&idx_type, &*key_type) {
+                        if !self.is_compatible(&idx_type, &key_type) {
                             return Err(TypeError::new(
                                 format!(
                                     "Map key type mismatch: expected {:?}, got {:?}",

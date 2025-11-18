@@ -117,7 +117,7 @@ impl SymbolTable {
                 // Use span from AST if available, otherwise use placeholder
                 let location =
                     span.as_ref()
-                        .map(|s| Location::from(s))
+                        .map(Location::from)
                         .unwrap_or_else(|| Location {
                             line: 0,
                             column: 0,
@@ -136,7 +136,7 @@ impl SymbolTable {
             } => {
                 let location =
                     span.as_ref()
-                        .map(|s| Location::from(s))
+                        .map(Location::from)
                         .unwrap_or_else(|| Location {
                             line: 0,
                             column: 0,
@@ -166,7 +166,7 @@ impl SymbolTable {
                     if item != "*" {
                         let location =
                             span.as_ref()
-                                .map(|s| Location::from(s))
+                                .map(Location::from)
                                 .unwrap_or_else(|| Location {
                                     line: 0,
                                     column: 0,
@@ -188,7 +188,7 @@ impl SymbolTable {
                 for var in variables {
                     let location =
                         span.as_ref()
-                            .map(|s| Location::from(s))
+                            .map(Location::from)
                             .unwrap_or_else(|| Location {
                                 line: 0,
                                 column: 0,
@@ -218,7 +218,7 @@ impl SymbolTable {
             Expression::Variable { name, span } => {
                 let location =
                     span.as_ref()
-                        .map(|s| Location::from(s))
+                        .map(Location::from)
                         .unwrap_or_else(|| Location {
                             line: 0,
                             column: 0,
@@ -230,7 +230,7 @@ impl SymbolTable {
             Expression::FunctionCall { name, args, span } => {
                 let location =
                     span.as_ref()
-                        .map(|s| Location::from(s))
+                        .map(Location::from)
                         .unwrap_or_else(|| Location {
                             line: 0,
                             column: 0,

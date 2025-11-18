@@ -37,7 +37,7 @@ pub fn run_repl() -> Result<()> {
 
     loop {
         let prompt = if in_multiline {
-            format!("   ... ").yellow().bold().to_string()
+            "   ... ".to_string().yellow().bold().to_string()
         } else {
             format!("jcl:{} ", line_number).green().bold().to_string()
         };
@@ -51,12 +51,12 @@ pub fn run_repl() -> Result<()> {
                 // Check for multiline continuation (lines ending with \)
                 if trimmed.ends_with('\\') && !in_multiline {
                     in_multiline = true;
-                    multiline_buffer = trimmed[..trimmed.len() - 1].to_string();
+                    multiline_buffer = trimmed.strip_suffix('\\').unwrap_or(trimmed).to_string();
                     continue;
                 } else if in_multiline {
                     if trimmed.ends_with('\\') {
                         multiline_buffer.push(' ');
-                        multiline_buffer.push_str(&trimmed[..trimmed.len() - 1]);
+                        multiline_buffer.push_str(trimmed.strip_suffix('\\').unwrap_or(trimmed));
                         continue;
                     } else {
                         // End of multiline input

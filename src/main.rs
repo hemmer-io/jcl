@@ -214,7 +214,7 @@ fn main() -> Result<()> {
                 std::fs::read_dir(&path_obj)?
                     .filter_map(|e| e.ok())
                     .map(|e| e.path())
-                    .filter(|p| p.extension().map_or(false, |ext| ext == "jcl"))
+                    .filter(|p| p.extension().is_some_and(|ext| ext == "jcl"))
                     .collect()
             } else {
                 eprintln!("{} Path not found: {}", "✗".red().bold(), target);
@@ -441,7 +441,7 @@ fn main() -> Result<()> {
                 if total_warnings > 0 {
                     println!("  {} {}", "Warnings:".yellow().bold(), total_warnings);
                 }
-                println!("  {} {}", "Total issues:", total_issues);
+                println!("  Total issues: {}", total_issues);
 
                 if total_errors > 0 {
                     std::process::exit(1);

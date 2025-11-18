@@ -355,7 +355,7 @@ fn format_value_as_string(val: &Value) -> Result<String> {
         Value::List(items) => {
             let formatted: Vec<String> = items
                 .iter()
-                .map(|v| format_value_as_string(v))
+                .map(format_value_as_string)
                 .collect::<Result<Vec<_>>>()?;
             Ok(format!("[{}]", formatted.join(", ")))
         }
@@ -1228,8 +1228,8 @@ mod tests {
     fn test_format_float() {
         // Float formatting
         let result =
-            fn_format(&[Value::String("Pi: %f".to_string()), Value::Float(3.14159)]).unwrap();
-        assert_eq!(result, Value::String("Pi: 3.14159".to_string()));
+            fn_format(&[Value::String("Value: %f".to_string()), Value::Float(42.5)]).unwrap();
+        assert_eq!(result, Value::String("Value: 42.5".to_string()));
     }
 
     #[test]

@@ -71,19 +71,16 @@ pub fn parse_str(input: &str) -> Result<Module> {
     let mut statements = Vec::new();
 
     for pair in pairs {
-        match pair.as_rule() {
-            Rule::program => {
-                for inner_pair in pair.into_inner() {
-                    match inner_pair.as_rule() {
-                        Rule::statement => {
-                            statements.push(parse_statement(inner_pair)?);
-                        }
-                        Rule::EOI => break,
-                        _ => {}
+        if pair.as_rule() == Rule::program {
+            for inner_pair in pair.into_inner() {
+                match inner_pair.as_rule() {
+                    Rule::statement => {
+                        statements.push(parse_statement(inner_pair)?);
                     }
+                    Rule::EOI => break,
+                    _ => {}
                 }
             }
-            _ => {}
         }
     }
 
@@ -758,22 +755,19 @@ fn parse_when_arm(pair: Pair<Rule>) -> Result<WhenArm> {
 
     // Check remaining pairs for guard and expression
     for remaining in inner {
-        match remaining.as_rule() {
-            Rule::expression => {
-                if guard.is_none() && expr.is_none() {
-                    // This could be a guard condition or the result expression
-                    // We need to look ahead - for now, assume it's the result
-                    expr = Some(parse_expression(remaining)?);
-                } else if guard.is_some() {
-                    // We have a guard, so this must be the expression
-                    expr = Some(parse_expression(remaining)?);
-                } else {
-                    // First expression after pattern - could be guard
-                    // Check if there's another expression coming
-                    guard = Some(parse_expression(remaining)?);
-                }
+        if remaining.as_rule() == Rule::expression {
+            if guard.is_none() && expr.is_none() {
+                // This could be a guard condition or the result expression
+                // We need to look ahead - for now, assume it's the result
+                expr = Some(parse_expression(remaining)?);
+            } else if guard.is_some() {
+                // We have a guard, so this must be the expression
+                expr = Some(parse_expression(remaining)?);
+            } else {
+                // First expression after pattern - could be guard
+                // Check if there's another expression coming
+                guard = Some(parse_expression(remaining)?);
             }
-            _ => {}
         }
     }
 

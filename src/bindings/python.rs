@@ -6,15 +6,15 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use crate::ast::Value;
 use crate::evaluator::Evaluator;
 use crate::formatter;
 use crate::linter;
+use crate::{parse_str, Value};
 
 /// Parse JCL source code and return the AST as a Python dict
 #[pyfunction]
 fn parse(source: &str) -> PyResult<String> {
-    match crate::parse_str(source) {
+    match parse_str(source) {
         Ok(_module) => Ok(format!("Parsed {} statements", _module.statements.len())),
         Err(e) => Err(PyErr::new::<pyo3::exceptions::PySyntaxError, _>(format!(
             "Parse error: {}",
@@ -27,7 +27,7 @@ fn parse(source: &str) -> PyResult<String> {
 #[pyfunction]
 fn eval(py: Python, source: &str) -> PyResult<PyObject> {
     // Parse the source
-    let module = crate::parse_str(source).map_err(|e| {
+    let module = parse_str(source).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PySyntaxError, _>(format!("Parse error: {}", e))
     })?;
 
@@ -58,7 +58,7 @@ fn eval_file(py: Python, path: &str) -> PyResult<PyObject> {
 /// Format JCL source code
 #[pyfunction]
 fn format(source: &str) -> PyResult<String> {
-    let module = crate::parse_str(source).map_err(|e| {
+    let module = parse_str(source).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PySyntaxError, _>(format!("Parse error: {}", e))
     })?;
 
@@ -70,7 +70,7 @@ fn format(source: &str) -> PyResult<String> {
 /// Lint JCL source code and return issues
 #[pyfunction]
 fn lint(py: Python, source: &str) -> PyResult<PyObject> {
-    let module = crate::parse_str(source).map_err(|e| {
+    let module = parse_str(source).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PySyntaxError, _>(format!("Parse error: {}", e))
     })?;
 

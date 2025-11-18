@@ -284,28 +284,25 @@ impl<'a> Lexer<'a> {
                 Rule::interpolated_string_token => {
                     let mut parts = Vec::new();
                     for part in inner.into_inner() {
-                        match part.as_rule() {
-                            Rule::interpolation_part => {
-                                for sub in part.into_inner() {
-                                    match sub.as_rule() {
-                                        Rule::string_literal_part => {
-                                            let content = self.unescape_string(sub.as_str())?;
-                                            parts.push(StringPart::Literal(content));
-                                        }
-                                        Rule::interpolation_expr => {
-                                            for expr in sub.into_inner() {
-                                                if expr.as_rule() == Rule::interpolated_content {
-                                                    parts.push(StringPart::Interpolation(
-                                                        expr.as_str().to_string(),
-                                                    ));
-                                                }
+                        if part.as_rule() == Rule::interpolation_part {
+                            for sub in part.into_inner() {
+                                match sub.as_rule() {
+                                    Rule::string_literal_part => {
+                                        let content = self.unescape_string(sub.as_str())?;
+                                        parts.push(StringPart::Literal(content));
+                                    }
+                                    Rule::interpolation_expr => {
+                                        for expr in sub.into_inner() {
+                                            if expr.as_rule() == Rule::interpolated_content {
+                                                parts.push(StringPart::Interpolation(
+                                                    expr.as_str().to_string(),
+                                                ));
                                             }
                                         }
-                                        _ => {}
                                     }
+                                    _ => {}
                                 }
                             }
-                            _ => {}
                         }
                     }
                     return Ok(TokenKind::String(StringValue::Interpolated(parts)));

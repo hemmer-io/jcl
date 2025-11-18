@@ -705,7 +705,7 @@ impl Evaluator {
         // Filter elements
         let mut results = Vec::new();
         for item in list {
-            let result = self.call_user_function(&func_value, &[item.clone()])?;
+            let result = self.call_user_function(&func_value, std::slice::from_ref(&item))?;
             if self.is_truthy(&result) {
                 results.push(item);
             }
@@ -1210,21 +1210,22 @@ mod tests {
     fn test_evaluate_map() {
         let evaluator = Evaluator::new();
 
-        let mut entries = Vec::new();
-        entries.push((
-            "name".to_string(),
-            Expression::Literal {
-                value: Value::String("Alice".to_string()),
-                span: None,
-            },
-        ));
-        entries.push((
-            "age".to_string(),
-            Expression::Literal {
-                value: Value::Int(30),
-                span: None,
-            },
-        ));
+        let entries = vec![
+            (
+                "name".to_string(),
+                Expression::Literal {
+                    value: Value::String("Alice".to_string()),
+                    span: None,
+                },
+            ),
+            (
+                "age".to_string(),
+                Expression::Literal {
+                    value: Value::Int(30),
+                    span: None,
+                },
+            ),
+        ];
 
         let expr = Expression::Map {
             entries,

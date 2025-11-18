@@ -253,7 +253,7 @@ invalid syntax here
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.len() > 0 || String::from_utf8_lossy(&output.stdout).len() > 0,
+        !stderr.is_empty() || !String::from_utf8_lossy(&output.stdout).is_empty(),
         "Should output error message"
     );
 }
