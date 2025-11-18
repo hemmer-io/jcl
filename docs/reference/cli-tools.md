@@ -1,10 +1,11 @@
 ---
-layout: page
+layout: default
 title: CLI Tools Reference
+parent: Reference
+nav_order: 3
 permalink: /reference/cli-tools/
 ---
 
-# CLI Tools Reference
 
 JCL provides a comprehensive suite of command-line tools for working with JCL configurations.
 
@@ -123,6 +124,8 @@ Schemas can be defined in JSON or YAML:
 ```yaml
 version: "1.0"
 title: "Application Configuration Schema"
+parent: Reference
+nav_order: 3
 description: "Schema for validating app configs"
 
 type:
