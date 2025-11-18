@@ -14,7 +14,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
 
-use crate::{docgen, formatter, linter, parser};
+use crate::{docgen, formatter, linter};
 
 /// Opaque handle to a JCL parse result
 #[repr(C)]
