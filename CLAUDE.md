@@ -312,6 +312,11 @@ Edit tool without reading first
 ```bash
 # REQUIRED BEFORE EVERY COMMIT (in this order):
 
+# 0. Check git status for unwanted files
+git status
+# Ensure .venv/, __pycache__/, target/, etc. are NOT in "Changes to be committed"
+# Update .gitignore if needed before committing
+
 # 1. Format code
 cargo fmt --all
 
@@ -322,16 +327,17 @@ cargo fmt --all -- --check
 cargo test
 
 # 4. Check for clippy warnings
-cargo clippy --all-targets --all-features
+cargo clippy --lib --tests --bins --all-features
 
 # CRITICAL: If any of these fail, DO NOT commit. Fix the issues first.
 ```
 
 **Pre-commit checklist**:
+- [ ] `git status` - Verify no unwanted files (venv, build artifacts, etc.)
 - [ ] `cargo fmt --all` - Format all code
 - [ ] `cargo fmt --all -- --check` - Verify formatting
 - [ ] `cargo test` - All 144 tests pass
-- [ ] `cargo clippy` - Zero warnings
+- [ ] `cargo clippy --lib --tests --bins --all-features` - Zero warnings
 
 **Test counts (as of v1.0.0)**:
 - Unit tests: 117
