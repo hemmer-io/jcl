@@ -307,22 +307,31 @@ Edit tool without reading first
 
 ### 2. Test Before Committing
 
-**MANDATORY**: All changes must pass tests before committing:
+**MANDATORY**: All changes must pass tests AND formatting checks before committing:
 
 ```bash
-# Run all tests
+# REQUIRED BEFORE EVERY COMMIT (in this order):
+
+# 1. Format code
+cargo fmt --all
+
+# 2. Check formatting is correct
+cargo fmt --all -- --check
+
+# 3. Run all tests
 cargo test
 
-# Run specific test suite
-cargo test --lib          # Unit tests
-cargo test --test cli_tests  # CLI integration tests
+# 4. Check for clippy warnings
+cargo clippy --all-targets --all-features
 
-# Check for warnings
-cargo clippy
-
-# Format code
-cargo fmt
+# CRITICAL: If any of these fail, DO NOT commit. Fix the issues first.
 ```
+
+**Pre-commit checklist**:
+- [ ] `cargo fmt --all` - Format all code
+- [ ] `cargo fmt --all -- --check` - Verify formatting
+- [ ] `cargo test` - All 144 tests pass
+- [ ] `cargo clippy` - Zero warnings
 
 **Test counts (as of v1.0.0)**:
 - Unit tests: 117
