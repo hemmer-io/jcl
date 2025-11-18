@@ -14,7 +14,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
 
-use crate::{formatter, linter, parser, docgen};
+use crate::{docgen, formatter, linter, parser};
 
 /// Opaque handle to a JCL parse result
 #[repr(C)]
@@ -26,8 +26,8 @@ pub struct JclModule {
 #[repr(C)]
 pub struct JclResult {
     pub success: bool,
-    pub value: *mut c_char,  // Caller must free with jcl_free_string
-    pub error: *mut c_char,  // Caller must free with jcl_free_string
+    pub value: *mut c_char, // Caller must free with jcl_free_string
+    pub error: *mut c_char, // Caller must free with jcl_free_string
 }
 
 impl JclResult {

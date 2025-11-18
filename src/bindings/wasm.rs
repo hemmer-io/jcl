@@ -2,9 +2,9 @@
 //!
 //! This module provides a JavaScript-friendly API for using JCL in the browser.
 
-use wasm_bindgen::prelude::*;
-use crate::{parser, formatter, linter, docgen};
 use crate::ast::Module;
+use crate::{docgen, formatter, linter, parser};
+use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global allocator.
 #[cfg(all(feature = "wee_alloc", target_arch = "wasm32"))]

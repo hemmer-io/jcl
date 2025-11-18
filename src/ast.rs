@@ -460,7 +460,10 @@ impl std::fmt::Display for Type {
             Type::Bool => write!(f, "bool"),
             Type::List(inner) => write!(f, "list<{}>", inner),
             Type::Map(k, v) => write!(f, "map<{}, {}>", k, v),
-            Type::Function { params, return_type } => {
+            Type::Function {
+                params,
+                return_type,
+            } => {
                 let param_strs: Vec<_> = params.iter().map(|p| p.to_string()).collect();
                 write!(f, "fn({}) -> {}", param_strs.join(", "), return_type)
             }

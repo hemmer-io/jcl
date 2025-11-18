@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use colored::Colorize;
-use jcl::{parse_str, evaluator::Evaluator};
+use jcl::{evaluator::Evaluator, parse_str};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -42,7 +42,10 @@ fn main() -> Result<()> {
     } else if let Some(file) = &args.file {
         benchmark_file(file, &args)?;
     } else {
-        eprintln!("{}", "Error: Please provide a file to benchmark or use --builtin".red());
+        eprintln!(
+            "{}",
+            "Error: Please provide a file to benchmark or use --builtin".red()
+        );
         std::process::exit(1);
     }
 
@@ -185,14 +188,29 @@ fn print_summary(parse_duration: Duration, eval_duration: Duration, iterations: 
     let parse_pct = (parse_duration.as_secs_f64() / total.as_secs_f64()) * 100.0;
     let eval_pct = (eval_duration.as_secs_f64() / total.as_secs_f64()) * 100.0;
 
-    println!("Total parsing time:    {:?} ({:.1}%)", parse_duration, parse_pct);
-    println!("Total evaluation time: {:?} ({:.1}%)", eval_duration, eval_pct);
+    println!(
+        "Total parsing time:    {:?} ({:.1}%)",
+        parse_duration, parse_pct
+    );
+    println!(
+        "Total evaluation time: {:?} ({:.1}%)",
+        eval_duration, eval_pct
+    );
     println!("Total time:            {:?}", total);
     println!();
     println!("Operations per second:");
-    println!("  Parsing:    {} ops/sec", (iterations as f64 / parse_duration.as_secs_f64()) as u64);
-    println!("  Evaluation: {} ops/sec", (iterations as f64 / eval_duration.as_secs_f64()) as u64);
-    println!("  Combined:   {} ops/sec", (iterations as f64 / total.as_secs_f64()) as u64);
+    println!(
+        "  Parsing:    {} ops/sec",
+        (iterations as f64 / parse_duration.as_secs_f64()) as u64
+    );
+    println!(
+        "  Evaluation: {} ops/sec",
+        (iterations as f64 / eval_duration.as_secs_f64()) as u64
+    );
+    println!(
+        "  Combined:   {} ops/sec",
+        (iterations as f64 / total.as_secs_f64()) as u64
+    );
 }
 
 fn run_builtin_benchmarks(args: &Args) -> Result<()> {
@@ -203,14 +221,20 @@ fn run_builtin_benchmarks(args: &Args) -> Result<()> {
         ("Simple arithmetic", "x = 1 + 2 + 3"),
         ("String operations", r#"name = "hello" + " " + "world""#),
         ("List operations", "numbers = [1, 2, 3, 4, 5]"),
-        ("Map operations", r#"config = (name = "app", version = "1.0.0")"#),
+        (
+            "Map operations",
+            r#"config = (name = "app", version = "1.0.0")"#,
+        ),
         ("Function call", "fn double(x) = x * 2\nresult = double(21)"),
-        ("Complex expression", r#"
+        (
+            "Complex expression",
+            r#"
             x = 10
             y = 20
             z = x * y + 5
             result = if z > 100 then "large" else "small"
-        "#),
+        "#,
+        ),
     ];
 
     for (name, code) in benchmarks {
@@ -220,7 +244,11 @@ fn run_builtin_benchmarks(args: &Args) -> Result<()> {
         let eval_duration = benchmark_eval(code, args.iterations, false)?;
 
         let total = parse_duration + eval_duration;
-        println!("  Total: {:?} ({} ops/sec)", total, (args.iterations as f64 / total.as_secs_f64()) as u64);
+        println!(
+            "  Total: {:?} ({} ops/sec)",
+            total,
+            (args.iterations as f64 / total.as_secs_f64()) as u64
+        );
         println!();
     }
 

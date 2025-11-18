@@ -3,7 +3,7 @@
 //! This module provides schema definition and validation capabilities for JCL.
 //! Schemas define the expected structure, types, and constraints for configuration values.
 
-use crate::ast::{Value, Module};
+use crate::ast::{Module, Value};
 use crate::evaluator::Evaluator;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -85,9 +85,7 @@ pub enum TypeDef {
     Any,
 
     /// Union of multiple types
-    Union {
-        types: Vec<TypeDef>,
-    },
+    Union { types: Vec<TypeDef> },
 }
 
 /// Property definition for map types
@@ -131,15 +129,13 @@ impl Validator {
 
     /// Load schema from JSON string
     pub fn from_json(json: &str) -> Result<Self> {
-        let schema: Schema = serde_json::from_str(json)
-            .context("Failed to parse schema JSON")?;
+        let schema: Schema = serde_json::from_str(json).context("Failed to parse schema JSON")?;
         Ok(Self::new(schema))
     }
 
     /// Load schema from YAML string
     pub fn from_yaml(yaml: &str) -> Result<Self> {
-        let schema: Schema = serde_yaml::from_str(yaml)
-            .context("Failed to parse schema YAML")?;
+        let schema: Schema = serde_yaml::from_str(yaml).context("Failed to parse schema YAML")?;
         Ok(Self::new(schema))
     }
 
@@ -168,54 +164,75 @@ impl Validator {
         errors: &mut Vec<ValidationError>,
     ) {
         match type_def {
-            TypeDef::String { min_length, max_length, pattern, enum_values } => {
-                match value {
-                    Value::String(s) => {
-                        if let Some(min) = min_length {
-                            if s.len() < *min {
+            TypeDef::String {
+                min_length,
+                max_length,
+                pattern,
+                enum_values,
+            } => match value {
+                Value::String(s) => {
+                    if let Some(min) = min_length {
+                        if s.len() < *min {
+                            errors.push(ValidationError {
+                                path: path.to_string(),
+                                message: format!(
+                                    "String length {} is less than minimum {}",
+                                    s.len(),
+                                    min
+                                ),
+                            });
+                        }
+                    }
+                    if let Some(max) = max_length {
+                        if s.len() > *max {
+                            errors.push(ValidationError {
+                                path: path.to_string(),
+                                message: format!(
+                                    "String length {} exceeds maximum {}",
+                                    s.len(),
+                                    max
+                                ),
+                            });
+                        }
+                    }
+                    if let Some(pat) = pattern {
+                        if let Ok(regex) = regex::Regex::new(pat) {
+                            if !regex.is_match(s) {
                                 errors.push(ValidationError {
                                     path: path.to_string(),
-                                    message: format!("String length {} is less than minimum {}", s.len(), min),
-                                });
-                            }
-                        }
-                        if let Some(max) = max_length {
-                            if s.len() > *max {
-                                errors.push(ValidationError {
-                                    path: path.to_string(),
-                                    message: format!("String length {} exceeds maximum {}", s.len(), max),
-                                });
-                            }
-                        }
-                        if let Some(pat) = pattern {
-                            if let Ok(regex) = regex::Regex::new(pat) {
-                                if !regex.is_match(s) {
-                                    errors.push(ValidationError {
-                                        path: path.to_string(),
-                                        message: format!("String '{}' does not match pattern '{}'", s, pat),
-                                    });
-                                }
-                            }
-                        }
-                        if let Some(enum_vals) = enum_values {
-                            if !enum_vals.contains(s) {
-                                errors.push(ValidationError {
-                                    path: path.to_string(),
-                                    message: format!("String '{}' is not one of allowed values: {:?}", s, enum_vals),
+                                    message: format!(
+                                        "String '{}' does not match pattern '{}'",
+                                        s, pat
+                                    ),
                                 });
                             }
                         }
                     }
-                    _ => {
-                        errors.push(ValidationError {
-                            path: path.to_string(),
-                            message: format!("Expected string, got {:?}", value),
-                        });
+                    if let Some(enum_vals) = enum_values {
+                        if !enum_vals.contains(s) {
+                            errors.push(ValidationError {
+                                path: path.to_string(),
+                                message: format!(
+                                    "String '{}' is not one of allowed values: {:?}",
+                                    s, enum_vals
+                                ),
+                            });
+                        }
                     }
                 }
-            }
+                _ => {
+                    errors.push(ValidationError {
+                        path: path.to_string(),
+                        message: format!("Expected string, got {:?}", value),
+                    });
+                }
+            },
 
-            TypeDef::Number { minimum, maximum, integer_only } => {
+            TypeDef::Number {
+                minimum,
+                maximum,
+                integer_only,
+            } => {
                 let num = match value {
                     Value::Int(i) => Some(*i as f64),
                     Value::Float(f) => Some(*f),
@@ -273,41 +290,55 @@ impl Validator {
                 }
             }
 
-            TypeDef::List { items, min_items, max_items } => {
-                match value {
-                    Value::List(list) => {
-                        if let Some(min) = min_items {
-                            if list.len() < *min {
-                                errors.push(ValidationError {
-                                    path: path.to_string(),
-                                    message: format!("List length {} is less than minimum {}", list.len(), min),
-                                });
-                            }
-                        }
-                        if let Some(max) = max_items {
-                            if list.len() > *max {
-                                errors.push(ValidationError {
-                                    path: path.to_string(),
-                                    message: format!("List length {} exceeds maximum {}", list.len(), max),
-                                });
-                            }
-                        }
-
-                        for (i, item) in list.iter().enumerate() {
-                            let item_path = format!("{}[{}]", path, i);
-                            self.validate_value(item, items, &item_path, errors);
+            TypeDef::List {
+                items,
+                min_items,
+                max_items,
+            } => match value {
+                Value::List(list) => {
+                    if let Some(min) = min_items {
+                        if list.len() < *min {
+                            errors.push(ValidationError {
+                                path: path.to_string(),
+                                message: format!(
+                                    "List length {} is less than minimum {}",
+                                    list.len(),
+                                    min
+                                ),
+                            });
                         }
                     }
-                    _ => {
-                        errors.push(ValidationError {
-                            path: path.to_string(),
-                            message: format!("Expected list, got {:?}", value),
-                        });
+                    if let Some(max) = max_items {
+                        if list.len() > *max {
+                            errors.push(ValidationError {
+                                path: path.to_string(),
+                                message: format!(
+                                    "List length {} exceeds maximum {}",
+                                    list.len(),
+                                    max
+                                ),
+                            });
+                        }
+                    }
+
+                    for (i, item) in list.iter().enumerate() {
+                        let item_path = format!("{}[{}]", path, i);
+                        self.validate_value(item, items, &item_path, errors);
                     }
                 }
-            }
+                _ => {
+                    errors.push(ValidationError {
+                        path: path.to_string(),
+                        message: format!("Expected list, got {:?}", value),
+                    });
+                }
+            },
 
-            TypeDef::Map { properties, required, additional_properties } => {
+            TypeDef::Map {
+                properties,
+                required,
+                additional_properties,
+            } => {
                 match value {
                     Value::Map(map) => {
                         // Check required properties
@@ -381,7 +412,7 @@ impl Validator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Statement, Expression};
+    use crate::ast::{Expression, Statement};
 
     #[test]
     fn test_string_validation() {
@@ -392,16 +423,19 @@ mod tests {
             type_def: TypeDef::Map {
                 properties: {
                     let mut props = HashMap::new();
-                    props.insert("name".to_string(), Property {
-                        type_def: TypeDef::String {
-                            min_length: Some(3),
-                            max_length: Some(10),
-                            pattern: None,
-                            enum_values: None,
+                    props.insert(
+                        "name".to_string(),
+                        Property {
+                            type_def: TypeDef::String {
+                                min_length: Some(3),
+                                max_length: Some(10),
+                                pattern: None,
+                                enum_values: None,
+                            },
+                            description: None,
+                            default: None,
                         },
-                        description: None,
-                        default: None,
-                    });
+                    );
                     props
                 },
                 required: vec![],
@@ -411,19 +445,17 @@ mod tests {
 
         let validator = Validator::new(schema);
         let module = Module {
-            statements: vec![
-                Statement::Assignment {
-                    name: "name".to_string(),
-                    value: Expression::Literal {
-                        value: Value::String("hello".to_string()),
-                        span: None,
-                    },
-                    type_annotation: None,
-                    mutable: false,
-                    doc_comments: Some(vec![]),
+            statements: vec![Statement::Assignment {
+                name: "name".to_string(),
+                value: Expression::Literal {
+                    value: Value::String("hello".to_string()),
                     span: None,
-                }
-            ],
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
         };
 
         let errors = validator.validate_module(&module).unwrap();
@@ -439,15 +471,18 @@ mod tests {
             type_def: TypeDef::Map {
                 properties: {
                     let mut props = HashMap::new();
-                    props.insert("port".to_string(), Property {
-                        type_def: TypeDef::Number {
-                            minimum: Some(1.0),
-                            maximum: Some(65535.0),
-                            integer_only: true,
+                    props.insert(
+                        "port".to_string(),
+                        Property {
+                            type_def: TypeDef::Number {
+                                minimum: Some(1.0),
+                                maximum: Some(65535.0),
+                                integer_only: true,
+                            },
+                            description: None,
+                            default: None,
                         },
-                        description: None,
-                        default: None,
-                    });
+                    );
                     props
                 },
                 required: vec!["port".to_string()],
@@ -457,19 +492,17 @@ mod tests {
 
         let validator = Validator::new(schema);
         let module = Module {
-            statements: vec![
-                Statement::Assignment {
-                    name: "port".to_string(),
-                    value: Expression::Literal {
-                        value: Value::Int(8080),
-                        span: None,
-                    },
-                    type_annotation: None,
-                    mutable: false,
-                    doc_comments: Some(vec![]),
+            statements: vec![Statement::Assignment {
+                name: "port".to_string(),
+                value: Expression::Literal {
+                    value: Value::Int(8080),
                     span: None,
-                }
-            ],
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
         };
 
         let errors = validator.validate_module(&module).unwrap();
@@ -490,12 +523,12 @@ mod tests {
         };
 
         let validator = Validator::new(schema);
-        let module = Module {
-            statements: vec![],
-        };
+        let module = Module { statements: vec![] };
 
         let errors = validator.validate_module(&module).unwrap();
         assert_eq!(errors.len(), 1);
-        assert!(errors[0].message.contains("Required property 'name' is missing"));
+        assert!(errors[0]
+            .message
+            .contains("Required property 'name' is missing"));
     }
 }

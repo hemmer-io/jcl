@@ -4,8 +4,11 @@
 //! tokens from the lexer to build an AST. This approach correctly
 //! handles keyword/identifier distinction.
 
-use crate::ast::{BinaryOperator, Expression, Module, Parameter, Pattern, Statement, StringPart, Type, UnaryOperator, Value, WhenArm, SourceSpan};
-use crate::lexer::{Token, TokenKind, StringValue};
+use crate::ast::{
+    BinaryOperator, Expression, Module, Parameter, Pattern, SourceSpan, Statement, StringPart,
+    Type, UnaryOperator, Value, WhenArm,
+};
+use crate::lexer::{StringValue, Token, TokenKind};
 use anyhow::{anyhow, Result};
 
 /// Parser that consumes tokens to produce an AST
@@ -669,7 +672,9 @@ impl TokenParser {
         // Lambda (identifier => expr)
         if self.check_identifier() {
             let next_pos = self.position + 1;
-            if next_pos < self.tokens.len() && matches!(self.tokens[next_pos].kind, TokenKind::Arrow) {
+            if next_pos < self.tokens.len()
+                && matches!(self.tokens[next_pos].kind, TokenKind::Arrow)
+            {
                 return self.parse_lambda();
             }
         }
@@ -692,10 +697,7 @@ impl TokenParser {
         if self.check_identifier() {
             let span = self.current_span();
             let name = self.parse_identifier()?;
-            return Ok(Expression::Variable {
-                name,
-                span,
-            });
+            return Ok(Expression::Variable { name, span });
         }
 
         Err(anyhow!("Unexpected token: {:?}", self.current().kind))
@@ -921,7 +923,11 @@ impl TokenParser {
         self.expect(&TokenKind::Arrow)?;
         let expr = self.parse_expression()?;
 
-        Ok(WhenArm { pattern, guard, expr })
+        Ok(WhenArm {
+            pattern,
+            guard,
+            expr,
+        })
     }
 
     /// Parse a pattern for when expressions
@@ -1169,7 +1175,10 @@ impl TokenParser {
                 self.advance();
                 Ok(n)
             }
-            _ => Err(anyhow!("Expected identifier, got {:?}", self.current().kind)),
+            _ => Err(anyhow!(
+                "Expected identifier, got {:?}",
+                self.current().kind
+            )),
         }
     }
 
@@ -1210,7 +1219,11 @@ impl TokenParser {
             self.advance();
             Ok(())
         } else {
-            Err(anyhow!("Expected {:?}, got {:?}", kind, self.current().kind))
+            Err(anyhow!(
+                "Expected {:?}, got {:?}",
+                kind,
+                self.current().kind
+            ))
         }
     }
 
@@ -1425,5 +1438,3 @@ evens = [x for x in numbers if x % 2 == 0]
         assert!(result.is_ok());
     }
 }
-
-

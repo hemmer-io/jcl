@@ -73,11 +73,7 @@ fn main() -> Result<()> {
     } else {
         let formatted_count = args.files.len() - errors.len();
         println!();
-        println!(
-            "{} Formatted {} file(s)",
-            "✅".green(),
-            formatted_count
-        );
+        println!("{} Formatted {} file(s)", "✅".green(), formatted_count);
 
         if !errors.is_empty() {
             println!("{} {} error(s)", "❌".red(), errors.len());
@@ -94,8 +90,8 @@ fn format_file(path: &PathBuf, args: &Args) -> Result<bool> {
     }
 
     // Parse the file
-    let module = parse_file(path)
-        .with_context(|| format!("Failed to parse file: {}", path.display()))?;
+    let module =
+        parse_file(path).with_context(|| format!("Failed to parse file: {}", path.display()))?;
 
     // Format the module
     let formatted = formatter::format(&module)

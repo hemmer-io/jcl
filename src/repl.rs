@@ -2,13 +2,13 @@
 //!
 //! Provides an interactive shell for evaluating JCL expressions
 
+use crate::{ast::Value, evaluator::Evaluator};
 use anyhow::Result;
 use colored::Colorize;
-use crate::{ast::Value, evaluator::Evaluator};
 use rustyline::error::ReadlineError;
-use rustyline::{Editor, Config, CompletionType, history::FileHistory};
-use std::path::PathBuf;
+use rustyline::{history::FileHistory, CompletionType, Config, Editor};
 use std::env;
+use std::path::PathBuf;
 
 /// Run the interactive REPL
 pub fn run_repl() -> Result<()> {
@@ -130,17 +130,15 @@ pub fn run_repl() -> Result<()> {
                     Err(_) => {
                         // If expression parsing fails, try as a statement
                         match crate::parse_str(&input_line) {
-                            Ok(module) => {
-                                match evaluator.evaluate(module) {
-                                    Ok(_) => {
-                                        println!("{}", "✓".green());
-                                        line_number += 1;
-                                    }
-                                    Err(e) => {
-                                        eprintln!("{} {}", "✗".red().bold(), e);
-                                    }
+                            Ok(module) => match evaluator.evaluate(module) {
+                                Ok(_) => {
+                                    println!("{}", "✓".green());
+                                    line_number += 1;
                                 }
-                            }
+                                Err(e) => {
+                                    eprintln!("{} {}", "✗".red().bold(), e);
+                                }
+                            },
                             Err(e) => {
                                 eprintln!("{} {}", "✗".red().bold(), e);
                             }
@@ -190,9 +188,15 @@ fn print_help() {
     println!("  {}  - Show all variables", ":vars, :v".green());
     println!();
     println!("{}", "Features:".cyan().bold());
-    println!("  {} - Persistent command history (~/.jcl_history)", "Up/Down arrows".dimmed());
+    println!(
+        "  {} - Persistent command history (~/.jcl_history)",
+        "Up/Down arrows".dimmed()
+    );
     println!("  {} - Complete and search history", "Tab/Ctrl-R".dimmed());
-    println!("  {} - Multi-line input (end line with \\)", "Backslash".dimmed());
+    println!(
+        "  {} - Multi-line input (end line with \\)",
+        "Backslash".dimmed()
+    );
     println!();
     println!("{}", "Examples:".cyan().bold());
     println!("  {}  - Evaluate an expression", "2 + 2".dimmed());

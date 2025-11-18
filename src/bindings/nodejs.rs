@@ -28,12 +28,13 @@ fn eval(mut cx: FunctionContext) -> JsResult<JsObject> {
     let source = cx.argument::<JsString>(0)?.value(&mut cx);
 
     // Parse
-    let module = crate::parse_str(&source)
-        .or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
+    let module =
+        crate::parse_str(&source).or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
 
     // Evaluate
     let mut evaluator = Evaluator::new();
-    let result_module = evaluator.evaluate(module)
+    let result_module = evaluator
+        .evaluate(module)
         .or_else(|e| cx.throw_error(format!("Evaluation error: {}", e)))?;
 
     // Convert to JavaScript object
@@ -54,12 +55,13 @@ fn eval_file(mut cx: FunctionContext) -> JsResult<JsObject> {
         .or_else(|e| cx.throw_error(format!("Failed to read file: {}", e)))?;
 
     // Parse
-    let module = crate::parse_str(&content)
-        .or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
+    let module =
+        crate::parse_str(&content).or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
 
     // Evaluate
     let mut evaluator = Evaluator::new();
-    let result_module = evaluator.evaluate(module)
+    let result_module = evaluator
+        .evaluate(module)
         .or_else(|e| cx.throw_error(format!("Evaluation error: {}", e)))?;
 
     // Convert to JavaScript object
@@ -76,11 +78,11 @@ fn eval_file(mut cx: FunctionContext) -> JsResult<JsObject> {
 fn format(mut cx: FunctionContext) -> JsResult<JsString> {
     let source = cx.argument::<JsString>(0)?.value(&mut cx);
 
-    let module = crate::parse_str(&source)
-        .or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
+    let module =
+        crate::parse_str(&source).or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
 
-    let formatted = formatter::format(&module)
-        .or_else(|e| cx.throw_error(format!("Format error: {}", e)))?;
+    let formatted =
+        formatter::format(&module).or_else(|e| cx.throw_error(format!("Format error: {}", e)))?;
 
     Ok(cx.string(formatted))
 }
@@ -89,11 +91,11 @@ fn format(mut cx: FunctionContext) -> JsResult<JsString> {
 fn lint(mut cx: FunctionContext) -> JsResult<JsArray> {
     let source = cx.argument::<JsString>(0)?.value(&mut cx);
 
-    let module = crate::parse_str(&source)
-        .or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
+    let module =
+        crate::parse_str(&source).or_else(|e| cx.throw_error(format!("Parse error: {}", e)))?;
 
-    let issues = linter::lint(&module)
-        .or_else(|e| cx.throw_error(format!("Linter error: {}", e)))?;
+    let issues =
+        linter::lint(&module).or_else(|e| cx.throw_error(format!("Linter error: {}", e)))?;
 
     let js_issues = cx.empty_array();
 

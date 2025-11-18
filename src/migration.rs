@@ -7,24 +7,21 @@ use serde_json::Value as JsonValue;
 
 /// Convert JSON string to JCL
 pub fn json_to_jcl(json: &str) -> Result<String> {
-    let value: JsonValue = serde_json::from_str(json)
-        .context("Failed to parse JSON")?;
+    let value: JsonValue = serde_json::from_str(json).context("Failed to parse JSON")?;
 
     Ok(json_value_to_jcl(&value, 0))
 }
 
 /// Convert YAML string to JCL
 pub fn yaml_to_jcl(yaml: &str) -> Result<String> {
-    let value: JsonValue = serde_yaml::from_str(yaml)
-        .context("Failed to parse YAML")?;
+    let value: JsonValue = serde_yaml::from_str(yaml).context("Failed to parse YAML")?;
 
     Ok(json_value_to_jcl(&value, 0))
 }
 
 /// Convert TOML string to JCL
 pub fn toml_to_jcl(toml_str: &str) -> Result<String> {
-    let value: toml::Value = toml::from_str(toml_str)
-        .context("Failed to parse TOML")?;
+    let value: toml::Value = toml::from_str(toml_str).context("Failed to parse TOML")?;
 
     Ok(toml_value_to_jcl(&value, 0))
 }
@@ -40,9 +37,7 @@ fn json_value_to_jcl(value: &JsonValue, indent: usize) -> String {
             if arr.is_empty() {
                 "[]".to_string()
             } else {
-                let items: Vec<String> = arr.iter()
-                    .map(|v| json_value_to_jcl(v, indent))
-                    .collect();
+                let items: Vec<String> = arr.iter().map(|v| json_value_to_jcl(v, indent)).collect();
                 format!("[{}]", items.join(", "))
             }
         }
@@ -68,9 +63,7 @@ fn toml_value_to_jcl(value: &toml::Value, indent: usize) -> String {
             if arr.is_empty() {
                 "[]".to_string()
             } else {
-                let items: Vec<String> = arr.iter()
-                    .map(|v| toml_value_to_jcl(v, indent))
-                    .collect();
+                let items: Vec<String> = arr.iter().map(|v| toml_value_to_jcl(v, indent)).collect();
                 format!("[{}]", items.join(", "))
             }
         }

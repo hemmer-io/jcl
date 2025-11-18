@@ -112,21 +112,18 @@ impl SymbolTable {
     fn process_statement(&mut self, stmt: &Statement) {
         match stmt {
             Statement::Assignment {
-                name,
-                value,
-                span,
-                ..
+                name, value, span, ..
             } => {
                 // Use span from AST if available, otherwise use placeholder
-                let location = span
-                    .as_ref()
-                    .map(|s| Location::from(s))
-                    .unwrap_or_else(|| Location {
-                        line: 0,
-                        column: 0,
-                        offset: 0,
-                        length: name.len(),
-                    });
+                let location =
+                    span.as_ref()
+                        .map(|s| Location::from(s))
+                        .unwrap_or_else(|| Location {
+                            line: 0,
+                            column: 0,
+                            offset: 0,
+                            length: name.len(),
+                        });
                 self.add_definition(name.clone(), SymbolKind::Variable, location);
                 self.process_expression(value);
             }
@@ -137,15 +134,15 @@ impl SymbolTable {
                 span,
                 ..
             } => {
-                let location = span
-                    .as_ref()
-                    .map(|s| Location::from(s))
-                    .unwrap_or_else(|| Location {
-                        line: 0,
-                        column: 0,
-                        offset: 0,
-                        length: name.len(),
-                    });
+                let location =
+                    span.as_ref()
+                        .map(|s| Location::from(s))
+                        .unwrap_or_else(|| Location {
+                            line: 0,
+                            column: 0,
+                            offset: 0,
+                            length: name.len(),
+                        });
                 self.add_definition(name.clone(), SymbolKind::Function, location);
 
                 // Add parameters as symbols
@@ -167,15 +164,15 @@ impl SymbolTable {
             Statement::Import { items, span, .. } => {
                 for item in items {
                     if item != "*" {
-                        let location = span
-                            .as_ref()
-                            .map(|s| Location::from(s))
-                            .unwrap_or_else(|| Location {
-                                line: 0,
-                                column: 0,
-                                offset: 0,
-                                length: item.len(),
-                            });
+                        let location =
+                            span.as_ref()
+                                .map(|s| Location::from(s))
+                                .unwrap_or_else(|| Location {
+                                    line: 0,
+                                    column: 0,
+                                    offset: 0,
+                                    length: item.len(),
+                                });
                         self.add_definition(item.clone(), SymbolKind::Import, location);
                     }
                 }
@@ -189,15 +186,15 @@ impl SymbolTable {
             } => {
                 // Add loop variables
                 for var in variables {
-                    let location = span
-                        .as_ref()
-                        .map(|s| Location::from(s))
-                        .unwrap_or_else(|| Location {
-                            line: 0,
-                            column: 0,
-                            offset: 0,
-                            length: var.len(),
-                        });
+                    let location =
+                        span.as_ref()
+                            .map(|s| Location::from(s))
+                            .unwrap_or_else(|| Location {
+                                line: 0,
+                                column: 0,
+                                offset: 0,
+                                length: var.len(),
+                            });
                     self.add_definition(var.clone(), SymbolKind::Variable, location);
                 }
 
@@ -219,27 +216,27 @@ impl SymbolTable {
     fn process_expression(&mut self, expr: &Expression) {
         match expr {
             Expression::Variable { name, span } => {
-                let location = span
-                    .as_ref()
-                    .map(|s| Location::from(s))
-                    .unwrap_or_else(|| Location {
-                        line: 0,
-                        column: 0,
-                        offset: 0,
-                        length: name.len(),
-                    });
+                let location =
+                    span.as_ref()
+                        .map(|s| Location::from(s))
+                        .unwrap_or_else(|| Location {
+                            line: 0,
+                            column: 0,
+                            offset: 0,
+                            length: name.len(),
+                        });
                 self.add_reference(name, location);
             }
             Expression::FunctionCall { name, args, span } => {
-                let location = span
-                    .as_ref()
-                    .map(|s| Location::from(s))
-                    .unwrap_or_else(|| Location {
-                        line: 0,
-                        column: 0,
-                        offset: 0,
-                        length: name.len(),
-                    });
+                let location =
+                    span.as_ref()
+                        .map(|s| Location::from(s))
+                        .unwrap_or_else(|| Location {
+                            line: 0,
+                            column: 0,
+                            offset: 0,
+                            length: name.len(),
+                        });
                 self.add_reference(name, location);
                 for arg in args {
                     self.process_expression(arg);
@@ -251,7 +248,12 @@ impl SymbolTable {
                     self.process_expression(arg);
                 }
             }
-            Expression::Ternary { condition, then_expr, else_expr, .. } => {
+            Expression::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+                ..
+            } => {
                 self.process_expression(condition);
                 self.process_expression(then_expr);
                 self.process_expression(else_expr);
@@ -368,17 +370,14 @@ impl SymbolTable {
 
     /// Check if a location contains a position
     fn contains_position(&self, location: &Location, line: usize, column: usize) -> bool {
-        location.line == line &&
-        column >= location.column &&
-        column < location.column + location.length
+        location.line == line
+            && column >= location.column
+            && column < location.column + location.length
     }
 
     /// Get all symbols of a specific kind
     pub fn get_symbols_by_kind(&self, kind: SymbolKind) -> Vec<&Symbol> {
-        self.symbols
-            .values()
-            .filter(|s| s.kind == kind)
-            .collect()
+        self.symbols.values().filter(|s| s.kind == kind).collect()
     }
 }
 

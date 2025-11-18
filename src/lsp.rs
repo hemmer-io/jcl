@@ -59,7 +59,10 @@ impl JclLanguageServer {
                             }
                         } else {
                             Range {
-                                start: Position { line: 0, character: 0 },
+                                start: Position {
+                                    line: 0,
+                                    character: 0,
+                                },
                                 end: Position {
                                     line: text.lines().count() as u32,
                                     character: 0,
@@ -81,7 +84,10 @@ impl JclLanguageServer {
             Err(e) => {
                 // Parse error
                 let range = Range {
-                    start: Position { line: 0, character: 0 },
+                    start: Position {
+                        line: 0,
+                        character: 0,
+                    },
                     end: Position {
                         line: text.lines().count() as u32,
                         character: 0,
@@ -106,87 +112,204 @@ impl JclLanguageServer {
     fn get_completions(&self) -> Vec<CompletionItem> {
         let builtins = vec![
             // String functions
-            ("upper", "Converts string to uppercase", CompletionItemKind::FUNCTION),
-            ("lower", "Converts string to lowercase", CompletionItemKind::FUNCTION),
-            ("trim", "Trims whitespace from string", CompletionItemKind::FUNCTION),
-            ("split", "Splits string by delimiter", CompletionItemKind::FUNCTION),
-            ("join", "Joins list of strings", CompletionItemKind::FUNCTION),
-            ("replace", "Replaces substring in string", CompletionItemKind::FUNCTION),
+            (
+                "upper",
+                "Converts string to uppercase",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "lower",
+                "Converts string to lowercase",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "trim",
+                "Trims whitespace from string",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "split",
+                "Splits string by delimiter",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "join",
+                "Joins list of strings",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "replace",
+                "Replaces substring in string",
+                CompletionItemKind::FUNCTION,
+            ),
             ("substr", "Extracts substring", CompletionItemKind::FUNCTION),
-            ("strlen", "Returns string length", CompletionItemKind::FUNCTION),
-            ("startswith", "Checks if string starts with prefix", CompletionItemKind::FUNCTION),
-            ("endswith", "Checks if string ends with suffix", CompletionItemKind::FUNCTION),
-            ("contains", "Checks if string contains substring", CompletionItemKind::FUNCTION),
-            ("format", "Formats string with arguments", CompletionItemKind::FUNCTION),
-
+            (
+                "strlen",
+                "Returns string length",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "startswith",
+                "Checks if string starts with prefix",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "endswith",
+                "Checks if string ends with suffix",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "contains",
+                "Checks if string contains substring",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "format",
+                "Formats string with arguments",
+                CompletionItemKind::FUNCTION,
+            ),
             // List functions
-            ("map", "Maps function over list", CompletionItemKind::FUNCTION),
-            ("filter", "Filters list by predicate", CompletionItemKind::FUNCTION),
-            ("reduce", "Reduces list to single value", CompletionItemKind::FUNCTION),
-            ("length", "Returns list length", CompletionItemKind::FUNCTION),
-            ("range", "Creates range of numbers", CompletionItemKind::FUNCTION),
+            (
+                "map",
+                "Maps function over list",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "filter",
+                "Filters list by predicate",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "reduce",
+                "Reduces list to single value",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "length",
+                "Returns list length",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "range",
+                "Creates range of numbers",
+                CompletionItemKind::FUNCTION,
+            ),
             ("concat", "Concatenates lists", CompletionItemKind::FUNCTION),
-            ("flatten", "Flattens nested lists", CompletionItemKind::FUNCTION),
-            ("distinct", "Returns distinct values", CompletionItemKind::FUNCTION),
+            (
+                "flatten",
+                "Flattens nested lists",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "distinct",
+                "Returns distinct values",
+                CompletionItemKind::FUNCTION,
+            ),
             ("sort", "Sorts list", CompletionItemKind::FUNCTION),
             ("reverse", "Reverses list", CompletionItemKind::FUNCTION),
             ("zip", "Zips multiple lists", CompletionItemKind::FUNCTION),
-            ("any", "Checks if any element matches", CompletionItemKind::FUNCTION),
-            ("all", "Checks if all elements match", CompletionItemKind::FUNCTION),
-
+            (
+                "any",
+                "Checks if any element matches",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "all",
+                "Checks if all elements match",
+                CompletionItemKind::FUNCTION,
+            ),
             // Map functions
             ("keys", "Returns map keys", CompletionItemKind::FUNCTION),
             ("values", "Returns map values", CompletionItemKind::FUNCTION),
             ("merge", "Merges maps", CompletionItemKind::FUNCTION),
-
             // Type functions
             ("type", "Returns value type", CompletionItemKind::FUNCTION),
             ("int", "Converts to integer", CompletionItemKind::FUNCTION),
             ("float", "Converts to float", CompletionItemKind::FUNCTION),
             ("string", "Converts to string", CompletionItemKind::FUNCTION),
             ("bool", "Converts to boolean", CompletionItemKind::FUNCTION),
-
             // Math functions
             ("abs", "Absolute value", CompletionItemKind::FUNCTION),
             ("min", "Minimum value", CompletionItemKind::FUNCTION),
             ("max", "Maximum value", CompletionItemKind::FUNCTION),
             ("ceil", "Ceiling function", CompletionItemKind::FUNCTION),
             ("floor", "Floor function", CompletionItemKind::FUNCTION),
-            ("round", "Round to nearest integer", CompletionItemKind::FUNCTION),
+            (
+                "round",
+                "Round to nearest integer",
+                CompletionItemKind::FUNCTION,
+            ),
             ("pow", "Power function", CompletionItemKind::FUNCTION),
             ("sqrt", "Square root", CompletionItemKind::FUNCTION),
-
             // Encoding functions
-            ("jsonencode", "Encodes to JSON", CompletionItemKind::FUNCTION),
-            ("jsondecode", "Decodes from JSON", CompletionItemKind::FUNCTION),
-            ("yamlencode", "Encodes to YAML", CompletionItemKind::FUNCTION),
-            ("yamldecode", "Decodes from YAML", CompletionItemKind::FUNCTION),
-            ("base64encode", "Encodes to base64", CompletionItemKind::FUNCTION),
-            ("base64decode", "Decodes from base64", CompletionItemKind::FUNCTION),
-            ("urlencode", "URL encodes string", CompletionItemKind::FUNCTION),
-
+            (
+                "jsonencode",
+                "Encodes to JSON",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "jsondecode",
+                "Decodes from JSON",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "yamlencode",
+                "Encodes to YAML",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "yamldecode",
+                "Decodes from YAML",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "base64encode",
+                "Encodes to base64",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "base64decode",
+                "Decodes from base64",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "urlencode",
+                "URL encodes string",
+                CompletionItemKind::FUNCTION,
+            ),
             // Hash functions
             ("md5", "MD5 hash", CompletionItemKind::FUNCTION),
             ("sha1", "SHA1 hash", CompletionItemKind::FUNCTION),
             ("sha256", "SHA256 hash", CompletionItemKind::FUNCTION),
             ("sha512", "SHA512 hash", CompletionItemKind::FUNCTION),
-
             // File functions
             ("file", "Reads file content", CompletionItemKind::FUNCTION),
-            ("fileexists", "Checks if file exists", CompletionItemKind::FUNCTION),
-
+            (
+                "fileexists",
+                "Checks if file exists",
+                CompletionItemKind::FUNCTION,
+            ),
             // Template functions
-            ("template", "Renders template string", CompletionItemKind::FUNCTION),
-            ("templatefile", "Renders template file", CompletionItemKind::FUNCTION),
-
+            (
+                "template",
+                "Renders template string",
+                CompletionItemKind::FUNCTION,
+            ),
+            (
+                "templatefile",
+                "Renders template file",
+                CompletionItemKind::FUNCTION,
+            ),
             // UUID function
             ("uuid", "Generates UUID", CompletionItemKind::FUNCTION),
-
             // Date/Time functions
             ("now", "Current timestamp", CompletionItemKind::FUNCTION),
-            ("timestamp", "Creates timestamp", CompletionItemKind::FUNCTION),
+            (
+                "timestamp",
+                "Creates timestamp",
+                CompletionItemKind::FUNCTION,
+            ),
             ("formatdate", "Formats date", CompletionItemKind::FUNCTION),
-
             // Keywords
             ("fn", "Function definition", CompletionItemKind::KEYWORD),
             ("if", "Conditional expression", CompletionItemKind::KEYWORD),
@@ -198,7 +321,6 @@ impl JclLanguageServer {
             ("import", "Import statement", CompletionItemKind::KEYWORD),
             ("from", "From clause", CompletionItemKind::KEYWORD),
             ("mut", "Mutable variable", CompletionItemKind::KEYWORD),
-
             // Types
             ("string", "String type", CompletionItemKind::CLASS),
             ("int", "Integer type", CompletionItemKind::CLASS),
@@ -207,7 +329,6 @@ impl JclLanguageServer {
             ("list", "List type", CompletionItemKind::CLASS),
             ("map", "Map type", CompletionItemKind::CLASS),
             ("any", "Any type", CompletionItemKind::CLASS),
-
             // Constants
             ("true", "Boolean true", CompletionItemKind::CONSTANT),
             ("false", "Boolean false", CompletionItemKind::CONSTANT),
@@ -268,7 +389,10 @@ impl LanguageServer for JclLanguageServer {
         let text = params.text_document.text;
 
         // Store document
-        self.document_map.write().await.insert(uri.clone(), text.clone());
+        self.document_map
+            .write()
+            .await
+            .insert(uri.clone(), text.clone());
 
         // Send diagnostics
         let diagnostics = self.get_diagnostics(&params.text_document.uri, &text).await;
@@ -305,13 +429,18 @@ impl LanguageServer for JclLanguageServer {
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
-        let uri = params.text_document_position_params.text_document.uri.to_string();
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .to_string();
 
         if let Some(_text) = self.document_map.read().await.get(&uri) {
             // For now, provide basic hover info
             // In the future, we could analyze the position and provide context-specific info
             let contents = HoverContents::Scalar(MarkedString::String(
-                "JCL Language Server\nHover information will be enhanced in future versions".to_string()
+                "JCL Language Server\nHover information will be enhanced in future versions"
+                    .to_string(),
             ));
 
             Ok(Some(Hover {
@@ -327,7 +456,11 @@ impl LanguageServer for JclLanguageServer {
         &self,
         params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
-        let uri = params.text_document_position_params.text_document.uri.to_string();
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .to_string();
         let position = params.text_document_position_params.position;
 
         if let Some(text) = self.document_map.read().await.get(&uri) {
@@ -344,7 +477,11 @@ impl LanguageServer for JclLanguageServer {
                 if let Some(symbol) = symbol_table.find_symbol_at_position(line, column) {
                     // Convert symbol table location to LSP location
                     let def_location = Location {
-                        uri: params.text_document_position_params.text_document.uri.clone(),
+                        uri: params
+                            .text_document_position_params
+                            .text_document
+                            .uri
+                            .clone(),
                         range: Range {
                             start: Position {
                                 line: (symbol.definition.line - 1) as u32,
@@ -352,7 +489,8 @@ impl LanguageServer for JclLanguageServer {
                             },
                             end: Position {
                                 line: (symbol.definition.line - 1) as u32,
-                                character: (symbol.definition.column + symbol.definition.length) as u32,
+                                character: (symbol.definition.column + symbol.definition.length)
+                                    as u32,
                             },
                         },
                     };
@@ -394,7 +532,8 @@ impl LanguageServer for JclLanguageServer {
                                 },
                                 end: Position {
                                     line: (symbol.definition.line - 1) as u32,
-                                    character: (symbol.definition.column + symbol.definition.length) as u32,
+                                    character: (symbol.definition.column + symbol.definition.length)
+                                        as u32,
                                 },
                             },
                         });
@@ -453,7 +592,8 @@ impl LanguageServer for JclLanguageServer {
                             },
                             end: Position {
                                 line: (symbol.definition.line - 1) as u32,
-                                character: (symbol.definition.column + symbol.definition.length) as u32,
+                                character: (symbol.definition.column + symbol.definition.length)
+                                    as u32,
                             },
                         },
                         new_text: new_name.clone(),

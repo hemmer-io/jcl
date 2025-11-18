@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
-use jcl::migration::{json_to_jcl, yaml_to_jcl, toml_to_jcl};
+use jcl::migration::{json_to_jcl, toml_to_jcl, yaml_to_jcl};
 use std::fs;
 use std::path::PathBuf;
 
@@ -53,7 +53,9 @@ fn main() -> Result<()> {
             Some("yaml") | Some("yml") => InputFormat::Yaml,
             Some("toml") => InputFormat::Toml,
             _ => {
-                eprintln!("Could not determine input format from extension. Please specify with --from");
+                eprintln!(
+                    "Could not determine input format from extension. Please specify with --from"
+                );
                 std::process::exit(1);
             }
         }
@@ -76,7 +78,10 @@ fn main() -> Result<()> {
             .with_context(|| format!("Failed to write output file: {}", output_path.display()))?;
 
         if args.verbose {
-            println!("✅ Conversion complete! Output written to {}", output_path.display());
+            println!(
+                "✅ Conversion complete! Output written to {}",
+                output_path.display()
+            );
         }
     } else {
         println!("{}", jcl_output);

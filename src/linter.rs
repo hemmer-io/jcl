@@ -87,7 +87,10 @@ impl Linter {
                         Severity::Warning,
                         format!("Variable '{}' should use snake_case naming", name),
                         "naming-convention",
-                        Some(format!("Consider renaming to '{}'", Self::to_snake_case(name))),
+                        Some(format!(
+                            "Consider renaming to '{}'",
+                            Self::to_snake_case(name)
+                        )),
                         span.clone(),
                     );
                 }
@@ -107,7 +110,10 @@ impl Linter {
                 if *mutable {
                     self.add_issue(
                         Severity::Info,
-                        format!("Variable '{}' is declared mutable but JCL is immutable by default", name),
+                        format!(
+                            "Variable '{}' is declared mutable but JCL is immutable by default",
+                            name
+                        ),
                         "unnecessary-mut",
                         Some("Consider removing 'mut' keyword".to_string()),
                         span.clone(),
@@ -121,7 +127,10 @@ impl Linter {
                 if Self::is_constant_expression(value) {
                     self.add_issue(
                         Severity::Info,
-                        format!("Variable '{}' is assigned a constant value that could be inlined", name),
+                        format!(
+                            "Variable '{}' is assigned a constant value that could be inlined",
+                            name
+                        ),
                         "constant-variable",
                         None,
                         span.clone(),
@@ -142,7 +151,10 @@ impl Linter {
                         Severity::Warning,
                         format!("Function '{}' should use snake_case naming", name),
                         "naming-convention",
-                        Some(format!("Consider renaming to '{}'", Self::to_snake_case(name))),
+                        Some(format!(
+                            "Consider renaming to '{}'",
+                            Self::to_snake_case(name)
+                        )),
                         span.clone(),
                     );
                 }
@@ -187,7 +199,12 @@ impl Linter {
                 }
             }
 
-            Expression::BinaryOp { left, right, op, span } => {
+            Expression::BinaryOp {
+                left,
+                right,
+                op,
+                span,
+            } => {
                 self.check_expression(left);
                 self.check_expression(right);
 
@@ -312,7 +329,9 @@ impl Linter {
     /// Check for unused variables and functions
     fn check_unused(&mut self) {
         // Collect unused variables first to avoid borrow checker issues
-        let unused_vars: Vec<String> = self.variables.iter()
+        let unused_vars: Vec<String> = self
+            .variables
+            .iter()
             .filter(|(name, used)| !**used && !name.starts_with('_'))
             .map(|(name, _)| name.clone())
             .collect();
@@ -329,7 +348,9 @@ impl Linter {
         }
 
         // Collect unused functions
-        let unused_funcs: Vec<String> = self.functions.iter()
+        let unused_funcs: Vec<String> = self
+            .functions
+            .iter()
             .filter(|(name, used)| !**used && !name.starts_with('_'))
             .map(|(name, _)| name.clone())
             .collect();
@@ -347,7 +368,14 @@ impl Linter {
     }
 
     /// Add a lint issue
-    fn add_issue(&mut self, severity: Severity, message: String, rule: &str, suggestion: Option<String>, span: Option<crate::ast::SourceSpan>) {
+    fn add_issue(
+        &mut self,
+        severity: Severity,
+        message: String,
+        rule: &str,
+        suggestion: Option<String>,
+        span: Option<crate::ast::SourceSpan>,
+    ) {
         self.issues.push(LintIssue {
             severity,
             message,
@@ -359,7 +387,8 @@ impl Linter {
 
     /// Check if a name is in snake_case
     fn is_snake_case(name: &str) -> bool {
-        name.chars().all(|c| c.is_lowercase() || c.is_numeric() || c == '_')
+        name.chars()
+            .all(|c| c.is_lowercase() || c.is_numeric() || c == '_')
     }
 
     /// Convert a name to snake_case
@@ -393,26 +422,69 @@ impl Linter {
 
     /// Check if an expression is constant
     fn is_constant_expression(expr: &Expression) -> bool {
-        matches!(
-            expr,
-            Expression::Literal { .. }
-        )
+        matches!(expr, Expression::Literal { .. })
     }
 
     /// Check for redundant operations
-    fn is_redundant_operation(left: &Expression, right: &Expression, op: &crate::ast::BinaryOperator) -> bool {
+    fn is_redundant_operation(
+        left: &Expression,
+        right: &Expression,
+        op: &crate::ast::BinaryOperator,
+    ) -> bool {
         use crate::ast::BinaryOperator;
 
         match (left, right, op) {
             // x + 0 or 0 + x
-            (_, Expression::Literal { value: Value::Int(0), .. }, BinaryOperator::Add) => true,
-            (Expression::Literal { value: Value::Int(0), .. }, _, BinaryOperator::Add) => true,
+            (
+                _,
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                BinaryOperator::Add,
+            ) => true,
+            (
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                _,
+                BinaryOperator::Add,
+            ) => true,
             // x * 1 or 1 * x
-            (_, Expression::Literal { value: Value::Int(1), .. }, BinaryOperator::Multiply) => true,
-            (Expression::Literal { value: Value::Int(1), .. }, _, BinaryOperator::Multiply) => true,
+            (
+                _,
+                Expression::Literal {
+                    value: Value::Int(1),
+                    ..
+                },
+                BinaryOperator::Multiply,
+            ) => true,
+            (
+                Expression::Literal {
+                    value: Value::Int(1),
+                    ..
+                },
+                _,
+                BinaryOperator::Multiply,
+            ) => true,
             // x * 0 or 0 * x
-            (_, Expression::Literal { value: Value::Int(0), .. }, BinaryOperator::Multiply) => true,
-            (Expression::Literal { value: Value::Int(0), .. }, _, BinaryOperator::Multiply) => true,
+            (
+                _,
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                BinaryOperator::Multiply,
+            ) => true,
+            (
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                _,
+                BinaryOperator::Multiply,
+            ) => true,
             _ => false,
         }
     }
@@ -505,7 +577,9 @@ mod tests {
         let module = parser::parse_str(input).unwrap();
         let issues = lint(&module).unwrap();
 
-        assert!(issues.iter().any(|i| i.rule == "unused-variable" && i.message.contains("unused")));
+        assert!(issues
+            .iter()
+            .any(|i| i.rule == "unused-variable" && i.message.contains("unused")));
     }
 
     #[test]
@@ -523,7 +597,9 @@ mod tests {
         let module = parser::parse_str(input).unwrap();
         let issues = lint(&module).unwrap();
 
-        assert!(issues.iter().any(|i| i.rule == "unused-parameter" && i.message.contains("'y'")));
+        assert!(issues
+            .iter()
+            .any(|i| i.rule == "unused-parameter" && i.message.contains("'y'")));
     }
 
     #[test]
@@ -549,6 +625,10 @@ mod tests {
         // Should have no errors or warnings (may have info messages)
         let has_errors = issues.iter().any(|i| i.severity == Severity::Error);
         let has_warnings = issues.iter().any(|i| i.severity == Severity::Warning);
-        assert!(!has_errors && !has_warnings, "Expected no errors or warnings, got: {:?}", issues);
+        assert!(
+            !has_errors && !has_warnings,
+            "Expected no errors or warnings, got: {:?}",
+            issues
+        );
     }
 }

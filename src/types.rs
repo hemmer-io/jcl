@@ -1,8 +1,7 @@
 //! Type system for JCL with advanced static type inference
 
 use crate::ast::{
-    BinaryOperator, Expression, Module, SourceSpan, Statement, Type,
-    UnaryOperator, Value,
+    BinaryOperator, Expression, Module, SourceSpan, Statement, Type, UnaryOperator, Value,
 };
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -90,68 +89,110 @@ impl TypeEnvironment {
     /// Register built-in function signatures
     pub fn register_builtins(&mut self) {
         // String functions
-        self.define_function("upper".to_string(), Type::Function {
-            params: vec![Type::String],
-            return_type: Box::new(Type::String),
-        });
-        self.define_function("lower".to_string(), Type::Function {
-            params: vec![Type::String],
-            return_type: Box::new(Type::String),
-        });
-        self.define_function("trim".to_string(), Type::Function {
-            params: vec![Type::String],
-            return_type: Box::new(Type::String),
-        });
-        self.define_function("split".to_string(), Type::Function {
-            params: vec![Type::String, Type::String],
-            return_type: Box::new(Type::List(Box::new(Type::String))),
-        });
-        self.define_function("join".to_string(), Type::Function {
-            params: vec![Type::List(Box::new(Type::String)), Type::String],
-            return_type: Box::new(Type::String),
-        });
+        self.define_function(
+            "upper".to_string(),
+            Type::Function {
+                params: vec![Type::String],
+                return_type: Box::new(Type::String),
+            },
+        );
+        self.define_function(
+            "lower".to_string(),
+            Type::Function {
+                params: vec![Type::String],
+                return_type: Box::new(Type::String),
+            },
+        );
+        self.define_function(
+            "trim".to_string(),
+            Type::Function {
+                params: vec![Type::String],
+                return_type: Box::new(Type::String),
+            },
+        );
+        self.define_function(
+            "split".to_string(),
+            Type::Function {
+                params: vec![Type::String, Type::String],
+                return_type: Box::new(Type::List(Box::new(Type::String))),
+            },
+        );
+        self.define_function(
+            "join".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::String)), Type::String],
+                return_type: Box::new(Type::String),
+            },
+        );
 
         // Collection functions
-        self.define_function("length".to_string(), Type::Function {
-            params: vec![Type::Any],
-            return_type: Box::new(Type::Int),
-        });
-        self.define_function("reverse".to_string(), Type::Function {
-            params: vec![Type::List(Box::new(Type::Any))],
-            return_type: Box::new(Type::List(Box::new(Type::Any))),
-        });
+        self.define_function(
+            "length".to_string(),
+            Type::Function {
+                params: vec![Type::Any],
+                return_type: Box::new(Type::Int),
+            },
+        );
+        self.define_function(
+            "reverse".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::Any))],
+                return_type: Box::new(Type::List(Box::new(Type::Any))),
+            },
+        );
 
         // Math functions
-        self.define_function("abs".to_string(), Type::Function {
-            params: vec![Type::Int],
-            return_type: Box::new(Type::Int),
-        });
-        self.define_function("min".to_string(), Type::Function {
-            params: vec![Type::List(Box::new(Type::Int))],
-            return_type: Box::new(Type::Int),
-        });
-        self.define_function("max".to_string(), Type::Function {
-            params: vec![Type::List(Box::new(Type::Int))],
-            return_type: Box::new(Type::Int),
-        });
-        self.define_function("sum".to_string(), Type::Function {
-            params: vec![Type::List(Box::new(Type::Int))],
-            return_type: Box::new(Type::Int),
-        });
+        self.define_function(
+            "abs".to_string(),
+            Type::Function {
+                params: vec![Type::Int],
+                return_type: Box::new(Type::Int),
+            },
+        );
+        self.define_function(
+            "min".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::Int))],
+                return_type: Box::new(Type::Int),
+            },
+        );
+        self.define_function(
+            "max".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::Int))],
+                return_type: Box::new(Type::Int),
+            },
+        );
+        self.define_function(
+            "sum".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::Int))],
+                return_type: Box::new(Type::Int),
+            },
+        );
 
         // Type conversion
-        self.define_function("str".to_string(), Type::Function {
-            params: vec![Type::Any],
-            return_type: Box::new(Type::String),
-        });
-        self.define_function("int".to_string(), Type::Function {
-            params: vec![Type::Any],
-            return_type: Box::new(Type::Int),
-        });
-        self.define_function("float".to_string(), Type::Function {
-            params: vec![Type::Any],
-            return_type: Box::new(Type::Float),
-        });
+        self.define_function(
+            "str".to_string(),
+            Type::Function {
+                params: vec![Type::Any],
+                return_type: Box::new(Type::String),
+            },
+        );
+        self.define_function(
+            "int".to_string(),
+            Type::Function {
+                params: vec![Type::Any],
+                return_type: Box::new(Type::Int),
+            },
+        );
+        self.define_function(
+            "float".to_string(),
+            Type::Function {
+                params: vec![Type::Any],
+                return_type: Box::new(Type::Float),
+            },
+        );
     }
 }
 
@@ -253,7 +294,9 @@ impl TypeChecker {
                 // Add parameters to scope
                 for param in params {
                     let param_type = param.param_type.clone().unwrap_or(Type::Any);
-                    child_checker.env.define_variable(param.name.clone(), param_type);
+                    child_checker
+                        .env
+                        .define_variable(param.name.clone(), param_type);
                 }
 
                 let body_type = child_checker.infer_expression(body)?;
@@ -359,12 +402,19 @@ impl TypeChecker {
                 }
             }
 
-            Expression::MemberAccess { object, field, span } => {
+            Expression::MemberAccess {
+                object,
+                field,
+                span,
+            } => {
                 let obj_type = self.infer_expression(object)?;
                 match obj_type {
                     Type::Map(_, value_type) => Ok(*value_type),
                     _ => Err(TypeError::new(
-                        format!("Cannot access field '{}' on non-map type {:?}", field, obj_type),
+                        format!(
+                            "Cannot access field '{}' on non-map type {:?}",
+                            field, obj_type
+                        ),
                         span.clone(),
                     )),
                 }
@@ -384,7 +434,9 @@ impl TypeChecker {
 
                 for param in params {
                     let param_type = param.param_type.clone().unwrap_or(Type::Any);
-                    child_checker.env.define_variable(param.name.clone(), param_type);
+                    child_checker
+                        .env
+                        .define_variable(param.name.clone(), param_type);
                 }
 
                 let return_type = child_checker.infer_expression(body)?;
@@ -414,7 +466,11 @@ impl TypeChecker {
                 Ok(self.unify_types(&then_type, &else_type))
             }
 
-            Expression::Index { object, index, span } => {
+            Expression::Index {
+                object,
+                index,
+                span,
+            } => {
                 let obj_type = self.infer_expression(object)?;
                 let idx_type = self.infer_expression(index)?;
 
@@ -431,7 +487,10 @@ impl TypeChecker {
                     Type::Map(key_type, value_type) => {
                         if !self.is_compatible(&idx_type, &*key_type) {
                             return Err(TypeError::new(
-                                format!("Map key type mismatch: expected {:?}, got {:?}", key_type, idx_type),
+                                format!(
+                                    "Map key type mismatch: expected {:?}, got {:?}",
+                                    key_type, idx_type
+                                ),
                                 span.clone(),
                             ));
                         }
@@ -464,13 +523,20 @@ impl TypeChecker {
         match op {
             Add | Subtract | Multiply | Divide | Modulo | Power => {
                 // Arithmetic operations
-                if self.is_compatible(&left_type, &Type::Int) && self.is_compatible(&right_type, &Type::Int) {
+                if self.is_compatible(&left_type, &Type::Int)
+                    && self.is_compatible(&right_type, &Type::Int)
+                {
                     Ok(Type::Int)
-                } else if self.is_compatible(&left_type, &Type::Float) || self.is_compatible(&right_type, &Type::Float) {
+                } else if self.is_compatible(&left_type, &Type::Float)
+                    || self.is_compatible(&right_type, &Type::Float)
+                {
                     Ok(Type::Float)
                 } else {
                     Err(TypeError::new(
-                        format!("Arithmetic operation requires numeric types, got {:?} and {:?}", left_type, right_type),
+                        format!(
+                            "Arithmetic operation requires numeric types, got {:?} and {:?}",
+                            left_type, right_type
+                        ),
                         span.cloned(),
                     ))
                 }
@@ -483,9 +549,14 @@ impl TypeChecker {
 
             And | Or => {
                 // Logical operations require bool operands
-                if !self.is_compatible(&left_type, &Type::Bool) || !self.is_compatible(&right_type, &Type::Bool) {
+                if !self.is_compatible(&left_type, &Type::Bool)
+                    || !self.is_compatible(&right_type, &Type::Bool)
+                {
                     return Err(TypeError::new(
-                        format!("Logical operation requires boolean operands, got {:?} and {:?}", left_type, right_type),
+                        format!(
+                            "Logical operation requires boolean operands, got {:?} and {:?}",
+                            left_type, right_type
+                        ),
                         span.cloned(),
                     ));
                 }
@@ -499,9 +570,14 @@ impl TypeChecker {
 
             Concat => {
                 // String concatenation
-                if !self.is_compatible(&left_type, &Type::String) || !self.is_compatible(&right_type, &Type::String) {
+                if !self.is_compatible(&left_type, &Type::String)
+                    || !self.is_compatible(&right_type, &Type::String)
+                {
                     return Err(TypeError::new(
-                        format!("String concatenation requires string operands, got {:?} and {:?}", left_type, right_type),
+                        format!(
+                            "String concatenation requires string operands, got {:?} and {:?}",
+                            left_type, right_type
+                        ),
                         span.cloned(),
                     ));
                 }
@@ -524,7 +600,10 @@ impl TypeChecker {
             Not => {
                 if !self.is_compatible(&operand_type, &Type::Bool) {
                     return Err(TypeError::new(
-                        format!("Logical NOT requires boolean operand, got {:?}", operand_type),
+                        format!(
+                            "Logical NOT requires boolean operand, got {:?}",
+                            operand_type
+                        ),
                         span.cloned(),
                     ));
                 }
@@ -609,7 +688,10 @@ impl TypeChecker {
             t2.clone()
         } else if matches!(t2, Type::Any) {
             t1.clone()
-        } else if matches!((t1, t2), (Type::Int, Type::Float) | (Type::Float, Type::Int)) {
+        } else if matches!(
+            (t1, t2),
+            (Type::Int, Type::Float) | (Type::Float, Type::Int)
+        ) {
             Type::Float
         } else {
             Type::Any
@@ -636,7 +718,10 @@ impl TypeChecker {
                     Type::Map(Box::new(Type::String), Box::new(Type::Any))
                 } else {
                     let first_value = map.values().next().unwrap();
-                    Type::Map(Box::new(Type::String), Box::new(self.infer_value(first_value)))
+                    Type::Map(
+                        Box::new(Type::String),
+                        Box::new(self.infer_value(first_value)),
+                    )
                 }
             }
             Value::Function { params, .. } => {
@@ -683,7 +768,6 @@ impl TypeChecker {
             }
 
             // Object type checking removed - use Map instead
-
             _ => Err(anyhow!(
                 "Type mismatch: expected {:?}, got {:?}",
                 expected,
@@ -756,12 +840,10 @@ mod tests {
     #[test]
     fn test_check_list() {
         let checker = TypeChecker::new();
-        let value = Value::List(vec![
-            Value::Int(1),
-            Value::Int(2),
-            Value::Int(3),
-        ]);
-        assert!(checker.check(&value, &Type::List(Box::new(Type::Int))).is_ok());
+        let value = Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]);
+        assert!(checker
+            .check(&value, &Type::List(Box::new(Type::Int)))
+            .is_ok());
         assert!(checker
             .check(&value, &Type::List(Box::new(Type::String)))
             .is_err());
@@ -770,7 +852,10 @@ mod tests {
     #[test]
     fn test_infer_type() {
         let checker = TypeChecker::new();
-        assert_eq!(checker.infer(&Value::String("test".to_string())), Type::String);
+        assert_eq!(
+            checker.infer(&Value::String("test".to_string())),
+            Type::String
+        );
         assert_eq!(checker.infer(&Value::Int(42)), Type::Int);
         assert_eq!(checker.infer(&Value::Bool(true)), Type::Bool);
     }
@@ -925,9 +1010,18 @@ mod tests {
         let expr = Expression::Index {
             object: Box::new(Expression::List {
                 elements: vec![
-                    Expression::Literal { value: Value::Int(10), span: None },
-                    Expression::Literal { value: Value::Int(20), span: None },
-                    Expression::Literal { value: Value::Int(30), span: None },
+                    Expression::Literal {
+                        value: Value::Int(10),
+                        span: None,
+                    },
+                    Expression::Literal {
+                        value: Value::Int(20),
+                        span: None,
+                    },
+                    Expression::Literal {
+                        value: Value::Int(30),
+                        span: None,
+                    },
                 ],
                 span: None,
             }),
@@ -948,9 +1042,10 @@ mod tests {
         // [10, 20]["invalid"] (should fail)
         let expr = Expression::Index {
             object: Box::new(Expression::List {
-                elements: vec![
-                    Expression::Literal { value: Value::Int(10), span: None },
-                ],
+                elements: vec![Expression::Literal {
+                    value: Value::Int(10),
+                    span: None,
+                }],
                 span: None,
             }),
             index: Box::new(Expression::Literal {
@@ -1001,19 +1096,17 @@ mod tests {
     fn test_check_module_type_annotation_mismatch() {
         // Test type annotation mismatch
         let module = Module {
-            statements: vec![
-                Statement::Assignment {
-                    name: "x".to_string(),
-                    mutable: false,
-                    value: Expression::Literal {
-                        value: Value::Int(42),
-                        span: None,
-                    },
-                    type_annotation: Some(Type::String), // Mismatch: expected String, got Int
-                    doc_comments: None,
+            statements: vec![Statement::Assignment {
+                name: "x".to_string(),
+                mutable: false,
+                value: Expression::Literal {
+                    value: Value::Int(42),
                     span: None,
                 },
-            ],
+                type_annotation: Some(Type::String), // Mismatch: expected String, got Int
+                doc_comments: None,
+                span: None,
+            }],
         };
 
         let mut checker = TypeChecker::new();
@@ -1024,31 +1117,29 @@ mod tests {
     fn test_function_type_checking() {
         // Test function definition with type checking
         let module = Module {
-            statements: vec![
-                Statement::FunctionDef {
-                    name: "double".to_string(),
-                    params: vec![crate::ast::Parameter {
+            statements: vec![Statement::FunctionDef {
+                name: "double".to_string(),
+                params: vec![crate::ast::Parameter {
+                    name: "x".to_string(),
+                    param_type: Some(Type::Int),
+                    default: None,
+                }],
+                return_type: Some(Type::Int),
+                body: Expression::BinaryOp {
+                    op: BinaryOperator::Multiply,
+                    left: Box::new(Expression::Variable {
                         name: "x".to_string(),
-                        param_type: Some(Type::Int),
-                        default: None,
-                    }],
-                    return_type: Some(Type::Int),
-                    body: Expression::BinaryOp {
-                        op: BinaryOperator::Multiply,
-                        left: Box::new(Expression::Variable {
-                            name: "x".to_string(),
-                            span: None,
-                        }),
-                        right: Box::new(Expression::Literal {
-                            value: Value::Int(2),
-                            span: None,
-                        }),
                         span: None,
-                    },
-                    doc_comments: None,
+                    }),
+                    right: Box::new(Expression::Literal {
+                        value: Value::Int(2),
+                        span: None,
+                    }),
                     span: None,
                 },
-            ],
+                doc_comments: None,
+                span: None,
+            }],
         };
 
         let mut checker = TypeChecker::new();

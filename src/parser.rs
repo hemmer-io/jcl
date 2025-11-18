@@ -102,10 +102,7 @@ fn parse_statement(pair: Pair<Rule>) -> Result<Statement> {
                     .map(|dc| {
                         let text = dc.as_str();
                         // Remove "///" prefix and trim
-                        text.strip_prefix("///")
-                            .unwrap_or(text)
-                            .trim()
-                            .to_string()
+                        text.strip_prefix("///").unwrap_or(text).trim().to_string()
                     })
                     .collect();
                 doc_comments = Some(comments);
@@ -120,7 +117,10 @@ fn parse_statement(pair: Pair<Rule>) -> Result<Statement> {
     let stmt_inner = stmt_pair.ok_or_else(|| anyhow!("Empty statement"))?;
 
     // Get the actual statement from stmtbody
-    let inner = stmt_inner.into_inner().next().ok_or_else(|| anyhow!("Empty stmtbody"))?;
+    let inner = stmt_inner
+        .into_inner()
+        .next()
+        .ok_or_else(|| anyhow!("Empty stmtbody"))?;
 
     match inner.as_rule() {
         Rule::assignment => parse_assignment(inner, doc_comments),
@@ -364,20 +364,18 @@ fn parse_type_expr(pair: Pair<Rule>) -> Result<Type> {
 fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
     PRATT_PARSER
         .map_primary(|primary| parse_primary(primary))
-        .map_prefix(|op, rhs| {
-            match op.as_rule() {
-                Rule::neg => Ok(Expression::UnaryOp {
-                    op: UnaryOperator::Negate,
-                    operand: Box::new(rhs?),
-                    span: None,
-                }),
-                Rule::not => Ok(Expression::UnaryOp {
-                    op: UnaryOperator::Not,
-                    operand: Box::new(rhs?),
-                    span: None,
-                }),
-                _ => Err(anyhow!("Unknown prefix operator: {:?}", op.as_rule())),
-            }
+        .map_prefix(|op, rhs| match op.as_rule() {
+            Rule::neg => Ok(Expression::UnaryOp {
+                op: UnaryOperator::Negate,
+                operand: Box::new(rhs?),
+                span: None,
+            }),
+            Rule::not => Ok(Expression::UnaryOp {
+                op: UnaryOperator::Not,
+                operand: Box::new(rhs?),
+                span: None,
+            }),
+            _ => Err(anyhow!("Unknown prefix operator: {:?}", op.as_rule())),
         })
         .map_postfix(|lhs, op| {
             let lhs = lhs?;
@@ -469,16 +467,16 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                 Rule::pipe_op => {
                     // Pipeline operator creates a Pipeline expression
                     // If lhs is already a pipeline, extend it; otherwise create a new one
-                    let mut stages = if let Expression::Pipeline { stages: existing, .. } = lhs {
+                    let mut stages = if let Expression::Pipeline {
+                        stages: existing, ..
+                    } = lhs
+                    {
                         existing
                     } else {
                         vec![lhs]
                     };
                     stages.push(rhs?);
-                    return Ok(Expression::Pipeline {
-                        stages,
-                        span: None,
-                    });
+                    return Ok(Expression::Pipeline { stages, span: None });
                 }
                 Rule::ternary_op => {
                     // Ternary: condition ? then_expr : else_expr
@@ -605,10 +603,7 @@ fn parse_interpolated_string(pair: Pair<Rule>) -> Result<Expression> {
         }
     }
 
-    Ok(Expression::InterpolatedString {
-        parts,
-        span: None,
-    })
+    Ok(Expression::InterpolatedString { parts, span: None })
 }
 
 fn parse_list(pair: Pair<Rule>) -> Result<Expression> {
@@ -803,7 +798,10 @@ fn parse_when_pattern(pair: Pair<Rule>) -> Result<Pattern> {
         match inner_pair.as_rule() {
             Rule::literal_value => {
                 // Parse as literal
-                let lit_inner = inner_pair.into_inner().next().ok_or_else(|| anyhow!("Empty literal"))?;
+                let lit_inner = inner_pair
+                    .into_inner()
+                    .next()
+                    .ok_or_else(|| anyhow!("Empty literal"))?;
                 match parse_primary(lit_inner)? {
                     Expression::Literal { value, .. } => Ok(Pattern::Literal(value)),
                     _ => Err(anyhow!("Invalid literal pattern")),
@@ -814,12 +812,10 @@ fn parse_when_pattern(pair: Pair<Rule>) -> Result<Pattern> {
                 // Tuple pattern
                 let exprs: Result<Vec<_>> = inner_pair
                     .into_inner()
-                    .map(|e| {
-                        match parse_expression(e)? {
-                            Expression::Literal { value, .. } => Ok(Pattern::Literal(value)),
-                            Expression::Variable { name, .. } => Ok(Pattern::Variable(name)),
-                            _ => Err(anyhow!("Invalid pattern expression")),
-                        }
+                    .map(|e| match parse_expression(e)? {
+                        Expression::Literal { value, .. } => Ok(Pattern::Literal(value)),
+                        Expression::Variable { name, .. } => Ok(Pattern::Variable(name)),
+                        _ => Err(anyhow!("Invalid pattern expression")),
                     })
                     .collect();
                 Ok(Pattern::Tuple(exprs?))

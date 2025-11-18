@@ -68,35 +68,35 @@ pub enum TokenKind {
     String(StringValue),
 
     // Operators
-    Plus,        // +
-    Minus,       // -
-    Star,        // *
-    Slash,       // /
-    Percent,     // %
-    Equal,       // =
-    EqualEqual,  // ==
-    NotEqual,    // !=
-    Less,        // <
-    LessEqual,   // <=
-    Greater,     // >
-    GreaterEqual,// >=
-    Bang,        // !
-    Pipe,        // |
-    Question,    // ?
-    QuestionDot, // ?.
+    Plus,             // +
+    Minus,            // -
+    Star,             // *
+    Slash,            // /
+    Percent,          // %
+    Equal,            // =
+    EqualEqual,       // ==
+    NotEqual,         // !=
+    Less,             // <
+    LessEqual,        // <=
+    Greater,          // >
+    GreaterEqual,     // >=
+    Bang,             // !
+    Pipe,             // |
+    Question,         // ?
+    QuestionDot,      // ?.
     QuestionQuestion, // ??
-    Colon,       // :
-    Arrow,       // =>
+    Colon,            // :
+    Arrow,            // =>
 
     // Punctuation
-    LeftParen,   // (
-    RightParen,  // )
-    LeftBracket, // [
-    RightBracket,// ]
-    LeftBrace,   // {
-    RightBrace,  // }
-    Comma,       // ,
-    Dot,         // .
+    LeftParen,    // (
+    RightParen,   // )
+    LeftBracket,  // [
+    RightBracket, // ]
+    LeftBrace,    // {
+    RightBrace,   // }
+    Comma,        // ,
+    Dot,          // .
 
     // Special
     DocComment(String),
@@ -177,90 +177,82 @@ impl<'a> Lexer<'a> {
                     TokenKind::DocComment(content)
                 }
 
-                Rule::keyword_token => {
-                    match inner.as_str() {
-                        "import" => TokenKind::Import,
-                        "from" => TokenKind::From,
-                        "fn" => TokenKind::Fn,
-                        "if" => TokenKind::If,
-                        "then" => TokenKind::Then,
-                        "else" => TokenKind::Else,
-                        "when" => TokenKind::When,
-                        "for" => TokenKind::For,
-                        "in" => TokenKind::In,
-                        "as" => TokenKind::As,
-                        "mut" => TokenKind::Mut,
-                        "try" => TokenKind::Try,
-                        "and" => TokenKind::And,
-                        "or" => TokenKind::Or,
-                        "not" => TokenKind::Not,
-                        "true" => TokenKind::True,
-                        "false" => TokenKind::False,
-                        "null" => TokenKind::Null,
-                        "match" => TokenKind::Match,
-                        kw => return Err(anyhow!("Unknown keyword: {}", kw)),
-                    }
-                }
+                Rule::keyword_token => match inner.as_str() {
+                    "import" => TokenKind::Import,
+                    "from" => TokenKind::From,
+                    "fn" => TokenKind::Fn,
+                    "if" => TokenKind::If,
+                    "then" => TokenKind::Then,
+                    "else" => TokenKind::Else,
+                    "when" => TokenKind::When,
+                    "for" => TokenKind::For,
+                    "in" => TokenKind::In,
+                    "as" => TokenKind::As,
+                    "mut" => TokenKind::Mut,
+                    "try" => TokenKind::Try,
+                    "and" => TokenKind::And,
+                    "or" => TokenKind::Or,
+                    "not" => TokenKind::Not,
+                    "true" => TokenKind::True,
+                    "false" => TokenKind::False,
+                    "null" => TokenKind::Null,
+                    "match" => TokenKind::Match,
+                    kw => return Err(anyhow!("Unknown keyword: {}", kw)),
+                },
 
-                Rule::identifier_token => {
-                    TokenKind::Identifier(inner.as_str().to_string())
-                }
+                Rule::identifier_token => TokenKind::Identifier(inner.as_str().to_string()),
 
                 Rule::number_token => {
                     let text = inner.as_str();
                     if text.contains('.') {
-                        let f: f64 = text.parse()
+                        let f: f64 = text
+                            .parse()
                             .map_err(|_| anyhow!("Invalid float: {}", text))?;
                         TokenKind::Float(f)
                     } else {
-                        let i: i64 = text.parse()
+                        let i: i64 = text
+                            .parse()
                             .map_err(|_| anyhow!("Invalid integer: {}", text))?;
                         TokenKind::Integer(i)
                     }
                 }
 
-                Rule::string_token => {
-                    self.process_string_token(inner)?
-                }
+                Rule::string_token => self.process_string_token(inner)?,
 
-                Rule::operator_token => {
-                    match inner.as_str() {
-                        "=>" => TokenKind::Arrow,
-                        "?." => TokenKind::QuestionDot,
-                        "??" => TokenKind::QuestionQuestion,
-                        "==" => TokenKind::EqualEqual,
-                        "!=" => TokenKind::NotEqual,
-                        "<=" => TokenKind::LessEqual,
-                        ">=" => TokenKind::GreaterEqual,
-                        "+" => TokenKind::Plus,
-                        "-" => TokenKind::Minus,
-                        "*" => TokenKind::Star,
-                        "/" => TokenKind::Slash,
-                        "%" => TokenKind::Percent,
-                        "<" => TokenKind::Less,
-                        ">" => TokenKind::Greater,
-                        "=" => TokenKind::Equal,
-                        "!" => TokenKind::Bang,
-                        "|" => TokenKind::Pipe,
-                        "?" => TokenKind::Question,
-                        ":" => TokenKind::Colon,
-                        op => return Err(anyhow!("Unknown operator: {}", op)),
-                    }
-                }
+                Rule::operator_token => match inner.as_str() {
+                    "=>" => TokenKind::Arrow,
+                    "?." => TokenKind::QuestionDot,
+                    "??" => TokenKind::QuestionQuestion,
+                    "==" => TokenKind::EqualEqual,
+                    "!=" => TokenKind::NotEqual,
+                    "<=" => TokenKind::LessEqual,
+                    ">=" => TokenKind::GreaterEqual,
+                    "+" => TokenKind::Plus,
+                    "-" => TokenKind::Minus,
+                    "*" => TokenKind::Star,
+                    "/" => TokenKind::Slash,
+                    "%" => TokenKind::Percent,
+                    "<" => TokenKind::Less,
+                    ">" => TokenKind::Greater,
+                    "=" => TokenKind::Equal,
+                    "!" => TokenKind::Bang,
+                    "|" => TokenKind::Pipe,
+                    "?" => TokenKind::Question,
+                    ":" => TokenKind::Colon,
+                    op => return Err(anyhow!("Unknown operator: {}", op)),
+                },
 
-                Rule::punctuation_token => {
-                    match inner.as_str() {
-                        "(" => TokenKind::LeftParen,
-                        ")" => TokenKind::RightParen,
-                        "[" => TokenKind::LeftBracket,
-                        "]" => TokenKind::RightBracket,
-                        "{" => TokenKind::LeftBrace,
-                        "}" => TokenKind::RightBrace,
-                        "," => TokenKind::Comma,
-                        "." => TokenKind::Dot,
-                        p => return Err(anyhow!("Unknown punctuation: {}", p)),
-                    }
-                }
+                Rule::punctuation_token => match inner.as_str() {
+                    "(" => TokenKind::LeftParen,
+                    ")" => TokenKind::RightParen,
+                    "[" => TokenKind::LeftBracket,
+                    "]" => TokenKind::RightBracket,
+                    "{" => TokenKind::LeftBrace,
+                    "}" => TokenKind::RightBrace,
+                    "," => TokenKind::Comma,
+                    "." => TokenKind::Dot,
+                    p => return Err(anyhow!("Unknown punctuation: {}", p)),
+                },
 
                 _ => continue,
             };
@@ -278,14 +270,14 @@ impl<'a> Lexer<'a> {
                 Rule::simple_string_token => {
                     let text = inner.as_str();
                     // Remove quotes and unescape
-                    let content = self.unescape_string(&text[1..text.len()-1])?;
+                    let content = self.unescape_string(&text[1..text.len() - 1])?;
                     return Ok(TokenKind::String(StringValue::Simple(content)));
                 }
 
                 Rule::multiline_string_token => {
                     let text = inner.as_str();
                     // Remove triple quotes
-                    let content = text[3..text.len()-3].to_string();
+                    let content = text[3..text.len() - 3].to_string();
                     return Ok(TokenKind::String(StringValue::Multiline(content)));
                 }
 
@@ -304,7 +296,7 @@ impl<'a> Lexer<'a> {
                                             for expr in sub.into_inner() {
                                                 if expr.as_rule() == Rule::interpolated_content {
                                                     parts.push(StringPart::Interpolation(
-                                                        expr.as_str().to_string()
+                                                        expr.as_str().to_string(),
                                                     ));
                                                 }
                                             }
@@ -381,7 +373,11 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Position { line, column, offset }
+        Position {
+            line,
+            column,
+            offset,
+        }
     }
 }
 
@@ -437,7 +433,9 @@ mod tests {
         let tokens = tokenize(r#""hello world""#).unwrap();
         println!("Tokens: {:?}", tokens);
         assert_eq!(tokens.len(), 2);
-        assert!(matches!(&tokens[0].kind, TokenKind::String(StringValue::Simple(s)) if s == "hello world"));
+        assert!(
+            matches!(&tokens[0].kind, TokenKind::String(StringValue::Simple(s)) if s == "hello world")
+        );
     }
 
     #[test]

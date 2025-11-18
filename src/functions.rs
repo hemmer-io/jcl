@@ -539,15 +539,13 @@ fn fn_reverse(args: &[Value]) -> Result<Value> {
 fn fn_sort(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "sort")?;
     let mut list = as_list(&args[0])?.clone();
-    list.sort_by(|a, b| {
-        match (a, b) {
-            (Value::String(s1), Value::String(s2)) => s1.cmp(s2),
-            (Value::Int(i1), Value::Int(i2)) => i1.cmp(i2),
-            (Value::Float(f1), Value::Float(f2)) => {
-                f1.partial_cmp(f2).unwrap_or(std::cmp::Ordering::Equal)
-            }
-            _ => std::cmp::Ordering::Equal,
+    list.sort_by(|a, b| match (a, b) {
+        (Value::String(s1), Value::String(s2)) => s1.cmp(s2),
+        (Value::Int(i1), Value::Int(i2)) => i1.cmp(i2),
+        (Value::Float(f1), Value::Float(f2)) => {
+            f1.partial_cmp(f2).unwrap_or(std::cmp::Ordering::Equal)
         }
+        _ => std::cmp::Ordering::Equal,
     });
     Ok(Value::List(list))
 }
@@ -1147,18 +1145,14 @@ fn value_to_serde_json(value: &Value) -> Result<serde_json::Value> {
     match value {
         Value::String(s) => Ok(serde_json::Value::String(s.clone())),
         Value::Int(i) => Ok(serde_json::Value::Number((*i).into())),
-        Value::Float(f) => {
-            serde_json::Number::from_f64(*f)
-                .map(serde_json::Value::Number)
-                .ok_or_else(|| anyhow!("Invalid float value for JSON"))
-        }
+        Value::Float(f) => serde_json::Number::from_f64(*f)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| anyhow!("Invalid float value for JSON")),
         Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
         Value::Null => Ok(serde_json::Value::Null),
         Value::List(items) => {
-            let json_items: Result<Vec<serde_json::Value>> = items
-                .iter()
-                .map(value_to_serde_json)
-                .collect();
+            let json_items: Result<Vec<serde_json::Value>> =
+                items.iter().map(value_to_serde_json).collect();
             Ok(serde_json::Value::Array(json_items?))
         }
         Value::Map(map) => {
@@ -1168,9 +1162,9 @@ fn value_to_serde_json(value: &Value) -> Result<serde_json::Value> {
             }
             Ok(serde_json::Value::Object(json_map))
         }
-        Value::Function { .. } => {
-            Err(anyhow!("Cannot convert function to JSON for template rendering"))
-        }
+        Value::Function { .. } => Err(anyhow!(
+            "Cannot convert function to JSON for template rendering"
+        )),
     }
 }
 
@@ -1218,46 +1212,37 @@ mod tests {
         let result = fn_format(&[
             Value::String("Hello, %s!".to_string()),
             Value::String("World".to_string()),
-        ]).unwrap();
+        ])
+        .unwrap();
         assert_eq!(result, Value::String("Hello, World!".to_string()));
     }
 
     #[test]
     fn test_format_integer() {
         // Integer formatting
-        let result = fn_format(&[
-            Value::String("Count: %d".to_string()),
-            Value::Int(42),
-        ]).unwrap();
+        let result = fn_format(&[Value::String("Count: %d".to_string()), Value::Int(42)]).unwrap();
         assert_eq!(result, Value::String("Count: 42".to_string()));
     }
 
     #[test]
     fn test_format_float() {
         // Float formatting
-        let result = fn_format(&[
-            Value::String("Pi: %f".to_string()),
-            Value::Float(3.14159),
-        ]).unwrap();
+        let result =
+            fn_format(&[Value::String("Pi: %f".to_string()), Value::Float(3.14159)]).unwrap();
         assert_eq!(result, Value::String("Pi: 3.14159".to_string()));
     }
 
     #[test]
     fn test_format_hex() {
         // Hexadecimal formatting
-        let result = fn_format(&[
-            Value::String("Hex: %x".to_string()),
-            Value::Int(255),
-        ]).unwrap();
+        let result = fn_format(&[Value::String("Hex: %x".to_string()), Value::Int(255)]).unwrap();
         assert_eq!(result, Value::String("Hex: ff".to_string()));
     }
 
     #[test]
     fn test_format_percent_escape() {
         // Percent sign escaping - %% in format string should produce single %
-        let result = fn_format(&[
-            Value::String("100%% complete".to_string()),
-        ]).unwrap();
+        let result = fn_format(&[Value::String("100%% complete".to_string())]).unwrap();
         assert_eq!(result, Value::String("100% complete".to_string()));
     }
 
@@ -1268,17 +1253,16 @@ mod tests {
             Value::String("%s is %d years old".to_string()),
             Value::String("Alice".to_string()),
             Value::Int(30),
-        ]).unwrap();
+        ])
+        .unwrap();
         assert_eq!(result, Value::String("Alice is 30 years old".to_string()));
     }
 
     #[test]
     fn test_format_boolean() {
         // Boolean formatting
-        let result = fn_format(&[
-            Value::String("Active: %b".to_string()),
-            Value::Bool(true),
-        ]).unwrap();
+        let result =
+            fn_format(&[Value::String("Active: %b".to_string()), Value::Bool(true)]).unwrap();
         assert_eq!(result, Value::String("Active: true".to_string()));
     }
 
@@ -1300,12 +1284,12 @@ mod tests {
         let vars = vec![
             ("name".to_string(), Value::String("Alice".to_string())),
             ("age".to_string(), Value::Int(30)),
-        ].into_iter().collect();
+        ]
+        .into_iter()
+        .collect();
 
-        let result = fn_template(&[
-            Value::String(template_str.to_string()),
-            Value::Map(vars),
-        ]).unwrap();
+        let result =
+            fn_template(&[Value::String(template_str.to_string()), Value::Map(vars)]).unwrap();
 
         assert_eq!(result, Value::String("Hello, Alice! Age: 30.".to_string()));
     }
@@ -1313,33 +1297,35 @@ mod tests {
     #[test]
     fn test_template_with_list() {
         let template_str = "Items: {{#each items}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}";
-        let vars = vec![
-            ("items".to_string(), Value::List(vec![
+        let vars = vec![(
+            "items".to_string(),
+            Value::List(vec![
                 Value::String("apple".to_string()),
                 Value::String("banana".to_string()),
                 Value::String("cherry".to_string()),
-            ])),
-        ].into_iter().collect();
+            ]),
+        )]
+        .into_iter()
+        .collect();
 
-        let result = fn_template(&[
-            Value::String(template_str.to_string()),
-            Value::Map(vars),
-        ]).unwrap();
+        let result =
+            fn_template(&[Value::String(template_str.to_string()), Value::Map(vars)]).unwrap();
 
-        assert_eq!(result, Value::String("Items: apple, banana, cherry".to_string()));
+        assert_eq!(
+            result,
+            Value::String("Items: apple, banana, cherry".to_string())
+        );
     }
 
     #[test]
     fn test_template_with_conditional() {
         let template_str = "Status: {{#if active}}Active{{else}}Inactive{{/if}}";
-        let vars = vec![
-            ("active".to_string(), Value::Bool(true)),
-        ].into_iter().collect();
+        let vars = vec![("active".to_string(), Value::Bool(true))]
+            .into_iter()
+            .collect();
 
-        let result = fn_template(&[
-            Value::String(template_str.to_string()),
-            Value::Map(vars),
-        ]).unwrap();
+        let result =
+            fn_template(&[Value::String(template_str.to_string()), Value::Map(vars)]).unwrap();
 
         assert_eq!(result, Value::String("Status: Active".to_string()));
     }
@@ -1350,14 +1336,12 @@ mod tests {
         let temp_file = "/tmp/jcl_test_template_unique.txt";
         std::fs::write(temp_file, "Hello, {{name}}!").unwrap();
 
-        let vars = vec![
-            ("name".to_string(), Value::String("World".to_string())),
-        ].into_iter().collect();
+        let vars = vec![("name".to_string(), Value::String("World".to_string()))]
+            .into_iter()
+            .collect();
 
-        let result = fn_templatefile(&[
-            Value::String(temp_file.to_string()),
-            Value::Map(vars),
-        ]).unwrap();
+        let result =
+            fn_templatefile(&[Value::String(temp_file.to_string()), Value::Map(vars)]).unwrap();
 
         assert_eq!(result, Value::String("Hello, World!".to_string()));
 

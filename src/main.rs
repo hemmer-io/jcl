@@ -110,7 +110,12 @@ fn main() -> Result<()> {
         std::env::set_current_dir(dir)?;
     }
 
-    println!("{}", format!("JCL v{}", env!("CARGO_PKG_VERSION")).bright_blue().bold());
+    println!(
+        "{}",
+        format!("JCL v{}", env!("CARGO_PKG_VERSION"))
+            .bright_blue()
+            .bold()
+    );
     println!();
 
     match cli.command {
@@ -122,7 +127,7 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(&project_name)?;
             std::fs::write(
                 format!("{}/main.jcl", project_name),
-                "# JCL Configuration\n\n# Define your configuration here\n"
+                "# JCL Configuration\n\n# Define your configuration here\n",
             )?;
 
             println!("{}", "✓ Created project structure".green());
@@ -246,7 +251,12 @@ fn main() -> Result<()> {
             if errors == 0 {
                 println!("{} {} file(s) validated", "✓".green().bold(), validated);
             } else {
-                eprintln!("{} {} error(s), {} file(s) validated", "✗".red().bold(), errors, validated);
+                eprintln!(
+                    "{} {} error(s), {} file(s) validated",
+                    "✗".red().bold(),
+                    errors,
+                    validated
+                );
                 std::process::exit(1);
             }
         }
@@ -286,7 +296,8 @@ fn main() -> Result<()> {
                             Ok(formatted_code) => {
                                 if check {
                                     // Read original file and compare
-                                    let original = std::fs::read_to_string(&file_path).unwrap_or_default();
+                                    let original =
+                                        std::fs::read_to_string(&file_path).unwrap_or_default();
                                     if original.trim() != formatted_code.trim() {
                                         println!("{} {}", "✗".red().bold(), path_str);
                                         errors += 1;
@@ -320,12 +331,25 @@ fn main() -> Result<()> {
             println!();
             if errors == 0 {
                 if check {
-                    println!("{} {} file(s) correctly formatted", "✓".green().bold(), formatted_count);
+                    println!(
+                        "{} {} file(s) correctly formatted",
+                        "✓".green().bold(),
+                        formatted_count
+                    );
                 } else {
-                    println!("{} {} file(s) formatted", "✓".green().bold(), formatted_count);
+                    println!(
+                        "{} {} file(s) formatted",
+                        "✓".green().bold(),
+                        formatted_count
+                    );
                 }
             } else {
-                eprintln!("{} {} error(s), {} file(s) processed", "✗".red().bold(), errors, formatted_count);
+                eprintln!(
+                    "{} {} error(s), {} file(s) processed",
+                    "✗".red().bold(),
+                    errors,
+                    formatted_count
+                );
                 std::process::exit(1);
             }
         }
@@ -357,43 +381,49 @@ fn main() -> Result<()> {
                 let path_str = file_path.display().to_string();
 
                 match jcl::parse_file(&path_str) {
-                    Ok(module) => {
-                        match jcl::linter::lint(&module) {
-                            Ok(issues) => {
-                                let filtered_issues: Vec<_> = if all {
-                                    issues
-                                } else {
-                                    issues.into_iter().filter(|i| i.severity != jcl::linter::Severity::Info).collect()
-                                };
+                    Ok(module) => match jcl::linter::lint(&module) {
+                        Ok(issues) => {
+                            let filtered_issues: Vec<_> = if all {
+                                issues
+                            } else {
+                                issues
+                                    .into_iter()
+                                    .filter(|i| i.severity != jcl::linter::Severity::Info)
+                                    .collect()
+                            };
 
-                                if !filtered_issues.is_empty() {
-                                    println!("{}", path_str.bold());
-                                    for issue in &filtered_issues {
-                                        let severity_str = match issue.severity {
-                                            jcl::linter::Severity::Error => "error".red().bold(),
-                                            jcl::linter::Severity::Warning => "warning".yellow().bold(),
-                                            jcl::linter::Severity::Info => "info".blue(),
-                                        };
-                                        println!("  {} [{}] {}", severity_str, issue.rule.dimmed(), issue.message);
-                                        if let Some(suggestion) = &issue.suggestion {
-                                            println!("    {}: {}", "help".cyan(), suggestion.dimmed());
-                                        }
-
-                                        match issue.severity {
-                                            jcl::linter::Severity::Error => total_errors += 1,
-                                            jcl::linter::Severity::Warning => total_warnings += 1,
-                                            jcl::linter::Severity::Info => {},
-                                        }
-                                        total_issues += 1;
+                            if !filtered_issues.is_empty() {
+                                println!("{}", path_str.bold());
+                                for issue in &filtered_issues {
+                                    let severity_str = match issue.severity {
+                                        jcl::linter::Severity::Error => "error".red().bold(),
+                                        jcl::linter::Severity::Warning => "warning".yellow().bold(),
+                                        jcl::linter::Severity::Info => "info".blue(),
+                                    };
+                                    println!(
+                                        "  {} [{}] {}",
+                                        severity_str,
+                                        issue.rule.dimmed(),
+                                        issue.message
+                                    );
+                                    if let Some(suggestion) = &issue.suggestion {
+                                        println!("    {}: {}", "help".cyan(), suggestion.dimmed());
                                     }
-                                    println!();
+
+                                    match issue.severity {
+                                        jcl::linter::Severity::Error => total_errors += 1,
+                                        jcl::linter::Severity::Warning => total_warnings += 1,
+                                        jcl::linter::Severity::Info => {}
+                                    }
+                                    total_issues += 1;
                                 }
-                            }
-                            Err(e) => {
-                                eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
+                                println!();
                             }
                         }
-                    }
+                        Err(e) => {
+                            eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
+                        }
+                    },
                     Err(e) => {
                         eprintln!("{} {}: {}", "✗".red().bold(), path_str, e);
                         total_errors += 1;
@@ -440,7 +470,11 @@ fn main() -> Result<()> {
                                     eprintln!("{} Failed to write output: {}", "✗".red().bold(), e);
                                     std::process::exit(1);
                                 }
-                                println!("{} Documentation written to {}", "✓".green().bold(), output_path);
+                                println!(
+                                    "{} Documentation written to {}",
+                                    "✓".green().bold(),
+                                    output_path
+                                );
                             } else {
                                 // Print to stdout
                                 println!();
@@ -448,7 +482,11 @@ fn main() -> Result<()> {
                             }
                         }
                         Err(e) => {
-                            eprintln!("{} Documentation generation failed: {}", "✗".red().bold(), e);
+                            eprintln!(
+                                "{} Documentation generation failed: {}",
+                                "✗".red().bold(),
+                                e
+                            );
                             std::process::exit(1);
                         }
                     }

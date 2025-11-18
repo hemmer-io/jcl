@@ -99,7 +99,8 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
             }
 
             Statement::Import { items, path, .. } => {
-                doc.imports.push(format!("import {} from \"{}\"", items.join(", "), path));
+                doc.imports
+                    .push(format!("import {} from \"{}\"", items.join(", "), path));
             }
 
             _ => {}
@@ -136,7 +137,10 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
                 .map(|t| format!(": {}", type_to_string(t)))
                 .unwrap_or_default();
 
-            output.push_str(&format!("### `{}{}{}`\n\n", mutability, var.name, type_annotation));
+            output.push_str(&format!(
+                "### `{}{}{}`\n\n",
+                mutability, var.name, type_annotation
+            ));
             output.push_str(&format!("**Value:** `{}`\n\n", var.value));
         }
     }
@@ -171,7 +175,10 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
                 .map(|t| format!(": {}", type_to_string(t)))
                 .unwrap_or_default();
 
-            output.push_str(&format!("### `{}({}){}`\n\n", func.name, params_str, return_type_str));
+            output.push_str(&format!(
+                "### `{}({}){}`\n\n",
+                func.name, params_str, return_type_str
+            ));
 
             // Description
             if let Some(desc) = &func.description {
@@ -244,15 +251,32 @@ fn expr_to_string(expr: &Expression) -> String {
                 .join(", ");
             format!("{}({})", name, args_str)
         }
-        Expression::BinaryOp { left, right, op, .. } => {
-            format!("{} {:?} {}", expr_to_string(left), op, expr_to_string(right))
+        Expression::BinaryOp {
+            left, right, op, ..
+        } => {
+            format!(
+                "{} {:?} {}",
+                expr_to_string(left),
+                op,
+                expr_to_string(right)
+            )
         }
-        Expression::If { condition, then_expr, else_expr, .. } => {
+        Expression::If {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
             let else_str = else_expr
                 .as_ref()
                 .map(|e| format!(" else {}", expr_to_string(e)))
                 .unwrap_or_default();
-            format!("if {} then {}{}", expr_to_string(condition), expr_to_string(then_expr), else_str)
+            format!(
+                "if {} then {}{}",
+                expr_to_string(condition),
+                expr_to_string(then_expr),
+                else_str
+            )
         }
         Expression::MemberAccess { object, field, .. } => {
             format!("{}.{}", expr_to_string(object), field)
@@ -305,7 +329,10 @@ fn type_to_string(typ: &Type) -> String {
         Type::Bool => "bool".to_string(),
         Type::List(inner) => format!("list<{}>", type_to_string(inner)),
         Type::Map(key, value) => format!("map<{}, {}>", type_to_string(key), type_to_string(value)),
-        Type::Function { params, return_type } => {
+        Type::Function {
+            params,
+            return_type,
+        } => {
             let params_str = params
                 .iter()
                 .map(type_to_string)

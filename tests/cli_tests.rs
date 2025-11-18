@@ -64,12 +64,21 @@ value = 123
         .output()
         .expect("Failed to execute jcl eval");
 
-    assert!(output.status.success(), "jcl eval --format json should succeed");
+    assert!(
+        output.status.success(),
+        "jcl eval --format json should succeed"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Should be valid JSON
-    assert!(stdout.contains("\"name\""), "JSON output should contain name field");
-    assert!(stdout.contains("\"value\""), "JSON output should contain value field");
+    assert!(
+        stdout.contains("\"name\""),
+        "JSON output should contain name field"
+    );
+    assert!(
+        stdout.contains("\"value\""),
+        "JSON output should contain value field"
+    );
 }
 
 #[test]
@@ -90,11 +99,17 @@ config = (host = "localhost", port = 8080)
         .output()
         .expect("Failed to execute jcl eval");
 
-    assert!(output.status.success(), "jcl eval --format yaml should succeed");
+    assert!(
+        output.status.success(),
+        "jcl eval --format yaml should succeed"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Should be valid YAML
-    assert!(stdout.contains("host:") || stdout.contains("host ="), "YAML output should contain host");
+    assert!(
+        stdout.contains("host:") || stdout.contains("host ="),
+        "YAML output should contain host"
+    );
 }
 
 #[test]
@@ -113,14 +128,17 @@ x =
         .output()
         .expect("Failed to execute jcl eval");
 
-    assert!(!output.status.success(), "jcl eval should fail on parse error");
+    assert!(
+        !output.status.success(),
+        "jcl eval should fail on parse error"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Parse failed") ||
-        stdout.contains("error") ||
-        stderr.contains("error") ||
-        stderr.contains("Error"),
+        stdout.contains("Parse failed")
+            || stdout.contains("error")
+            || stderr.contains("error")
+            || stderr.contains("Error"),
         "Error message should be shown in stdout or stderr"
     );
 }
@@ -135,7 +153,10 @@ fn test_jcl_eval_nonexistent_file() {
         .output()
         .expect("Failed to execute jcl eval");
 
-    assert!(!output.status.success(), "jcl eval should fail on nonexistent file");
+    assert!(
+        !output.status.success(),
+        "jcl eval should fail on nonexistent file"
+    );
 }
 
 #[test]
@@ -226,10 +247,15 @@ invalid syntax here
         .output()
         .expect("Failed to execute jcl-validate");
 
-    assert!(!output.status.success(), "jcl-validate should fail on invalid file");
+    assert!(
+        !output.status.success(),
+        "jcl-validate should fail on invalid file"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.len() > 0 || String::from_utf8_lossy(&output.stdout).len() > 0,
-            "Should output error message");
+    assert!(
+        stderr.len() > 0 || String::from_utf8_lossy(&output.stdout).len() > 0,
+        "Should output error message"
+    );
 }
 
 #[test]
@@ -253,8 +279,10 @@ fn test_jcl_migrate_json() {
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("name") || stdout.contains("test"),
-                "Output should contain migrated content");
+        assert!(
+            stdout.contains("name") || stdout.contains("test"),
+            "Output should contain migrated content"
+        );
     }
 }
 
@@ -277,8 +305,10 @@ enabled: true"#,
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("name") || stdout.contains("test"),
-                "Output should contain migrated content");
+        assert!(
+            stdout.contains("name") || stdout.contains("test"),
+            "Output should contain migrated content"
+        );
     }
 }
 
@@ -301,8 +331,10 @@ enabled = true"#,
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("name") || stdout.contains("test"),
-                "Output should contain migrated content");
+        assert!(
+            stdout.contains("name") || stdout.contains("test"),
+            "Output should contain migrated content"
+        );
     }
 }
 
@@ -311,9 +343,7 @@ fn test_jcl_bench_exists() {
     let jcl_bench_path = get_binary_path("jcl-bench");
 
     // Just verify the binary exists and can be executed
-    let output = Command::new(&jcl_bench_path)
-        .arg("--help")
-        .output();
+    let output = Command::new(&jcl_bench_path).arg("--help").output();
 
     assert!(output.is_ok(), "jcl-bench should be executable");
 }
@@ -323,9 +353,7 @@ fn test_jcl_watch_help() {
     let jcl_watch_path = get_binary_path("jcl-watch");
 
     // Just verify the binary exists and can show help
-    let output = Command::new(&jcl_watch_path)
-        .arg("--help")
-        .output();
+    let output = Command::new(&jcl_watch_path).arg("--help").output();
 
     assert!(output.is_ok(), "jcl-watch should be executable");
 }
@@ -335,9 +363,7 @@ fn test_jcl_lsp_help() {
     let jcl_lsp_path = get_binary_path("jcl-lsp");
 
     // Just verify the binary exists
-    let output = Command::new(&jcl_lsp_path)
-        .arg("--help")
-        .output();
+    let output = Command::new(&jcl_lsp_path).arg("--help").output();
 
     assert!(output.is_ok(), "jcl-lsp should be executable");
 }
@@ -359,9 +385,15 @@ result = double(21)
         .output()
         .expect("Failed to execute jcl eval");
 
-    assert!(output.status.success(), "jcl eval should succeed with functions");
+    assert!(
+        output.status.success(),
+        "jcl eval should succeed with functions"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("result = 42"), "Function result should be correct");
+    assert!(
+        stdout.contains("result = 42"),
+        "Function result should be correct"
+    );
 }
 
 #[test]
@@ -381,10 +413,15 @@ first = numbers[0]
         .output()
         .expect("Failed to execute jcl eval");
 
-    assert!(output.status.success(), "jcl eval should succeed with lists");
+    assert!(
+        output.status.success(),
+        "jcl eval should succeed with lists"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("numbers") && stdout.contains("first"),
-            "List operations should work");
+    assert!(
+        stdout.contains("numbers") && stdout.contains("first"),
+        "List operations should work"
+    );
 }
 
 #[test]
@@ -406,6 +443,8 @@ server_host = config.host
 
     assert!(output.status.success(), "jcl eval should succeed with maps");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("server_host") && stdout.contains("localhost"),
-            "Map member access should work");
+    assert!(
+        stdout.contains("server_host") && stdout.contains("localhost"),
+        "Map member access should work"
+    );
 }

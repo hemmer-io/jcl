@@ -44,8 +44,8 @@ fn main() -> Result<()> {
     let (tx, rx) = channel();
 
     // Create watcher
-    let mut watcher = RecommendedWatcher::new(tx, Config::default())
-        .context("Failed to create file watcher")?;
+    let mut watcher =
+        RecommendedWatcher::new(tx, Config::default()).context("Failed to create file watcher")?;
 
     // Watch all specified paths
     for path in &args.paths {
@@ -92,10 +92,7 @@ fn main() -> Result<()> {
 
 fn handle_event(event: &Event, args: &Args) -> Result<()> {
     // Only process modify and create events
-    if !matches!(
-        event.kind,
-        EventKind::Modify(_) | EventKind::Create(_)
-    ) {
+    if !matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
         return Ok(());
     }
 
@@ -151,11 +148,7 @@ fn format_file(path: &Path, args: &Args) -> Result<()> {
     }
 
     if args.check {
-        println!(
-            "{} {} - Needs formatting",
-            "!".yellow(),
-            path.display()
-        );
+        println!("{} {} - Needs formatting", "!".yellow(), path.display());
     } else {
         // Write formatted content
         fs::write(path, &formatted)
