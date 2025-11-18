@@ -14,7 +14,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
 
-use crate::{formatter, linter, parser, docgen};
+use crate::{docgen, formatter, linter};
 
 /// Opaque handle to a JCL parse result
 #[repr(C)]
@@ -26,8 +26,8 @@ pub struct JclModule {
 #[repr(C)]
 pub struct JclResult {
     pub success: bool,
-    pub value: *mut c_char,  // Caller must free with jcl_free_string
-    pub error: *mut c_char,  // Caller must free with jcl_free_string
+    pub value: *mut c_char, // Caller must free with jcl_free_string
+    pub error: *mut c_char, // Caller must free with jcl_free_string
 }
 
 impl JclResult {
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn jcl_parse(source: *const c_char) -> JclResult {
         Err(e) => return JclResult::error(format!("Invalid UTF-8: {}", e)),
     };
 
-    match parser::parse_str(c_str) {
+    match crate::parse_str(c_str) {
         Ok(_module) => JclResult::success("Parse successful".to_string()),
         Err(e) => JclResult::error(format!("Parse error: {}", e)),
     }
@@ -105,7 +105,7 @@ pub unsafe extern "C" fn jcl_format(source: *const c_char) -> JclResult {
         Err(e) => return JclResult::error(format!("Invalid UTF-8: {}", e)),
     };
 
-    match parser::parse_str(c_str) {
+    match crate::parse_str(c_str) {
         Ok(module) => match formatter::format(&module) {
             Ok(formatted) => JclResult::success(formatted),
             Err(e) => JclResult::error(format!("Format error: {}", e)),
@@ -135,7 +135,7 @@ pub unsafe extern "C" fn jcl_lint(source: *const c_char) -> JclResult {
         Err(e) => return JclResult::error(format!("Invalid UTF-8: {}", e)),
     };
 
-    match parser::parse_str(c_str) {
+    match crate::parse_str(c_str) {
         Ok(module) => match linter::lint(&module) {
             Ok(issues) => {
                 if issues.is_empty() {
@@ -186,7 +186,7 @@ pub unsafe extern "C" fn jcl_generate_docs(
         Err(e) => return JclResult::error(format!("Invalid UTF-8 in module_name: {}", e)),
     };
 
-    match parser::parse_str(source_str) {
+    match crate::parse_str(source_str) {
         Ok(module) => match docgen::generate(&module) {
             Ok(doc) => {
                 let markdown = docgen::format_markdown(&doc, module_name_str);

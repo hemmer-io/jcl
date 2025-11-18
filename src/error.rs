@@ -12,13 +12,27 @@ use crate::parser::Rule;
 // Mock colored trait for WASM
 #[cfg(target_arch = "wasm32")]
 trait Colorize {
-    fn red(&self) -> &Self { self }
-    fn yellow(&self) -> &Self { self }
-    fn blue(&self) -> &Self { self }
-    fn green(&self) -> &Self { self }
-    fn cyan(&self) -> &Self { self }
-    fn dimmed(&self) -> &Self { self }
-    fn bold(&self) -> &Self { self }
+    fn red(&self) -> &Self {
+        self
+    }
+    fn yellow(&self) -> &Self {
+        self
+    }
+    fn blue(&self) -> &Self {
+        self
+    }
+    fn green(&self) -> &Self {
+        self
+    }
+    fn cyan(&self) -> &Self {
+        self
+    }
+    fn dimmed(&self) -> &Self {
+        self
+    }
+    fn bold(&self) -> &Self {
+        self
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -100,20 +114,14 @@ pub fn format_parse_error(error: &PestError<Rule>, input: &str) -> String {
         } => {
             if !positives.is_empty() {
                 output.push_str(&format!("  {} ", "Expected:".green().bold()));
-                let expected: Vec<String> = positives
-                    .iter()
-                    .map(|r| format_rule_name(r))
-                    .collect();
+                let expected: Vec<String> = positives.iter().map(format_rule_name).collect();
                 output.push_str(&expected.join(", "));
                 output.push('\n');
             }
 
             if !negatives.is_empty() {
                 output.push_str(&format!("  {} ", "Unexpected:".red().bold()));
-                let unexpected: Vec<String> = negatives
-                    .iter()
-                    .map(|r| format_rule_name(r))
-                    .collect();
+                let unexpected: Vec<String> = negatives.iter().map(format_rule_name).collect();
                 output.push_str(&unexpected.join(", "));
                 output.push('\n');
             }
@@ -124,7 +132,10 @@ pub fn format_parse_error(error: &PestError<Rule>, input: &str) -> String {
     }
 
     // Add helpful hints based on common errors
-    output.push_str(&get_error_hint(&error.variant, lines.get(line.saturating_sub(1))));
+    output.push_str(&get_error_hint(
+        &error.variant,
+        lines.get(line.saturating_sub(1)),
+    ));
 
     output
 }

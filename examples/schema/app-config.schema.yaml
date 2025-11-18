@@ -1,0 +1,70 @@
+version: "1.0"
+title: "Application Configuration Schema"
+description: "Schema for validating application configuration files"
+
+type:
+  kind: map
+  required:
+    - name
+    - version
+    - port
+  properties:
+    name:
+      type:
+        kind: string
+        min_length: 1
+        max_length: 50
+      description: "Application name"
+
+    version:
+      type:
+        kind: string
+        pattern: '^\d+\.\d+\.\d+$'
+      description: "Semantic version"
+
+    port:
+      type:
+        kind: number
+        minimum: 1
+        maximum: 65535
+        integer_only: true
+      description: "Port number"
+
+    environment:
+      type:
+        kind: string
+        enum_values:
+          - development
+          - staging
+          - production
+      description: "Environment name"
+
+    features:
+      type:
+        kind: list
+        items:
+          kind: string
+      description: "Enabled features"
+
+    database:
+      type:
+        kind: map
+        required:
+          - host
+          - port
+        properties:
+          host:
+            type:
+              kind: string
+          port:
+            type:
+              kind: number
+              minimum: 1
+              maximum: 65535
+              integer_only: true
+          name:
+            type:
+              kind: string
+        additional_properties: false
+
+  additional_properties: true

@@ -2,11 +2,13 @@
 //!
 //! Provides an interactive shell for evaluating JCL expressions
 
+use crate::{ast::Value, evaluator::Evaluator};
 use anyhow::Result;
 use colored::Colorize;
-use crate::{ast::Value, evaluator::Evaluator, parser};
 use rustyline::error::ReadlineError;
-use rustyline::DefaultEditor;
+use rustyline::{history::FileHistory, CompletionType, Config, Editor};
+use std::env;
+use std::path::PathBuf;
 
 /// Run the interactive REPL
 pub fn run_repl() -> Result<()> {
@@ -14,29 +16,72 @@ pub fn run_repl() -> Result<()> {
     println!("{}", "Type :help for help, :quit to exit".dimmed());
     println!();
 
-    let mut rl = DefaultEditor::new()?;
+    // Configure rustyline with enhanced features
+    let config = Config::builder()
+        .completion_type(CompletionType::List)
+        .auto_add_history(true)
+        .build();
+
+    let mut rl: Editor<(), FileHistory> = Editor::with_config(config)?;
+
+    // Set up history file
+    let history_path = get_history_path();
+    if let Some(path) = &history_path {
+        let _ = rl.load_history(path); // Ignore errors if history doesn't exist yet
+    }
+
     let mut evaluator = Evaluator::new();
     let mut line_number = 1;
+    let mut multiline_buffer = String::new();
+    let mut in_multiline = false;
 
     loop {
-        let prompt = format!("jcl:{} ", line_number).green().bold().to_string();
+        let prompt = if in_multiline {
+            "   ... ".to_string().yellow().bold().to_string()
+        } else {
+            format!("jcl:{} ", line_number).green().bold().to_string()
+        };
+
         let readline = rl.readline(&prompt);
 
         match readline {
             Ok(line) => {
-                let line = line.trim();
+                let trimmed = line.trim();
+
+                // Check for multiline continuation (lines ending with \)
+                if trimmed.ends_with('\\') && !in_multiline {
+                    in_multiline = true;
+                    multiline_buffer = trimmed.strip_suffix('\\').unwrap_or(trimmed).to_string();
+                    continue;
+                } else if in_multiline {
+                    if trimmed.ends_with('\\') {
+                        multiline_buffer.push(' ');
+                        multiline_buffer.push_str(trimmed.strip_suffix('\\').unwrap_or(trimmed));
+                        continue;
+                    } else {
+                        // End of multiline input
+                        multiline_buffer.push(' ');
+                        multiline_buffer.push_str(trimmed);
+                        in_multiline = false;
+                    }
+                }
+
+                let input_line = if multiline_buffer.is_empty() {
+                    trimmed.to_string()
+                } else {
+                    let result = multiline_buffer.clone();
+                    multiline_buffer.clear();
+                    result
+                };
 
                 // Skip empty lines
-                if line.is_empty() {
+                if input_line.is_empty() {
                     continue;
                 }
 
-                // Add to history
-                rl.add_history_entry(line)?;
-
                 // Handle special commands
-                if line.starts_with(':') {
-                    match line {
+                if input_line.starts_with(':') {
+                    match input_line.as_str() {
                         ":quit" | ":q" | ":exit" => {
                             println!("{}", "Goodbye!".cyan());
                             break;
@@ -57,7 +102,7 @@ pub fn run_repl() -> Result<()> {
                             continue;
                         }
                         _ => {
-                            eprintln!("{} {}", "Unknown command:".red(), line);
+                            eprintln!("{} {}", "Unknown command:".red(), input_line);
                             println!("{}", "Type :help for available commands".dimmed());
                             continue;
                         }
@@ -65,8 +110,8 @@ pub fn run_repl() -> Result<()> {
                 }
 
                 // Try to parse as an expression first
-                let expr_input = format!("_result = {}", line);
-                match parser::parse_str(&expr_input) {
+                let expr_input = format!("_result = {}", input_line);
+                match crate::parse_str(&expr_input) {
                     Ok(module) => {
                         // Evaluate the module
                         match evaluator.evaluate(module) {
@@ -84,18 +129,16 @@ pub fn run_repl() -> Result<()> {
                     }
                     Err(_) => {
                         // If expression parsing fails, try as a statement
-                        match parser::parse_str(line) {
-                            Ok(module) => {
-                                match evaluator.evaluate(module) {
-                                    Ok(_) => {
-                                        println!("{}", "✓".green());
-                                        line_number += 1;
-                                    }
-                                    Err(e) => {
-                                        eprintln!("{} {}", "✗".red().bold(), e);
-                                    }
+                        match crate::parse_str(&input_line) {
+                            Ok(module) => match evaluator.evaluate(module) {
+                                Ok(_) => {
+                                    println!("{}", "✓".green());
+                                    line_number += 1;
                                 }
-                            }
+                                Err(e) => {
+                                    eprintln!("{} {}", "✗".red().bold(), e);
+                                }
+                            },
                             Err(e) => {
                                 eprintln!("{} {}", "✗".red().bold(), e);
                             }
@@ -119,7 +162,22 @@ pub fn run_repl() -> Result<()> {
         }
     }
 
+    // Save history before exiting
+    if let Some(path) = history_path {
+        let _ = rl.save_history(&path); // Ignore errors on save
+    }
+
     Ok(())
+}
+
+/// Get the history file path
+fn get_history_path() -> Option<PathBuf> {
+    if let Some(mut path) = env::var_os("HOME").map(PathBuf::from) {
+        path.push(".jcl_history");
+        Some(path)
+    } else {
+        None
+    }
 }
 
 fn print_help() {
@@ -129,11 +187,25 @@ fn print_help() {
     println!("  {}  - Clear all variables", ":clear, :c".green());
     println!("  {}  - Show all variables", ":vars, :v".green());
     println!();
+    println!("{}", "Features:".cyan().bold());
+    println!(
+        "  {} - Persistent command history (~/.jcl_history)",
+        "Up/Down arrows".dimmed()
+    );
+    println!("  {} - Complete and search history", "Tab/Ctrl-R".dimmed());
+    println!(
+        "  {} - Multi-line input (end line with \\)",
+        "Backslash".dimmed()
+    );
+    println!();
     println!("{}", "Examples:".cyan().bold());
     println!("  {}  - Evaluate an expression", "2 + 2".dimmed());
     println!("  {}  - Define a variable", "x = 42".dimmed());
     println!("  {}  - Define a function", "fn double(x) = x * 2".dimmed());
     println!("  {}  - Use a function", "double(21)".dimmed());
+    println!("  {}  - Multi-line input", "x = 1 + \\".dimmed());
+    println!("  {}                    ", "    2 + \\".dimmed());
+    println!("  {}                    ", "    3".dimmed());
 }
 
 fn print_variables(evaluator: &Evaluator) {

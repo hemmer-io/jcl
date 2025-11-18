@@ -53,6 +53,7 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 return_type,
                 body,
                 doc_comments,
+                ..
             } => {
                 // Use doc comments if available, otherwise infer from name
                 let description = doc_comments
@@ -87,6 +88,7 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 type_annotation,
                 mutable,
                 doc_comments: _,
+                ..
             } => {
                 doc.variables.push(VariableDoc {
                     name: name.clone(),
@@ -97,7 +99,8 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
             }
 
             Statement::Import { items, path, .. } => {
-                doc.imports.push(format!("import {} from \"{}\"", items.join(", "), path));
+                doc.imports
+                    .push(format!("import {} from \"{}\"", items.join(", "), path));
             }
 
             _ => {}
@@ -120,7 +123,7 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
         for import in &doc.imports {
             output.push_str(&format!("- `{}`\n", import));
         }
-        output.push_str("\n");
+        output.push('\n');
     }
 
     // Variables/Constants
@@ -134,7 +137,10 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
                 .map(|t| format!(": {}", type_to_string(t)))
                 .unwrap_or_default();
 
-            output.push_str(&format!("### `{}{}{}`\n\n", mutability, var.name, type_annotation));
+            output.push_str(&format!(
+                "### `{}{}{}`\n\n",
+                mutability, var.name, type_annotation
+            ));
             output.push_str(&format!("**Value:** `{}`\n\n", var.value));
         }
     }
@@ -169,7 +175,10 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
                 .map(|t| format!(": {}", type_to_string(t)))
                 .unwrap_or_default();
 
-            output.push_str(&format!("### `{}({}){}`\n\n", func.name, params_str, return_type_str));
+            output.push_str(&format!(
+                "### `{}({}){}`\n\n",
+                func.name, params_str, return_type_str
+            ));
 
             // Description
             if let Some(desc) = &func.description {
@@ -192,7 +201,7 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
                         .unwrap_or_default();
                     output.push_str(&format!("- `{}`{}{}\n", param.name, type_str, default_str));
                 }
-                output.push_str("\n");
+                output.push('\n');
             }
 
             // Return type
@@ -208,17 +217,17 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
 /// Convert an expression to a string representation
 fn expr_to_string(expr: &Expression) -> String {
     match expr {
-        Expression::Literal(val) => value_to_string(val),
-        Expression::Variable(name) => name.clone(),
-        Expression::List(items) => {
-            let items_str = items
+        Expression::Literal { value, .. } => value_to_string(value),
+        Expression::Variable { name, .. } => name.clone(),
+        Expression::List { elements, .. } => {
+            let items_str = elements
                 .iter()
                 .map(expr_to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("[{}]", items_str)
         }
-        Expression::Map(entries) => {
+        Expression::Map { entries, .. } => {
             let entries_str = entries
                 .iter()
                 .map(|(k, v)| format!("{} = {}", k, expr_to_string(v)))
@@ -226,7 +235,7 @@ fn expr_to_string(expr: &Expression) -> String {
                 .join(", ");
             format!("({})", entries_str)
         }
-        Expression::Lambda { params, body } => {
+        Expression::Lambda { params, body, .. } => {
             let params_str = params
                 .iter()
                 .map(|p| p.name.as_str())
@@ -234,7 +243,7 @@ fn expr_to_string(expr: &Expression) -> String {
                 .join(", ");
             format!("({}) => {}", params_str, expr_to_string(body))
         }
-        Expression::FunctionCall { name, args } => {
+        Expression::FunctionCall { name, args, .. } => {
             let args_str = args
                 .iter()
                 .map(expr_to_string)
@@ -242,17 +251,34 @@ fn expr_to_string(expr: &Expression) -> String {
                 .join(", ");
             format!("{}({})", name, args_str)
         }
-        Expression::BinaryOp { left, right, op } => {
-            format!("{} {:?} {}", expr_to_string(left), op, expr_to_string(right))
+        Expression::BinaryOp {
+            left, right, op, ..
+        } => {
+            format!(
+                "{} {:?} {}",
+                expr_to_string(left),
+                op,
+                expr_to_string(right)
+            )
         }
-        Expression::If { condition, then_expr, else_expr } => {
+        Expression::If {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
             let else_str = else_expr
                 .as_ref()
                 .map(|e| format!(" else {}", expr_to_string(e)))
                 .unwrap_or_default();
-            format!("if {} then {}{}", expr_to_string(condition), expr_to_string(then_expr), else_str)
+            format!(
+                "if {} then {}{}",
+                expr_to_string(condition),
+                expr_to_string(then_expr),
+                else_str
+            )
         }
-        Expression::MemberAccess { object, field } => {
+        Expression::MemberAccess { object, field, .. } => {
             format!("{}.{}", expr_to_string(object), field)
         }
         _ => "<expr>".to_string(),
@@ -303,7 +329,10 @@ fn type_to_string(typ: &Type) -> String {
         Type::Bool => "bool".to_string(),
         Type::List(inner) => format!("list<{}>", type_to_string(inner)),
         Type::Map(key, value) => format!("map<{}, {}>", type_to_string(key), type_to_string(value)),
-        Type::Function { params, return_type } => {
+        Type::Function {
+            params,
+            return_type,
+        } => {
             let params_str = params
                 .iter()
                 .map(type_to_string)
@@ -319,20 +348,29 @@ fn type_to_string(typ: &Type) -> String {
 /// Infer a basic description from function name and body
 fn infer_function_description(name: &str, _body: &Expression) -> Option<String> {
     // Try to infer purpose from name
-    let description = if name.starts_with("get_") {
-        Some(format!("Gets {}", &name[4..].replace('_', " ")))
-    } else if name.starts_with("set_") {
-        Some(format!("Sets {}", &name[4..].replace('_', " ")))
-    } else if name.starts_with("is_") || name.starts_with("has_") {
-        Some(format!("Checks if {}", &name[3..].replace('_', " ")))
-    } else if name.starts_with("create_") {
-        Some(format!("Creates {}", &name[7..].replace('_', " ")))
-    } else if name.starts_with("delete_") || name.starts_with("remove_") {
-        Some(format!("Deletes {}", &name[7..].replace('_', " ")))
-    } else if name.starts_with("validate_") {
-        Some(format!("Validates {}", &name[9..].replace('_', " ")))
-    } else if name.starts_with("calculate_") || name.starts_with("compute_") {
-        Some(format!("Calculates {}", &name[10..].replace('_', " ")))
+    let description = if let Some(rest) = name.strip_prefix("get_") {
+        Some(format!("Gets {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("set_") {
+        Some(format!("Sets {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name
+        .strip_prefix("is_")
+        .or_else(|| name.strip_prefix("has_"))
+    {
+        Some(format!("Checks if {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("create_") {
+        Some(format!("Creates {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name
+        .strip_prefix("delete_")
+        .or_else(|| name.strip_prefix("remove_"))
+    {
+        Some(format!("Deletes {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name.strip_prefix("validate_") {
+        Some(format!("Validates {}", rest.replace('_', " ")))
+    } else if let Some(rest) = name
+        .strip_prefix("calculate_")
+        .or_else(|| name.strip_prefix("compute_"))
+    {
+        Some(format!("Calculates {}", rest.replace('_', " ")))
     } else if name == "add" || name == "sum" {
         Some("Adds values together".to_string())
     } else if name == "subtract" || name == "sub" {

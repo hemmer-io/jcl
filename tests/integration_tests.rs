@@ -17,7 +17,10 @@ fn test_basic_example() {
     assert_eq!(result.get("name"), Some(&Value::String("JCL".to_string())));
     assert_eq!(result.get("port"), Some(&Value::Int(8080)));
     assert_eq!(result.get("is_stable"), Some(&Value::Bool(true)));
-    assert_eq!(result.get("status"), Some(&Value::String("live".to_string())));
+    assert_eq!(
+        result.get("status"),
+        Some(&Value::String("live".to_string()))
+    );
     assert_eq!(result.get("remainder"), Some(&Value::Int(1)));
 }
 
@@ -207,7 +210,10 @@ fn test_all_examples_parse() {
     let examples = vec![
         ("basic.jcl", include_str!("../examples/basic.jcl")),
         ("functions.jcl", include_str!("../examples/functions.jcl")),
-        ("collections.jcl", include_str!("../examples/collections.jcl")),
+        (
+            "collections.jcl",
+            include_str!("../examples/collections.jcl"),
+        ),
         ("strings.jcl", include_str!("../examples/strings.jcl")),
         (
             "conditionals.jcl",

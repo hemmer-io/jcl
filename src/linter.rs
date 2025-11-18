@@ -20,6 +20,7 @@ pub struct LintIssue {
     pub message: String,
     pub rule: String,
     pub suggestion: Option<String>,
+    pub span: Option<crate::ast::SourceSpan>,
 }
 
 /// Linter for JCL code
@@ -78,6 +79,7 @@ impl Linter {
                 type_annotation,
                 mutable,
                 doc_comments: _,
+                span,
             } => {
                 // Check naming convention
                 if !Self::is_snake_case(name) {
@@ -85,7 +87,11 @@ impl Linter {
                         Severity::Warning,
                         format!("Variable '{}' should use snake_case naming", name),
                         "naming-convention",
-                        Some(format!("Consider renaming to '{}'", Self::to_snake_case(name))),
+                        Some(format!(
+                            "Consider renaming to '{}'",
+                            Self::to_snake_case(name)
+                        )),
+                        span.clone(),
                     );
                 }
 
@@ -96,6 +102,7 @@ impl Linter {
                         format!("Variable '{}' could benefit from a type annotation", name),
                         "missing-type-annotation",
                         Some(format!("Add type annotation like: {}: type = ...", name)),
+                        span.clone(),
                     );
                 }
 
@@ -103,9 +110,13 @@ impl Linter {
                 if *mutable {
                     self.add_issue(
                         Severity::Info,
-                        format!("Variable '{}' is declared mutable but JCL is immutable by default", name),
+                        format!(
+                            "Variable '{}' is declared mutable but JCL is immutable by default",
+                            name
+                        ),
                         "unnecessary-mut",
                         Some("Consider removing 'mut' keyword".to_string()),
+                        span.clone(),
                     );
                 }
 
@@ -116,9 +127,13 @@ impl Linter {
                 if Self::is_constant_expression(value) {
                     self.add_issue(
                         Severity::Info,
-                        format!("Variable '{}' is assigned a constant value that could be inlined", name),
+                        format!(
+                            "Variable '{}' is assigned a constant value that could be inlined",
+                            name
+                        ),
                         "constant-variable",
                         None,
+                        span.clone(),
                     );
                 }
             }
@@ -127,6 +142,7 @@ impl Linter {
                 name,
                 params,
                 body,
+                span,
                 ..
             } => {
                 // Check naming convention
@@ -135,7 +151,11 @@ impl Linter {
                         Severity::Warning,
                         format!("Function '{}' should use snake_case naming", name),
                         "naming-convention",
-                        Some(format!("Consider renaming to '{}'", Self::to_snake_case(name))),
+                        Some(format!(
+                            "Consider renaming to '{}'",
+                            Self::to_snake_case(name)
+                        )),
+                        span.clone(),
                     );
                 }
 
@@ -150,6 +170,7 @@ impl Linter {
                             format!("Parameter '{}' is never used", param.name),
                             "unused-parameter",
                             Some(format!("Consider renaming to '_{}'", param.name)),
+                            span.clone(),
                         );
                     }
                 }
@@ -157,7 +178,7 @@ impl Linter {
                 self.check_expression(body);
             }
 
-            Statement::Expression(expr) => {
+            Statement::Expression { expr, .. } => {
                 self.check_expression(expr);
             }
 
@@ -168,7 +189,7 @@ impl Linter {
     /// Check an expression
     fn check_expression(&mut self, expr: &Expression) {
         match expr {
-            Expression::Variable(name) => {
+            Expression::Variable { name, .. } => {
                 // Mark variable as used
                 if let Some(used) = self.variables.get_mut(name) {
                     *used = true;
@@ -178,7 +199,12 @@ impl Linter {
                 }
             }
 
-            Expression::BinaryOp { left, right, op } => {
+            Expression::BinaryOp {
+                left,
+                right,
+                op,
+                span,
+            } => {
                 self.check_expression(left);
                 self.check_expression(right);
 
@@ -189,11 +215,12 @@ impl Linter {
                         "Redundant operation detected".to_string(),
                         "redundant-operation",
                         Some("This operation can be simplified".to_string()),
+                        span.clone(),
                     );
                 }
             }
 
-            Expression::FunctionCall { name, args } => {
+            Expression::FunctionCall { name, args, .. } => {
                 // Mark function as used
                 if let Some(used) = self.functions.get_mut(name) {
                     *used = true;
@@ -204,7 +231,7 @@ impl Linter {
                 }
             }
 
-            Expression::Lambda { params, body } => {
+            Expression::Lambda { params, body, span } => {
                 // Check for unused lambda parameters
                 let mut used_params = HashSet::new();
                 Self::collect_used_variables(body, &mut used_params);
@@ -216,6 +243,7 @@ impl Linter {
                             format!("Lambda parameter '{}' is never used", param.name),
                             "unused-parameter",
                             Some(format!("Consider renaming to '_{}'", param.name)),
+                            span.clone(),
                         );
                     }
                 }
@@ -227,6 +255,7 @@ impl Linter {
                 condition,
                 then_expr,
                 else_expr,
+                span,
             } => {
                 self.check_expression(condition);
                 self.check_expression(then_expr);
@@ -241,17 +270,18 @@ impl Linter {
                         "Condition is always constant".to_string(),
                         "constant-condition",
                         Some("Consider removing the if expression".to_string()),
+                        span.clone(),
                     );
                 }
             }
 
-            Expression::List(items) => {
-                for item in items {
+            Expression::List { elements, .. } => {
+                for item in elements {
                     self.check_expression(item);
                 }
             }
 
-            Expression::Map(entries) => {
+            Expression::Map { entries, .. } => {
                 for (_, value) in entries {
                     self.check_expression(value);
                 }
@@ -261,7 +291,7 @@ impl Linter {
                 self.check_expression(object);
             }
 
-            Expression::Index { object, index } => {
+            Expression::Index { object, index, .. } => {
                 self.check_expression(object);
                 self.check_expression(index);
             }
@@ -270,6 +300,7 @@ impl Linter {
                 condition,
                 then_expr,
                 else_expr,
+                ..
             } => {
                 self.check_expression(condition);
                 self.check_expression(then_expr);
@@ -298,7 +329,9 @@ impl Linter {
     /// Check for unused variables and functions
     fn check_unused(&mut self) {
         // Collect unused variables first to avoid borrow checker issues
-        let unused_vars: Vec<String> = self.variables.iter()
+        let unused_vars: Vec<String> = self
+            .variables
+            .iter()
             .filter(|(name, used)| !**used && !name.starts_with('_'))
             .map(|(name, _)| name.clone())
             .collect();
@@ -310,11 +343,14 @@ impl Linter {
                 format!("Variable '{}' is never used", name),
                 "unused-variable",
                 Some(format!("Consider removing or renaming to '_{}'", name)),
+                None, // No span available for unused check
             );
         }
 
         // Collect unused functions
-        let unused_funcs: Vec<String> = self.functions.iter()
+        let unused_funcs: Vec<String> = self
+            .functions
+            .iter()
             .filter(|(name, used)| !**used && !name.starts_with('_'))
             .map(|(name, _)| name.clone())
             .collect();
@@ -326,23 +362,33 @@ impl Linter {
                 format!("Function '{}' is never used", name),
                 "unused-function",
                 Some(format!("Consider removing or renaming to '_{}'", name)),
+                None, // No span available for unused check
             );
         }
     }
 
     /// Add a lint issue
-    fn add_issue(&mut self, severity: Severity, message: String, rule: &str, suggestion: Option<String>) {
+    fn add_issue(
+        &mut self,
+        severity: Severity,
+        message: String,
+        rule: &str,
+        suggestion: Option<String>,
+        span: Option<crate::ast::SourceSpan>,
+    ) {
         self.issues.push(LintIssue {
             severity,
             message,
             rule: rule.to_string(),
             suggestion,
+            span,
         });
     }
 
     /// Check if a name is in snake_case
     fn is_snake_case(name: &str) -> bool {
-        name.chars().all(|c| c.is_lowercase() || c.is_numeric() || c == '_')
+        name.chars()
+            .all(|c| c.is_lowercase() || c.is_numeric() || c == '_')
     }
 
     /// Convert a name to snake_case
@@ -370,32 +416,75 @@ impl Linter {
     fn should_have_type_annotation(expr: &Expression) -> bool {
         matches!(
             expr,
-            Expression::List(_) | Expression::Map(_) | Expression::Lambda { .. }
+            Expression::List { .. } | Expression::Map { .. } | Expression::Lambda { .. }
         )
     }
 
     /// Check if an expression is constant
     fn is_constant_expression(expr: &Expression) -> bool {
-        matches!(
-            expr,
-            Expression::Literal(_)
-        )
+        matches!(expr, Expression::Literal { .. })
     }
 
     /// Check for redundant operations
-    fn is_redundant_operation(left: &Expression, right: &Expression, op: &crate::ast::BinaryOperator) -> bool {
+    fn is_redundant_operation(
+        left: &Expression,
+        right: &Expression,
+        op: &crate::ast::BinaryOperator,
+    ) -> bool {
         use crate::ast::BinaryOperator;
 
         match (left, right, op) {
             // x + 0 or 0 + x
-            (_, Expression::Literal(Value::Int(0)), BinaryOperator::Add) => true,
-            (Expression::Literal(Value::Int(0)), _, BinaryOperator::Add) => true,
+            (
+                _,
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                BinaryOperator::Add,
+            ) => true,
+            (
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                _,
+                BinaryOperator::Add,
+            ) => true,
             // x * 1 or 1 * x
-            (_, Expression::Literal(Value::Int(1)), BinaryOperator::Multiply) => true,
-            (Expression::Literal(Value::Int(1)), _, BinaryOperator::Multiply) => true,
+            (
+                _,
+                Expression::Literal {
+                    value: Value::Int(1),
+                    ..
+                },
+                BinaryOperator::Multiply,
+            ) => true,
+            (
+                Expression::Literal {
+                    value: Value::Int(1),
+                    ..
+                },
+                _,
+                BinaryOperator::Multiply,
+            ) => true,
             // x * 0 or 0 * x
-            (_, Expression::Literal(Value::Int(0)), BinaryOperator::Multiply) => true,
-            (Expression::Literal(Value::Int(0)), _, BinaryOperator::Multiply) => true,
+            (
+                _,
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                BinaryOperator::Multiply,
+            ) => true,
+            (
+                Expression::Literal {
+                    value: Value::Int(0),
+                    ..
+                },
+                _,
+                BinaryOperator::Multiply,
+            ) => true,
             _ => false,
         }
     }
@@ -403,7 +492,7 @@ impl Linter {
     /// Collect used variables in an expression
     fn collect_used_variables(expr: &Expression, used: &mut HashSet<String>) {
         match expr {
-            Expression::Variable(name) => {
+            Expression::Variable { name, .. } => {
                 used.insert(name.clone());
             }
             Expression::BinaryOp { left, right, .. } => {
@@ -418,12 +507,12 @@ impl Linter {
             Expression::Lambda { body, .. } => {
                 Self::collect_used_variables(body, used);
             }
-            Expression::List(items) => {
-                for item in items {
+            Expression::List { elements, .. } => {
+                for item in elements {
                     Self::collect_used_variables(item, used);
                 }
             }
-            Expression::Map(entries) => {
+            Expression::Map { entries, .. } => {
                 for (_, value) in entries {
                     Self::collect_used_variables(value, used);
                 }
@@ -432,6 +521,7 @@ impl Linter {
                 condition,
                 then_expr,
                 else_expr,
+                ..
             } => {
                 Self::collect_used_variables(condition, used);
                 Self::collect_used_variables(then_expr, used);
@@ -442,7 +532,7 @@ impl Linter {
             Expression::MemberAccess { object, .. } => {
                 Self::collect_used_variables(object, used);
             }
-            Expression::Index { object, index } => {
+            Expression::Index { object, index, .. } => {
                 Self::collect_used_variables(object, used);
                 Self::collect_used_variables(index, used);
             }
@@ -450,6 +540,7 @@ impl Linter {
                 condition,
                 then_expr,
                 else_expr,
+                ..
             } => {
                 Self::collect_used_variables(condition, used);
                 Self::collect_used_variables(then_expr, used);
@@ -486,7 +577,9 @@ mod tests {
         let module = parser::parse_str(input).unwrap();
         let issues = lint(&module).unwrap();
 
-        assert!(issues.iter().any(|i| i.rule == "unused-variable" && i.message.contains("unused")));
+        assert!(issues
+            .iter()
+            .any(|i| i.rule == "unused-variable" && i.message.contains("unused")));
     }
 
     #[test]
@@ -504,7 +597,9 @@ mod tests {
         let module = parser::parse_str(input).unwrap();
         let issues = lint(&module).unwrap();
 
-        assert!(issues.iter().any(|i| i.rule == "unused-parameter" && i.message.contains("'y'")));
+        assert!(issues
+            .iter()
+            .any(|i| i.rule == "unused-parameter" && i.message.contains("'y'")));
     }
 
     #[test]
@@ -530,6 +625,10 @@ mod tests {
         // Should have no errors or warnings (may have info messages)
         let has_errors = issues.iter().any(|i| i.severity == Severity::Error);
         let has_warnings = issues.iter().any(|i| i.severity == Severity::Warning);
-        assert!(!has_errors && !has_warnings, "Expected no errors or warnings, got: {:?}", issues);
+        assert!(
+            !has_errors && !has_warnings,
+            "Expected no errors or warnings, got: {:?}",
+            issues
+        );
     }
 }

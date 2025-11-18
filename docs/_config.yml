@@ -1,0 +1,51 @@
+# JCL Documentation Site Configuration
+
+title: JCL Documentation
+description: Jack-of-All Configuration Language - A powerful, flexible configuration language
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "" # the base hostname & protocol for your site
+
+# Build settings
+markdown: kramdown
+theme: minima
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# Navigation
+header_pages:
+  - getting-started/index.md
+  - reference/language-spec.md
+  - reference/functions.md
+  - guides/comparison.md
+
+# Collections
+collections:
+  guides:
+    output: true
+    permalink: /guides/:name/
+  reference:
+    output: true
+    permalink: /reference/:name/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "guides"
+    values:
+      layout: "page"
+  - scope:
+      path: ""
+      type: "reference"
+    values:
+      layout: "page"
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
