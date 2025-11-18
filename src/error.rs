@@ -121,8 +121,7 @@ pub fn format_parse_error(error: &PestError<Rule>, input: &str) -> String {
 
             if !negatives.is_empty() {
                 output.push_str(&format!("  {} ", "Unexpected:".red().bold()));
-                let unexpected: Vec<String> =
-                    negatives.iter().map(format_rule_name).collect();
+                let unexpected: Vec<String> = negatives.iter().map(format_rule_name).collect();
                 output.push_str(&unexpected.join(", "));
                 output.push('\n');
             }

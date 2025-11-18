@@ -115,15 +115,15 @@ impl SymbolTable {
                 name, value, span, ..
             } => {
                 // Use span from AST if available, otherwise use placeholder
-                let location =
-                    span.as_ref()
-                        .map(Location::from)
-                        .unwrap_or_else(|| Location {
-                            line: 0,
-                            column: 0,
-                            offset: 0,
-                            length: name.len(),
-                        });
+                let location = span
+                    .as_ref()
+                    .map(Location::from)
+                    .unwrap_or_else(|| Location {
+                        line: 0,
+                        column: 0,
+                        offset: 0,
+                        length: name.len(),
+                    });
                 self.add_definition(name.clone(), SymbolKind::Variable, location);
                 self.process_expression(value);
             }
@@ -134,15 +134,15 @@ impl SymbolTable {
                 span,
                 ..
             } => {
-                let location =
-                    span.as_ref()
-                        .map(Location::from)
-                        .unwrap_or_else(|| Location {
-                            line: 0,
-                            column: 0,
-                            offset: 0,
-                            length: name.len(),
-                        });
+                let location = span
+                    .as_ref()
+                    .map(Location::from)
+                    .unwrap_or_else(|| Location {
+                        line: 0,
+                        column: 0,
+                        offset: 0,
+                        length: name.len(),
+                    });
                 self.add_definition(name.clone(), SymbolKind::Function, location);
 
                 // Add parameters as symbols
@@ -186,15 +186,15 @@ impl SymbolTable {
             } => {
                 // Add loop variables
                 for var in variables {
-                    let location =
-                        span.as_ref()
-                            .map(Location::from)
-                            .unwrap_or_else(|| Location {
-                                line: 0,
-                                column: 0,
-                                offset: 0,
-                                length: var.len(),
-                            });
+                    let location = span
+                        .as_ref()
+                        .map(Location::from)
+                        .unwrap_or_else(|| Location {
+                            line: 0,
+                            column: 0,
+                            offset: 0,
+                            length: var.len(),
+                        });
                     self.add_definition(var.clone(), SymbolKind::Variable, location);
                 }
 
@@ -216,27 +216,27 @@ impl SymbolTable {
     fn process_expression(&mut self, expr: &Expression) {
         match expr {
             Expression::Variable { name, span } => {
-                let location =
-                    span.as_ref()
-                        .map(Location::from)
-                        .unwrap_or_else(|| Location {
-                            line: 0,
-                            column: 0,
-                            offset: 0,
-                            length: name.len(),
-                        });
+                let location = span
+                    .as_ref()
+                    .map(Location::from)
+                    .unwrap_or_else(|| Location {
+                        line: 0,
+                        column: 0,
+                        offset: 0,
+                        length: name.len(),
+                    });
                 self.add_reference(name, location);
             }
             Expression::FunctionCall { name, args, span } => {
-                let location =
-                    span.as_ref()
-                        .map(Location::from)
-                        .unwrap_or_else(|| Location {
-                            line: 0,
-                            column: 0,
-                            offset: 0,
-                            length: name.len(),
-                        });
+                let location = span
+                    .as_ref()
+                    .map(Location::from)
+                    .unwrap_or_else(|| Location {
+                        line: 0,
+                        column: 0,
+                        offset: 0,
+                        length: name.len(),
+                    });
                 self.add_reference(name, location);
                 for arg in args {
                     self.process_expression(arg);

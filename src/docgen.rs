@@ -352,15 +352,24 @@ fn infer_function_description(name: &str, _body: &Expression) -> Option<String> 
         Some(format!("Gets {}", rest.replace('_', " ")))
     } else if let Some(rest) = name.strip_prefix("set_") {
         Some(format!("Sets {}", rest.replace('_', " ")))
-    } else if let Some(rest) = name.strip_prefix("is_").or_else(|| name.strip_prefix("has_")) {
+    } else if let Some(rest) = name
+        .strip_prefix("is_")
+        .or_else(|| name.strip_prefix("has_"))
+    {
         Some(format!("Checks if {}", rest.replace('_', " ")))
     } else if let Some(rest) = name.strip_prefix("create_") {
         Some(format!("Creates {}", rest.replace('_', " ")))
-    } else if let Some(rest) = name.strip_prefix("delete_").or_else(|| name.strip_prefix("remove_")) {
+    } else if let Some(rest) = name
+        .strip_prefix("delete_")
+        .or_else(|| name.strip_prefix("remove_"))
+    {
         Some(format!("Deletes {}", rest.replace('_', " ")))
     } else if let Some(rest) = name.strip_prefix("validate_") {
         Some(format!("Validates {}", rest.replace('_', " ")))
-    } else if let Some(rest) = name.strip_prefix("calculate_").or_else(|| name.strip_prefix("compute_")) {
+    } else if let Some(rest) = name
+        .strip_prefix("calculate_")
+        .or_else(|| name.strip_prefix("compute_"))
+    {
         Some(format!("Calculates {}", rest.replace('_', " ")))
     } else if name == "add" || name == "sum" {
         Some("Adds values together".to_string())
