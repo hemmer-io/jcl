@@ -68,7 +68,7 @@ impl Formatter {
     /// Format a statement
     fn format_statement(&mut self, stmt: &Statement) -> Result<String> {
         match stmt {
-            Statement::Assignment { name, mutable, value, type_annotation, doc_comments } => {
+            Statement::Assignment { name, mutable, value, type_annotation, doc_comments, .. } => {
                 let mut result = String::new();
 
                 // Format doc comments
@@ -96,7 +96,7 @@ impl Formatter {
                 Ok(result)
             }
 
-            Statement::FunctionDef { name, params, body, return_type, doc_comments } => {
+            Statement::FunctionDef { name, params, body, return_type, doc_comments, .. } => {
                 let mut result = String::new();
 
                 // Format doc comments
@@ -143,7 +143,7 @@ impl Formatter {
                 Ok(format!("{}# Import (formatting not yet implemented)", self.indent()))
             }
 
-            Statement::Expression(expr) => {
+            Statement::Expression { expr, .. } => {
                 let mut result = self.indent();
                 result.push_str(&self.format_expression(expr)?);
                 Ok(result)
@@ -154,17 +154,17 @@ impl Formatter {
     /// Format an expression
     fn format_expression(&mut self, expr: &Expression) -> Result<String> {
         match expr {
-            Expression::Literal(value) => Ok(self.format_value(value)),
+            Expression::Literal { value, .. } => Ok(self.format_value(value)),
 
-            Expression::Variable(name) => Ok(name.clone()),
+            Expression::Variable { name, .. } => Ok(name.clone()),
 
-            Expression::List(items) => {
-                if items.is_empty() {
+            Expression::List { elements, .. } => {
+                if elements.is_empty() {
                     return Ok("[]".to_string());
                 }
 
                 let mut result = String::from("[");
-                for (i, item) in items.iter().enumerate() {
+                for (i, item) in elements.iter().enumerate() {
                     if i > 0 {
                         result.push_str(", ");
                     }
@@ -174,7 +174,7 @@ impl Formatter {
                 Ok(result)
             }
 
-            Expression::Map(entries) => {
+            Expression::Map { entries, .. } => {
                 if entries.is_empty() {
                     return Ok("()".to_string());
                 }
@@ -192,7 +192,7 @@ impl Formatter {
                 Ok(result)
             }
 
-            Expression::BinaryOp { op, left, right } => {
+            Expression::BinaryOp { op, left, right, .. } => {
                 Ok(format!(
                     "{} {} {}",
                     self.format_expression(left)?,
@@ -201,7 +201,7 @@ impl Formatter {
                 ))
             }
 
-            Expression::UnaryOp { op, operand } => {
+            Expression::UnaryOp { op, operand, .. } => {
                 Ok(format!(
                     "{}{}",
                     self.format_unary_op(*op),
@@ -209,7 +209,7 @@ impl Formatter {
                 ))
             }
 
-            Expression::FunctionCall { name, args } => {
+            Expression::FunctionCall { name, args, .. } => {
                 let mut result = name.clone();
                 result.push('(');
                 for (i, arg) in args.iter().enumerate() {
@@ -222,7 +222,7 @@ impl Formatter {
                 Ok(result)
             }
 
-            Expression::MethodCall { object, method, args } => {
+            Expression::MethodCall { object, method, args, .. } => {
                 let mut result = self.format_expression(object)?;
                 result.push('.');
                 result.push_str(method);
@@ -237,15 +237,15 @@ impl Formatter {
                 Ok(result)
             }
 
-            Expression::MemberAccess { object, field } => {
+            Expression::MemberAccess { object, field, .. } => {
                 Ok(format!("{}.{}", self.format_expression(object)?, field))
             }
 
-            Expression::OptionalChain { object, field } => {
+            Expression::OptionalChain { object, field, .. } => {
                 Ok(format!("{}?.{}", self.format_expression(object)?, field))
             }
 
-            Expression::Index { object, index } => {
+            Expression::Index { object, index, .. } => {
                 Ok(format!(
                     "{}[{}]",
                     self.format_expression(object)?,
@@ -253,7 +253,7 @@ impl Formatter {
                 ))
             }
 
-            Expression::Ternary { condition, then_expr, else_expr } => {
+            Expression::Ternary { condition, then_expr, else_expr, .. } => {
                 Ok(format!(
                     "{} ? {} : {}",
                     self.format_expression(condition)?,
@@ -262,7 +262,7 @@ impl Formatter {
                 ))
             }
 
-            Expression::If { condition, then_expr, else_expr } => {
+            Expression::If { condition, then_expr, else_expr, .. } => {
                 let mut result = format!(
                     "if {} then {}",
                     self.format_expression(condition)?,
@@ -274,7 +274,7 @@ impl Formatter {
                 Ok(result)
             }
 
-            Expression::Lambda { params, body } => {
+            Expression::Lambda { params, body, .. } => {
                 let params_str = if params.len() == 1 {
                     params[0].name.clone()
                 } else {
@@ -284,7 +284,7 @@ impl Formatter {
                 Ok(format!("{} => {}", params_str, self.format_expression(body)?))
             }
 
-            Expression::InterpolatedString { parts } => {
+            Expression::InterpolatedString { parts, .. } => {
                 let mut result = String::from("\"");
                 for part in parts {
                     match part {

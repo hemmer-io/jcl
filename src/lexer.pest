@@ -1,0 +1,108 @@
+// JCL Lexer Grammar - Tokenizes input before parsing
+// This separates keyword recognition from identifier recognition
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* | "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+// Entry point - produces a stream of tokens
+tokens = { SOI ~ token* ~ EOI }
+
+token = {
+    doccomment_token
+  | keyword_token
+  | identifier_token
+  | number_token
+  | string_token
+  | operator_token
+  | punctuation_token
+}
+
+// ============================================================================
+// DOC COMMENTS
+// ============================================================================
+
+doccomment_token = ${ "///" ~ (!"\n" ~ ANY)* ~ "\n"? }
+
+// ============================================================================
+// KEYWORDS - Must be checked BEFORE identifiers
+// Order matters: longer keywords first, then check word boundary
+// ============================================================================
+
+keyword_token = @{
+    ( "import" | "match" | "false" | "when" | "then" | "else" | "from" | "true" | "null"
+    | "and" | "not" | "mut" | "try" | "for" | "fn" | "if" | "in" | "as" | "or"
+    ) ~ !(ASCII_ALPHANUMERIC | "_" | "-")
+}
+
+// ============================================================================
+// IDENTIFIERS - Any valid name that's NOT a keyword
+// Since keywords are matched first, this will only match non-keywords
+// ============================================================================
+
+identifier_token = @{
+    (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")*
+}
+
+// ============================================================================
+// LITERALS
+// ============================================================================
+
+number_token = @{
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?
+}
+
+string_token = {
+    multiline_string_token | simple_string_token | interpolated_string_token
+}
+
+simple_string_token = @{
+    "\"" ~ (!"\"" ~ !"${" ~ (escape_sequence | ANY))* ~ "\""
+}
+
+multiline_string_token = @{
+    "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\""
+}
+
+interpolated_string_token = {
+    "\"" ~ interpolation_part+ ~ "\""
+}
+
+interpolation_part = {
+    string_literal_part | interpolation_expr
+}
+
+string_literal_part = @{
+    (!"${" ~ !"\"" ~ (escape_sequence | ANY))+
+}
+
+interpolation_expr = {
+    "${" ~ interpolated_content ~ "}"
+}
+
+// For interpolated expressions, we need to tokenize recursively
+// This captures the content between ${ and } for later parsing
+interpolated_content = @{
+    (!"}" ~ ANY)*
+}
+
+escape_sequence = @{
+    "\\" ~ ("n" | "t" | "r" | "\"" | "\\" | "$")
+}
+
+// ============================================================================
+// OPERATORS
+// ============================================================================
+
+operator_token = {
+    // Multi-character operators (order by length, longest first)
+    "=>" | "?." | "??" | "==" | "!=" | "<=" | ">="
+  | "+" | "-" | "*" | "/" | "%" | "<" | ">" | "=" | "!" | "|" | "?" | ":"
+}
+
+// ============================================================================
+// PUNCTUATION
+// ============================================================================
+
+punctuation_token = {
+    "(" | ")" | "[" | "]" | "{" | "}" | "," | "."
+}

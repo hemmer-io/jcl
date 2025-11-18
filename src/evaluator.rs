@@ -72,7 +72,7 @@ impl Evaluator {
                     // Imports are not yet implemented
                     return Err(anyhow!("Imports are not yet implemented"));
                 }
-                Statement::Expression(expr) => {
+                Statement::Expression { expr, .. } => {
                     // Expression statements - evaluate but don't bind
                     self.evaluate_expression(&expr)?;
                 }
@@ -85,9 +85,9 @@ impl Evaluator {
     /// Evaluate an expression
     pub fn evaluate_expression(&self, expr: &Expression) -> Result<Value> {
         match expr {
-            Expression::Literal(value) => Ok(value.clone()),
+            Expression::Literal { value, .. } => Ok(value.clone()),
 
-            Expression::Variable(name) => {
+            Expression::Variable { name, .. } => {
                 // Check variables first, then functions
                 if let Some(value) = self.variables.get(name) {
                     Ok(value.clone())
@@ -98,15 +98,15 @@ impl Evaluator {
                 }
             }
 
-            Expression::List(items) => {
+            Expression::List { elements, .. } => {
                 let mut values = Vec::new();
-                for item in items {
+                for item in elements {
                     values.push(self.evaluate_expression(item)?);
                 }
                 Ok(Value::List(values))
             }
 
-            Expression::Map(entries) => {
+            Expression::Map { entries, .. } => {
                 let mut map = HashMap::new();
                 for (key, value_expr) in entries {
                     let value = self.evaluate_expression(value_expr)?;
@@ -115,7 +115,7 @@ impl Evaluator {
                 Ok(Value::Map(map))
             }
 
-            Expression::MemberAccess { object, field } => {
+            Expression::MemberAccess { object, field, .. } => {
                 let obj_value = self.evaluate_expression(object)?;
                 match obj_value {
                     Value::Map(map) => {
@@ -127,7 +127,7 @@ impl Evaluator {
                 }
             }
 
-            Expression::OptionalChain { object, field } => {
+            Expression::OptionalChain { object, field, .. } => {
                 let obj_value = self.evaluate_expression(object)?;
                 if obj_value.is_null() {
                     return Ok(Value::Null);
@@ -138,7 +138,7 @@ impl Evaluator {
                 }
             }
 
-            Expression::Index { object, index } => {
+            Expression::Index { object, index, .. } => {
                 let obj_value = self.evaluate_expression(object)?;
                 let index_value = self.evaluate_expression(index)?;
 
@@ -170,30 +170,33 @@ impl Evaluator {
                 }
             }
 
-            Expression::FunctionCall { name, args } => {
+            Expression::FunctionCall { name, args, .. } => {
                 self.call_function(name, args)
             }
 
-            Expression::MethodCall { object, method, args } => {
+            Expression::MethodCall { object, method, args, .. } => {
                 // For method calls, prepend object to args
                 let obj_value = self.evaluate_expression(object)?;
-                let mut all_args = vec![Expression::Literal(obj_value)];
+                let mut all_args = vec![Expression::Literal {
+                    value: obj_value,
+                    span: None,
+                }];
                 all_args.extend_from_slice(args);
                 self.call_function(method, &all_args)
             }
 
-            Expression::BinaryOp { op, left, right } => {
+            Expression::BinaryOp { op, left, right, .. } => {
                 let left_val = self.evaluate_expression(left)?;
                 let right_val = self.evaluate_expression(right)?;
                 self.evaluate_binary_op(*op, left_val, right_val)
             }
 
-            Expression::UnaryOp { op, operand } => {
+            Expression::UnaryOp { op, operand, .. } => {
                 let operand_val = self.evaluate_expression(operand)?;
                 self.evaluate_unary_op(*op, operand_val)
             }
 
-            Expression::Ternary { condition, then_expr, else_expr } => {
+            Expression::Ternary { condition, then_expr, else_expr, .. } => {
                 let cond_val = self.evaluate_expression(condition)?;
                 if self.is_truthy(&cond_val) {
                     self.evaluate_expression(then_expr)
@@ -202,7 +205,7 @@ impl Evaluator {
                 }
             }
 
-            Expression::If { condition, then_expr, else_expr } => {
+            Expression::If { condition, then_expr, else_expr, .. } => {
                 let cond_val = self.evaluate_expression(condition)?;
                 if self.is_truthy(&cond_val) {
                     self.evaluate_expression(then_expr)
@@ -213,19 +216,19 @@ impl Evaluator {
                 }
             }
 
-            Expression::When { value, arms } => {
+            Expression::When { value, arms, .. } => {
                 let val = self.evaluate_expression(value)?;
                 self.evaluate_when(&val, arms)
             }
 
-            Expression::Lambda { params, body } => {
+            Expression::Lambda { params, body, .. } => {
                 Ok(Value::Function {
                     params: params.clone(),
                     body: body.clone(),
                 })
             }
 
-            Expression::ListComprehension { expr, variable, iterable, condition } => {
+            Expression::ListComprehension { expr, variable, iterable, condition, .. } => {
                 let iter_value = self.evaluate_expression(iterable)?;
                 match iter_value {
                     Value::List(items) => {
@@ -253,7 +256,7 @@ impl Evaluator {
                 }
             }
 
-            Expression::Pipeline { stages } => {
+            Expression::Pipeline { stages, .. } => {
                 if stages.is_empty() {
                     return Ok(Value::Null);
                 }
@@ -263,15 +266,21 @@ impl Evaluator {
                 for stage in &stages[1..] {
                     // Each stage should be a function call
                     match stage {
-                        Expression::FunctionCall { name, args } => {
+                        Expression::FunctionCall { name, args, .. } => {
                             // Prepend result to args
-                            let mut all_args = vec![Expression::Literal(result)];
+                            let mut all_args = vec![Expression::Literal {
+                                value: result,
+                                span: None,
+                            }];
                             all_args.extend_from_slice(args);
                             result = self.call_function(name, &all_args)?;
                         }
-                        Expression::Variable(func_name) => {
+                        Expression::Variable { name: func_name, .. } => {
                             // Simple function with just piped value
-                            result = self.call_function(func_name, &[Expression::Literal(result)])?;
+                            result = self.call_function(func_name, &[Expression::Literal {
+                                value: result,
+                                span: None,
+                            }])?;
                         }
                         _ => {
                             return Err(anyhow!("Pipeline stage must be a function call"));
@@ -282,7 +291,7 @@ impl Evaluator {
                 Ok(result)
             }
 
-            Expression::Try { expr, default } => {
+            Expression::Try { expr, default, .. } => {
                 match self.evaluate_expression(expr) {
                     Ok(val) => Ok(val),
                     Err(_) => {
@@ -295,7 +304,7 @@ impl Evaluator {
                 }
             }
 
-            Expression::InterpolatedString { parts } => {
+            Expression::InterpolatedString { parts, .. } => {
                 let mut result = String::new();
                 for part in parts {
                     match part {
@@ -309,7 +318,7 @@ impl Evaluator {
                 Ok(Value::String(result))
             }
 
-            Expression::Spread(_) => {
+            Expression::Spread { .. } => {
                 Err(anyhow!("Spread operator can only be used in collections"))
             }
         }
@@ -772,7 +781,7 @@ mod tests {
     #[test]
     fn test_evaluate_literal() {
         let evaluator = Evaluator::new();
-        let expr = Expression::Literal(Value::String("hello".to_string()));
+        let expr = Expression::Literal { value: Value::String("hello".to_string()), span: None };
         let result = evaluator.evaluate_expression(&expr);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Value::String("hello".to_string()));
@@ -785,32 +794,36 @@ mod tests {
         // Addition
         let expr = Expression::BinaryOp {
             op: BinaryOperator::Add,
-            left: Box::new(Expression::Literal(Value::Int(5))),
-            right: Box::new(Expression::Literal(Value::Int(3))),
+            left: Box::new(Expression::Literal { value: Value::Int(5), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(3), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(8));
 
         // Subtraction
         let expr = Expression::BinaryOp {
             op: BinaryOperator::Subtract,
-            left: Box::new(Expression::Literal(Value::Int(10))),
-            right: Box::new(Expression::Literal(Value::Int(4))),
+            left: Box::new(Expression::Literal { value: Value::Int(10), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(4), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(6));
 
         // Multiplication
         let expr = Expression::BinaryOp {
             op: BinaryOperator::Multiply,
-            left: Box::new(Expression::Literal(Value::Int(6))),
-            right: Box::new(Expression::Literal(Value::Int(7))),
+            left: Box::new(Expression::Literal { value: Value::Int(6), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(7), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(42));
 
         // Division
         let expr = Expression::BinaryOp {
             op: BinaryOperator::Divide,
-            left: Box::new(Expression::Literal(Value::Int(20))),
-            right: Box::new(Expression::Literal(Value::Int(4))),
+            left: Box::new(Expression::Literal { value: Value::Int(20), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(4), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(5));
     }
@@ -822,32 +835,36 @@ mod tests {
         // Equal
         let expr = Expression::BinaryOp {
             op: BinaryOperator::Equal,
-            left: Box::new(Expression::Literal(Value::Int(5))),
-            right: Box::new(Expression::Literal(Value::Int(5))),
+            left: Box::new(Expression::Literal { value: Value::Int(5), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(5), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
 
         // Not equal
         let expr = Expression::BinaryOp {
             op: BinaryOperator::NotEqual,
-            left: Box::new(Expression::Literal(Value::Int(5))),
-            right: Box::new(Expression::Literal(Value::Int(3))),
+            left: Box::new(Expression::Literal { value: Value::Int(5), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(3), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
 
         // Less than
         let expr = Expression::BinaryOp {
             op: BinaryOperator::LessThan,
-            left: Box::new(Expression::Literal(Value::Int(3))),
-            right: Box::new(Expression::Literal(Value::Int(5))),
+            left: Box::new(Expression::Literal { value: Value::Int(3), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(5), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
 
         // Greater than
         let expr = Expression::BinaryOp {
             op: BinaryOperator::GreaterThan,
-            left: Box::new(Expression::Literal(Value::Int(7))),
-            right: Box::new(Expression::Literal(Value::Int(3))),
+            left: Box::new(Expression::Literal { value: Value::Int(7), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(3), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
     }
@@ -859,31 +876,35 @@ mod tests {
         // AND - true and true
         let expr = Expression::BinaryOp {
             op: BinaryOperator::And,
-            left: Box::new(Expression::Literal(Value::Bool(true))),
-            right: Box::new(Expression::Literal(Value::Bool(true))),
+            left: Box::new(Expression::Literal { value: Value::Bool(true), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Bool(true), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
 
         // AND - false and true
         let expr = Expression::BinaryOp {
             op: BinaryOperator::And,
-            left: Box::new(Expression::Literal(Value::Bool(false))),
-            right: Box::new(Expression::Literal(Value::Bool(true))),
+            left: Box::new(Expression::Literal { value: Value::Bool(false), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Bool(true), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(false));
 
         // OR - false or true
         let expr = Expression::BinaryOp {
             op: BinaryOperator::Or,
-            left: Box::new(Expression::Literal(Value::Bool(false))),
-            right: Box::new(Expression::Literal(Value::Bool(true))),
+            left: Box::new(Expression::Literal { value: Value::Bool(false), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Bool(true), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(true));
 
         // NOT
         let expr = Expression::UnaryOp {
             op: UnaryOperator::Not,
-            operand: Box::new(Expression::Literal(Value::Bool(true))),
+            operand: Box::new(Expression::Literal { value: Value::Bool(true), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Bool(false));
     }
@@ -895,16 +916,18 @@ mod tests {
         // Null ?? value
         let expr = Expression::BinaryOp {
             op: BinaryOperator::NullCoalesce,
-            left: Box::new(Expression::Literal(Value::Null)),
-            right: Box::new(Expression::Literal(Value::Int(42))),
+            left: Box::new(Expression::Literal { value: Value::Null, span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(42), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(42));
 
         // value ?? other
         let expr = Expression::BinaryOp {
             op: BinaryOperator::NullCoalesce,
-            left: Box::new(Expression::Literal(Value::Int(10))),
-            right: Box::new(Expression::Literal(Value::Int(42))),
+            left: Box::new(Expression::Literal { value: Value::Int(10), span: None }),
+            right: Box::new(Expression::Literal { value: Value::Int(42), span: None }),
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(10));
     }
@@ -915,9 +938,10 @@ mod tests {
 
         // true ? "yes" : "no"
         let expr = Expression::Ternary {
-            condition: Box::new(Expression::Literal(Value::Bool(true))),
-            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
-            else_expr: Box::new(Expression::Literal(Value::String("no".to_string()))),
+            condition: Box::new(Expression::Literal { value: Value::Bool(true), span: None }),
+            then_expr: Box::new(Expression::Literal { value: Value::String("yes".to_string()), span: None }),
+            else_expr: Box::new(Expression::Literal { value: Value::String("no".to_string()), span: None }),
+            span: None,
         };
         assert_eq!(
             evaluator.evaluate_expression(&expr).unwrap(),
@@ -926,9 +950,10 @@ mod tests {
 
         // false ? "yes" : "no"
         let expr = Expression::Ternary {
-            condition: Box::new(Expression::Literal(Value::Bool(false))),
-            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
-            else_expr: Box::new(Expression::Literal(Value::String("no".to_string()))),
+            condition: Box::new(Expression::Literal { value: Value::Bool(false), span: None }),
+            then_expr: Box::new(Expression::Literal { value: Value::String("yes".to_string()), span: None }),
+            else_expr: Box::new(Expression::Literal { value: Value::String("no".to_string()), span: None }),
+            span: None,
         };
         assert_eq!(
             evaluator.evaluate_expression(&expr).unwrap(),
@@ -942,9 +967,10 @@ mod tests {
 
         // if true then "yes" else "no"
         let expr = Expression::If {
-            condition: Box::new(Expression::Literal(Value::Bool(true))),
-            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
-            else_expr: Some(Box::new(Expression::Literal(Value::String("no".to_string())))),
+            condition: Box::new(Expression::Literal { value: Value::Bool(true), span: None }),
+            then_expr: Box::new(Expression::Literal { value: Value::String("yes".to_string()), span: None }),
+            else_expr: Some(Box::new(Expression::Literal { value: Value::String("no".to_string()), span: None })),
+            span: None,
         };
         assert_eq!(
             evaluator.evaluate_expression(&expr).unwrap(),
@@ -953,9 +979,10 @@ mod tests {
 
         // if false then "yes" (no else)
         let expr = Expression::If {
-            condition: Box::new(Expression::Literal(Value::Bool(false))),
-            then_expr: Box::new(Expression::Literal(Value::String("yes".to_string()))),
+            condition: Box::new(Expression::Literal { value: Value::Bool(false), span: None }),
+            then_expr: Box::new(Expression::Literal { value: Value::String("yes".to_string()), span: None }),
             else_expr: None,
+            span: None,
         };
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Null);
     }
@@ -964,11 +991,14 @@ mod tests {
     fn test_evaluate_list() {
         let evaluator = Evaluator::new();
 
-        let expr = Expression::List(vec![
-            Expression::Literal(Value::Int(1)),
-            Expression::Literal(Value::Int(2)),
-            Expression::Literal(Value::Int(3)),
-        ]);
+        let expr = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+                Expression::Literal { value: Value::Int(2), span: None },
+                Expression::Literal { value: Value::Int(3), span: None },
+            ],
+            span: None,
+        };
 
         let result = evaluator.evaluate_expression(&expr).unwrap();
         assert_eq!(
@@ -982,10 +1012,10 @@ mod tests {
         let evaluator = Evaluator::new();
 
         let mut entries = Vec::new();
-        entries.push(("name".to_string(), Expression::Literal(Value::String("Alice".to_string()))));
-        entries.push(("age".to_string(), Expression::Literal(Value::Int(30))));
+        entries.push(("name".to_string(), Expression::Literal { value: Value::String("Alice".to_string()), span: None }));
+        entries.push(("age".to_string(), Expression::Literal { value: Value::Int(30), span: None }));
 
-        let expr = Expression::Map(entries);
+        let expr = Expression::Map { entries, span: None };
         let result = evaluator.evaluate_expression(&expr).unwrap();
 
         if let Value::Map(map) = result {
@@ -1007,8 +1037,9 @@ mod tests {
 
         // person.name
         let expr = Expression::MemberAccess {
-            object: Box::new(Expression::Variable("person".to_string())),
+            object: Box::new(Expression::Variable { name: "person".to_string(), span: None }),
             field: "name".to_string(),
+            span: None,
         };
 
         assert_eq!(
@@ -1027,8 +1058,9 @@ mod tests {
 
         // numbers[1]
         let expr = Expression::Index {
-            object: Box::new(Expression::Variable("numbers".to_string())),
-            index: Box::new(Expression::Literal(Value::Int(1))),
+            object: Box::new(Expression::Variable { name: "numbers".to_string(), span: None }),
+            index: Box::new(Expression::Literal { value: Value::Int(1), span: None }),
+            span: None,
         };
 
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(20));
@@ -1045,10 +1077,11 @@ mod tests {
         let expr = Expression::InterpolatedString {
             parts: vec![
                 StringPart::Literal("Hello ".to_string()),
-                StringPart::Interpolation(Box::new(Expression::Variable("name".to_string()))),
+                StringPart::Interpolation(Box::new(Expression::Variable { name: "name".to_string(), span: None })),
                 StringPart::Literal(", count: ".to_string()),
-                StringPart::Interpolation(Box::new(Expression::Variable("count".to_string()))),
+                StringPart::Interpolation(Box::new(Expression::Variable { name: "count".to_string(), span: None })),
             ],
+            span: None,
         };
 
         assert_eq!(
@@ -1077,16 +1110,19 @@ mod tests {
         let expr = Expression::ListComprehension {
             expr: Box::new(Expression::BinaryOp {
                 op: BinaryOperator::Multiply,
-                left: Box::new(Expression::Variable("x".to_string())),
-                right: Box::new(Expression::Literal(Value::Int(2))),
+                left: Box::new(Expression::Variable { name: "x".to_string(), span: None }),
+                right: Box::new(Expression::Literal { value: Value::Int(2), span: None }),
+                span: None,
             }),
             variable: "x".to_string(),
-            iterable: Box::new(Expression::Variable("numbers".to_string())),
+            iterable: Box::new(Expression::Variable { name: "numbers".to_string(), span: None }),
             condition: Some(Box::new(Expression::BinaryOp {
                 op: BinaryOperator::GreaterThan,
-                left: Box::new(Expression::Variable("x".to_string())),
-                right: Box::new(Expression::Literal(Value::Int(2))),
+                left: Box::new(Expression::Variable { name: "x".to_string(), span: None }),
+                right: Box::new(Expression::Literal { value: Value::Int(2), span: None }),
+                span: None,
             })),
+            span: None,
         };
 
         let result = evaluator.evaluate_expression(&expr).unwrap();
@@ -1102,16 +1138,18 @@ mod tests {
 
         // try undefined_var else 42
         let expr = Expression::Try {
-            expr: Box::new(Expression::Variable("undefined".to_string())),
-            default: Some(Box::new(Expression::Literal(Value::Int(42)))),
+            expr: Box::new(Expression::Variable { name: "undefined".to_string(), span: None }),
+            default: Some(Box::new(Expression::Literal { value: Value::Int(42), span: None })),
+            span: None,
         };
 
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(42));
 
         // try valid_literal
         let expr = Expression::Try {
-            expr: Box::new(Expression::Literal(Value::Int(100))),
+            expr: Box::new(Expression::Literal { value: Value::Int(100), span: None }),
             default: None,
+            span: None,
         };
 
         assert_eq!(evaluator.evaluate_expression(&expr).unwrap(), Value::Int(100));
@@ -1123,7 +1161,7 @@ mod tests {
             numbers = [1, 2, 3, 4, 5]
             doubled = map(x => x * 2, numbers)
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module).unwrap();
 
@@ -1145,7 +1183,7 @@ mod tests {
             numbers = [1, 2, 3, 4, 5, 6]
             evens = filter(x => x % 2 == 0, numbers)
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module).unwrap();
 
@@ -1165,7 +1203,7 @@ mod tests {
             numbers = [1, 2, 3, 4, 5]
             sum = reduce((acc, x) => acc + x, numbers, 0)
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module).unwrap();
 
@@ -1182,7 +1220,7 @@ mod tests {
             numbers = [1, 2, 3]
             doubled = map(double, numbers)
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module).unwrap();
 
@@ -1202,7 +1240,7 @@ mod tests {
             double = x => x * 2
             result = double(5)
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module).unwrap();
 
@@ -1219,7 +1257,7 @@ mod tests {
             age: int = 25
             price: float = 19.99
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module);
 
@@ -1231,7 +1269,7 @@ mod tests {
         let input = r#"
             count: string = 42
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module);
 
@@ -1244,7 +1282,7 @@ mod tests {
         let input = r#"
             price: float = 42
         "#;
-        let module = crate::parser::parse_str(input).unwrap();
+        let module = crate::parse_str(input).unwrap();
         let mut evaluator = Evaluator::new();
         let result = evaluator.evaluate(module);
 

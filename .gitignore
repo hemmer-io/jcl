@@ -1,1 +1,54 @@
+# Build artifacts
 /target
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Cargo
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Ruby
+*.gem
+.bundle/
+vendor/
+
+# Java
+*.class
+*.jar
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation build
+_site/
+.jekyll-cache/
+.sass-cache/
+
+# Planning and notes (not for publication)
+TODO.md
+PUBLICATION_PLAN.md
+*.local.md
+
+# Temporary files
+*.tmp
+.*.tmp

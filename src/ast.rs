@@ -6,6 +6,30 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[cfg(feature = "cli")]
+use crate::lexer::Span;
+
+/// Source location information (always available)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SourceSpan {
+    pub line: usize,
+    pub column: usize,
+    pub offset: usize,
+    pub length: usize,
+}
+
+#[cfg(feature = "cli")]
+impl From<&Span> for SourceSpan {
+    fn from(span: &Span) -> Self {
+        SourceSpan {
+            line: span.start.line,
+            column: span.start.column,
+            offset: span.start.offset,
+            length: span.text.len(),
+        }
+    }
+}
+
 /// A JCL module (file)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Module {
@@ -22,6 +46,7 @@ pub enum Statement {
         value: Expression,
         type_annotation: Option<Type>,
         doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
     },
 
     /// Function definition: `fn name(params) = expr`
@@ -31,6 +56,7 @@ pub enum Statement {
         return_type: Option<Type>,
         body: Expression,
         doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
     },
 
     /// Import statement: `import (items) from "path"`
@@ -39,6 +65,7 @@ pub enum Statement {
         path: String,
         wildcard: bool, // true for `import * from "path"`
         doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
     },
 
     /// For loop: `for x in list (body)`
@@ -48,10 +75,14 @@ pub enum Statement {
         body: Vec<Statement>,
         condition: Option<Expression>, // Optional filter condition
         doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
     },
 
     /// Expression statement (for side effects)
-    Expression(Expression),
+    Expression {
+        expr: Expression,
+        span: Option<SourceSpan>,
+    },
 }
 
 /// Function parameter
@@ -66,33 +97,43 @@ pub struct Parameter {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
     /// Literal value
-    Literal(Value),
+    Literal {
+        value: Value,
+        span: Option<SourceSpan>,
+    },
 
     /// Variable reference
-    Variable(String),
+    Variable {
+        name: String,
+        span: Option<SourceSpan>,
+    },
 
     /// Member access: `obj.field`
     MemberAccess {
         object: Box<Expression>,
         field: String,
+        span: Option<SourceSpan>,
     },
 
     /// Optional chaining: `obj?.field`
     OptionalChain {
         object: Box<Expression>,
         field: String,
+        span: Option<SourceSpan>,
     },
 
     /// Index access: `list[0]` or `map["key"]`
     Index {
         object: Box<Expression>,
         index: Box<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// Function call: `func(args)`
     FunctionCall {
         name: String,
         args: Vec<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// Method call: `obj.method(args)` or pipeline: `obj | func`
@@ -100,6 +141,7 @@ pub enum Expression {
         object: Box<Expression>,
         method: String,
         args: Vec<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// Binary operation: `a + b`, `a == b`, etc.
@@ -107,12 +149,14 @@ pub enum Expression {
         op: BinaryOperator,
         left: Box<Expression>,
         right: Box<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// Unary operation: `!a`, `-a`
     UnaryOp {
         op: UnaryOperator,
         operand: Box<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// Ternary conditional: `condition ? then_expr : else_expr`
@@ -120,6 +164,7 @@ pub enum Expression {
         condition: Box<Expression>,
         then_expr: Box<Expression>,
         else_expr: Box<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// If expression: `if condition then expr else expr`
@@ -127,18 +172,21 @@ pub enum Expression {
         condition: Box<Expression>,
         then_expr: Box<Expression>,
         else_expr: Option<Box<Expression>>,
+        span: Option<SourceSpan>,
     },
 
     /// When expression (pattern matching): `when value (pattern => expr, ...)`
     When {
         value: Box<Expression>,
         arms: Vec<WhenArm>,
+        span: Option<SourceSpan>,
     },
 
     /// Lambda function: `x => x * 2` or `(x, y) => x + y`
     Lambda {
         params: Vec<Parameter>,
         body: Box<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// List comprehension: `[expr for x in list if condition]`
@@ -147,32 +195,86 @@ pub enum Expression {
         variable: String,
         iterable: Box<Expression>,
         condition: Option<Box<Expression>>,
+        span: Option<SourceSpan>,
     },
 
     /// Pipeline: `value | func1 | func2`
     Pipeline {
         stages: Vec<Expression>,
+        span: Option<SourceSpan>,
     },
 
     /// Try expression: `try(expr)`
     Try {
         expr: Box<Expression>,
         default: Option<Box<Expression>>,
+        span: Option<SourceSpan>,
     },
 
     /// String with interpolation: `"Hello, ${name}!"`
     InterpolatedString {
         parts: Vec<StringPart>,
+        span: Option<SourceSpan>,
     },
 
     /// List literal: `[1, 2, 3]`
-    List(Vec<Expression>),
+    List {
+        elements: Vec<Expression>,
+        span: Option<SourceSpan>,
+    },
 
     /// Map literal: `(key = value, ...)`
-    Map(Vec<(String, Expression)>),
+    Map {
+        entries: Vec<(String, Expression)>,
+        span: Option<SourceSpan>,
+    },
 
     /// Spread operator: `...list`
-    Spread(Box<Expression>),
+    Spread {
+        expr: Box<Expression>,
+        span: Option<SourceSpan>,
+    },
+}
+
+impl Expression {
+    /// Get the span of this expression, if available
+    pub fn span(&self) -> Option<&SourceSpan> {
+        match self {
+            Expression::Literal { span, .. } => span.as_ref(),
+            Expression::Variable { span, .. } => span.as_ref(),
+            Expression::MemberAccess { span, .. } => span.as_ref(),
+            Expression::OptionalChain { span, .. } => span.as_ref(),
+            Expression::Index { span, .. } => span.as_ref(),
+            Expression::FunctionCall { span, .. } => span.as_ref(),
+            Expression::MethodCall { span, .. } => span.as_ref(),
+            Expression::BinaryOp { span, .. } => span.as_ref(),
+            Expression::UnaryOp { span, .. } => span.as_ref(),
+            Expression::Ternary { span, .. } => span.as_ref(),
+            Expression::If { span, .. } => span.as_ref(),
+            Expression::When { span, .. } => span.as_ref(),
+            Expression::Lambda { span, .. } => span.as_ref(),
+            Expression::ListComprehension { span, .. } => span.as_ref(),
+            Expression::Pipeline { span, .. } => span.as_ref(),
+            Expression::Try { span, .. } => span.as_ref(),
+            Expression::InterpolatedString { span, .. } => span.as_ref(),
+            Expression::List { span, .. } => span.as_ref(),
+            Expression::Map { span, .. } => span.as_ref(),
+            Expression::Spread { span, .. } => span.as_ref(),
+        }
+    }
+}
+
+impl Statement {
+    /// Get the span of this statement, if available
+    pub fn span(&self) -> Option<&SourceSpan> {
+        match self {
+            Statement::Assignment { span, .. } => span.as_ref(),
+            Statement::FunctionDef { span, .. } => span.as_ref(),
+            Statement::Import { span, .. } => span.as_ref(),
+            Statement::ForLoop { span, .. } => span.as_ref(),
+            Statement::Expression { span, .. } => span.as_ref(),
+        }
+    }
 }
 
 /// String part (literal or interpolation)

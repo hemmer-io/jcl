@@ -17,6 +17,38 @@ cargo run --bin jcl eval examples/basic.jcl --format json
 cargo run --bin jcl eval examples/basic.jcl --format yaml
 ```
 
+## Real-World Examples
+
+### `web-app-config.jcl`
+**Web Application Configuration**
+- Environment-specific settings with conditionals
+- Database and cache configuration
+- Feature flags and CORS settings
+- Logging and monitoring setup
+- Connection string generation
+
+**Learn:** How to structure a complete web application configuration.
+
+### `data-processing.jcl`
+**Data Processing Pipeline**
+- Filtering and transforming data
+- Aggregations and statistics
+- Grouping and sorting operations
+- CSV/JSON/YAML export
+- Report generation
+
+**Learn:** Advanced list processing and data transformation techniques.
+
+### `api-config.jcl`
+**REST API Configuration**
+- Endpoint definitions with rate limiting
+- Authentication (JWT, OAuth providers)
+- Security headers and middleware
+- OpenAPI documentation setup
+- Health check configuration
+
+**Learn:** How to configure a production-ready REST API.
+
 ## Examples Overview
 
 ### `basic.jcl`

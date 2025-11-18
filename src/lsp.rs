@@ -1,6 +1,7 @@
 //! Language Server Protocol implementation for JCL
 
-use crate::{linter, parser};
+use crate::linter;
+use crate::symbol_table::SymbolTable;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -27,7 +28,7 @@ impl JclLanguageServer {
         let mut diagnostics = Vec::new();
 
         // Parse the document
-        match parser::parse_str(text) {
+        match crate::parse_str(text) {
             Ok(module) => {
                 // Run linter
                 if let Ok(issues) = linter::lint(&module) {
@@ -44,13 +45,26 @@ impl JclLanguageServer {
                             issue.message.clone()
                         };
 
-                        // For now, use entire document range since we don't have position info
-                        let range = Range {
-                            start: Position { line: 0, character: 0 },
-                            end: Position {
-                                line: text.lines().count() as u32,
-                                character: 0,
-                            },
+                        // Use precise span if available, otherwise use entire document range
+                        let range = if let Some(span) = &issue.span {
+                            Range {
+                                start: Position {
+                                    line: span.line.saturating_sub(1) as u32, // LSP is 0-indexed
+                                    character: span.column.saturating_sub(1) as u32,
+                                },
+                                end: Position {
+                                    line: span.line.saturating_sub(1) as u32,
+                                    character: (span.column.saturating_sub(1) + span.length) as u32,
+                                },
+                            }
+                        } else {
+                            Range {
+                                start: Position { line: 0, character: 0 },
+                                end: Position {
+                                    line: text.lines().count() as u32,
+                                    character: 0,
+                                },
+                            }
                         };
 
                         diagnostics.push(Diagnostic {
@@ -231,6 +245,9 @@ impl LanguageServer for JclLanguageServer {
                     ..Default::default()
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                definition_provider: Some(OneOf::Left(true)),
+                references_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
         })
@@ -304,6 +321,177 @@ impl LanguageServer for JclLanguageServer {
         } else {
             Ok(None)
         }
+    }
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        let uri = params.text_document_position_params.text_document.uri.to_string();
+        let position = params.text_document_position_params.position;
+
+        if let Some(text) = self.document_map.read().await.get(&uri) {
+            // Parse the document
+            if let Ok(module) = crate::parse_str(text) {
+                // Build symbol table
+                let symbol_table = SymbolTable::from_module(&module);
+
+                // Convert LSP position (0-indexed) to symbol table position (1-indexed)
+                let line = position.line as usize + 1;
+                let column = position.character as usize;
+
+                // Find symbol at cursor position
+                if let Some(symbol) = symbol_table.find_symbol_at_position(line, column) {
+                    // Convert symbol table location to LSP location
+                    let def_location = Location {
+                        uri: params.text_document_position_params.text_document.uri.clone(),
+                        range: Range {
+                            start: Position {
+                                line: (symbol.definition.line - 1) as u32,
+                                character: symbol.definition.column as u32,
+                            },
+                            end: Position {
+                                line: (symbol.definition.line - 1) as u32,
+                                character: (symbol.definition.column + symbol.definition.length) as u32,
+                            },
+                        },
+                    };
+
+                    return Ok(Some(GotoDefinitionResponse::Scalar(def_location)));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let uri = params.text_document_position.text_document.uri.to_string();
+        let position = params.text_document_position.position;
+
+        if let Some(text) = self.document_map.read().await.get(&uri) {
+            // Parse the document
+            if let Ok(module) = crate::parse_str(text) {
+                // Build symbol table
+                let symbol_table = SymbolTable::from_module(&module);
+
+                // Convert LSP position (0-indexed) to symbol table position (1-indexed)
+                let line = position.line as usize + 1;
+                let column = position.character as usize;
+
+                // Find symbol at cursor position
+                if let Some(symbol) = symbol_table.find_symbol_at_position(line, column) {
+                    let mut locations = Vec::new();
+
+                    // Include definition if requested
+                    if params.context.include_declaration {
+                        locations.push(Location {
+                            uri: params.text_document_position.text_document.uri.clone(),
+                            range: Range {
+                                start: Position {
+                                    line: (symbol.definition.line - 1) as u32,
+                                    character: symbol.definition.column as u32,
+                                },
+                                end: Position {
+                                    line: (symbol.definition.line - 1) as u32,
+                                    character: (symbol.definition.column + symbol.definition.length) as u32,
+                                },
+                            },
+                        });
+                    }
+
+                    // Add all references
+                    for reference in &symbol.references {
+                        locations.push(Location {
+                            uri: params.text_document_position.text_document.uri.clone(),
+                            range: Range {
+                                start: Position {
+                                    line: (reference.line - 1) as u32,
+                                    character: reference.column as u32,
+                                },
+                                end: Position {
+                                    line: (reference.line - 1) as u32,
+                                    character: (reference.column + reference.length) as u32,
+                                },
+                            },
+                        });
+                    }
+
+                    return Ok(Some(locations));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri.to_string();
+        let position = params.text_document_position.position;
+        let new_name = params.new_name;
+
+        if let Some(text) = self.document_map.read().await.get(&uri) {
+            // Parse the document
+            if let Ok(module) = crate::parse_str(text) {
+                // Build symbol table
+                let symbol_table = SymbolTable::from_module(&module);
+
+                // Convert LSP position (0-indexed) to symbol table position (1-indexed)
+                let line = position.line as usize + 1;
+                let column = position.character as usize;
+
+                // Find symbol at cursor position
+                if let Some(symbol) = symbol_table.find_symbol_at_position(line, column) {
+                    let mut edits = Vec::new();
+
+                    // Add edit for definition
+                    edits.push(TextEdit {
+                        range: Range {
+                            start: Position {
+                                line: (symbol.definition.line - 1) as u32,
+                                character: symbol.definition.column as u32,
+                            },
+                            end: Position {
+                                line: (symbol.definition.line - 1) as u32,
+                                character: (symbol.definition.column + symbol.definition.length) as u32,
+                            },
+                        },
+                        new_text: new_name.clone(),
+                    });
+
+                    // Add edits for all references
+                    for reference in &symbol.references {
+                        edits.push(TextEdit {
+                            range: Range {
+                                start: Position {
+                                    line: (reference.line - 1) as u32,
+                                    character: reference.column as u32,
+                                },
+                                end: Position {
+                                    line: (reference.line - 1) as u32,
+                                    character: (reference.column + reference.length) as u32,
+                                },
+                            },
+                            new_text: new_name.clone(),
+                        });
+                    }
+
+                    // Create workspace edit
+                    let mut changes = HashMap::new();
+                    changes.insert(
+                        params.text_document_position.text_document.uri.clone(),
+                        edits,
+                    );
+
+                    return Ok(Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }));
+                }
+            }
+        }
+
+        Ok(None)
     }
 }
 

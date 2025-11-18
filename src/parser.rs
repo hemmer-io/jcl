@@ -127,7 +127,10 @@ fn parse_statement(pair: Pair<Rule>) -> Result<Statement> {
         Rule::function_def => parse_function_def(inner, doc_comments),
         Rule::import_stmt => parse_import(inner, doc_comments),
         Rule::for_loop => parse_for_loop(inner, doc_comments),
-        Rule::expression => Ok(Statement::Expression(parse_expression(inner)?)),
+        Rule::expression => Ok(Statement::Expression {
+            expr: parse_expression(inner)?,
+            span: None,
+        }),
         _ => Err(anyhow!("Unknown statement type: {:?}", inner.as_rule())),
     }
 }
@@ -165,6 +168,7 @@ fn parse_assignment(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Resu
         value: value.ok_or_else(|| anyhow!("Missing value in assignment"))?,
         type_annotation,
         doc_comments,
+        span: None,
     })
 }
 
@@ -198,6 +202,7 @@ fn parse_function_def(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Re
         return_type,
         body: body.ok_or_else(|| anyhow!("Missing body in function definition"))?,
         doc_comments,
+        span: None,
     })
 }
 
@@ -237,6 +242,7 @@ fn parse_import(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result<S
         path,
         wildcard,
         doc_comments,
+        span: None,
     })
 }
 
@@ -270,6 +276,7 @@ fn parse_for_loop(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result
         body,
         condition: None,
         doc_comments,
+        span: None,
     })
 }
 
@@ -362,10 +369,12 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                 Rule::neg => Ok(Expression::UnaryOp {
                     op: UnaryOperator::Negate,
                     operand: Box::new(rhs?),
+                    span: None,
                 }),
                 Rule::not => Ok(Expression::UnaryOp {
                     op: UnaryOperator::Not,
                     operand: Box::new(rhs?),
+                    span: None,
                 }),
                 _ => Err(anyhow!("Unknown prefix operator: {:?}", op.as_rule())),
             }
@@ -384,6 +393,7 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                     Ok(Expression::OptionalChain {
                         object: Box::new(lhs),
                         field,
+                        span: None,
                     })
                 }
                 Rule::member_access => {
@@ -396,6 +406,7 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                     Ok(Expression::MemberAccess {
                         object: Box::new(lhs),
                         field,
+                        span: None,
                     })
                 }
                 Rule::index_access => {
@@ -406,6 +417,7 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                     Ok(Expression::Index {
                         object: Box::new(lhs),
                         index: Box::new(parse_expression(index)?),
+                        span: None,
                     })
                 }
                 Rule::call_args => {
@@ -416,14 +428,19 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                     };
 
                     // Distinguish between method calls and function calls
-                    if let Expression::MemberAccess { object, field } = lhs {
+                    if let Expression::MemberAccess { object, field, .. } = lhs {
                         Ok(Expression::MethodCall {
                             object,
                             method: field,
                             args,
+                            span: None,
                         })
-                    } else if let Expression::Variable(name) = lhs {
-                        Ok(Expression::FunctionCall { name, args })
+                    } else if let Expression::Variable { name, .. } = lhs {
+                        Ok(Expression::FunctionCall {
+                            name,
+                            args,
+                            span: None,
+                        })
                     } else {
                         Err(anyhow!("Invalid function call target"))
                     }
@@ -452,13 +469,16 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                 Rule::pipe_op => {
                     // Pipeline operator creates a Pipeline expression
                     // If lhs is already a pipeline, extend it; otherwise create a new one
-                    let mut stages = if let Expression::Pipeline { stages: existing } = lhs {
+                    let mut stages = if let Expression::Pipeline { stages: existing, .. } = lhs {
                         existing
                     } else {
                         vec![lhs]
                     };
                     stages.push(rhs?);
-                    return Ok(Expression::Pipeline { stages });
+                    return Ok(Expression::Pipeline {
+                        stages,
+                        span: None,
+                    });
                 }
                 Rule::ternary_op => {
                     // Ternary: condition ? then_expr : else_expr
@@ -471,6 +491,7 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                         condition: Box::new(lhs),
                         then_expr: Box::new(parse_expression(then_expr)?),
                         else_expr: Box::new(rhs?),
+                        span: None,
                     });
                 }
                 _ => return Err(anyhow!("Unknown infix operator: {:?}", op.as_rule())),
@@ -480,6 +501,7 @@ fn parse_expression(pair: Pair<Rule>) -> Result<Expression> {
                 op: binary_op,
                 left: Box::new(lhs),
                 right: Box::new(rhs?),
+                span: None,
             })
         })
         .parse(pair.into_inner())
@@ -495,13 +517,23 @@ fn parse_primary(pair: Pair<Rule>) -> Result<Expression> {
             parse_primary(inner)
         }
         Rule::number => parse_number(pair),
-        Rule::boolean => Ok(Expression::Literal(Value::Bool(pair.as_str() == "true"))),
-        Rule::null => Ok(Expression::Literal(Value::Null)),
-        Rule::quoted_string | Rule::multiline_string => Ok(Expression::Literal(
-            Value::String(parse_string_literal(pair)?),
-        )),
+        Rule::boolean => Ok(Expression::Literal {
+            value: Value::Bool(pair.as_str() == "true"),
+            span: None,
+        }),
+        Rule::null => Ok(Expression::Literal {
+            value: Value::Null,
+            span: None,
+        }),
+        Rule::quoted_string | Rule::multiline_string => Ok(Expression::Literal {
+            value: Value::String(parse_string_literal(pair)?),
+            span: None,
+        }),
         Rule::interpolated_string => parse_interpolated_string(pair),
-        Rule::identifier => Ok(Expression::Variable(pair.as_str().to_string())),
+        Rule::identifier => Ok(Expression::Variable {
+            name: pair.as_str().to_string(),
+            span: None,
+        }),
         Rule::list => parse_list(pair),
         Rule::map => parse_map(pair),
         Rule::lambda => parse_lambda(pair),
@@ -517,9 +549,15 @@ fn parse_primary(pair: Pair<Rule>) -> Result<Expression> {
 fn parse_number(pair: Pair<Rule>) -> Result<Expression> {
     let s = pair.as_str();
     if s.contains('.') {
-        Ok(Expression::Literal(Value::Float(s.parse()?)))
+        Ok(Expression::Literal {
+            value: Value::Float(s.parse()?),
+            span: None,
+        })
     } else {
-        Ok(Expression::Literal(Value::Int(s.parse()?)))
+        Ok(Expression::Literal {
+            value: Value::Int(s.parse()?),
+            span: None,
+        })
     }
 }
 
@@ -567,7 +605,10 @@ fn parse_interpolated_string(pair: Pair<Rule>) -> Result<Expression> {
         }
     }
 
-    Ok(Expression::InterpolatedString { parts })
+    Ok(Expression::InterpolatedString {
+        parts,
+        span: None,
+    })
 }
 
 fn parse_list(pair: Pair<Rule>) -> Result<Expression> {
@@ -579,7 +620,10 @@ fn parse_list(pair: Pair<Rule>) -> Result<Expression> {
         }
     }
 
-    Ok(Expression::List(items))
+    Ok(Expression::List {
+        elements: items,
+        span: None,
+    })
 }
 
 fn parse_map(pair: Pair<Rule>) -> Result<Expression> {
@@ -608,7 +652,10 @@ fn parse_map(pair: Pair<Rule>) -> Result<Expression> {
         }
     }
 
-    Ok(Expression::Map(entries))
+    Ok(Expression::Map {
+        entries,
+        span: None,
+    })
 }
 
 fn parse_argument_list(pair: Pair<Rule>) -> Result<Vec<Expression>> {
@@ -650,6 +697,7 @@ fn parse_lambda(pair: Pair<Rule>) -> Result<Expression> {
     Ok(Expression::Lambda {
         params,
         body: Box::new(body.ok_or_else(|| anyhow!("Missing lambda body"))?),
+        span: None,
     })
 }
 
@@ -672,6 +720,7 @@ fn parse_if_expr(pair: Pair<Rule>) -> Result<Expression> {
         condition: Box::new(condition),
         then_expr: Box::new(then_expr),
         else_expr: else_expr.map(Box::new),
+        span: None,
     })
 }
 
@@ -696,6 +745,7 @@ fn parse_when_expr(pair: Pair<Rule>) -> Result<Expression> {
     Ok(Expression::When {
         value: Box::new(value.ok_or_else(|| anyhow!("Missing when value"))?),
         arms,
+        span: None,
     })
 }
 
@@ -755,7 +805,7 @@ fn parse_when_pattern(pair: Pair<Rule>) -> Result<Pattern> {
                 // Parse as literal
                 let lit_inner = inner_pair.into_inner().next().ok_or_else(|| anyhow!("Empty literal"))?;
                 match parse_primary(lit_inner)? {
-                    Expression::Literal(val) => Ok(Pattern::Literal(val)),
+                    Expression::Literal { value, .. } => Ok(Pattern::Literal(value)),
                     _ => Err(anyhow!("Invalid literal pattern")),
                 }
             }
@@ -766,8 +816,8 @@ fn parse_when_pattern(pair: Pair<Rule>) -> Result<Pattern> {
                     .into_inner()
                     .map(|e| {
                         match parse_expression(e)? {
-                            Expression::Literal(val) => Ok(Pattern::Literal(val)),
-                            Expression::Variable(name) => Ok(Pattern::Variable(name)),
+                            Expression::Literal { value, .. } => Ok(Pattern::Literal(value)),
+                            Expression::Variable { name, .. } => Ok(Pattern::Variable(name)),
                             _ => Err(anyhow!("Invalid pattern expression")),
                         }
                     })
@@ -798,6 +848,7 @@ fn parse_try_expr(pair: Pair<Rule>) -> Result<Expression> {
     Ok(Expression::Try {
         expr: Box::new(expr.ok_or_else(|| anyhow!("Missing try expression"))?),
         default: default.map(Box::new),
+        span: None,
     })
 }
 
@@ -843,6 +894,7 @@ fn parse_list_comprehension(pair: Pair<Rule>) -> Result<Expression> {
         variable,
         iterable: Box::new(iterable.ok_or_else(|| anyhow!("Missing iterable"))?),
         condition: condition.map(Box::new),
+        span: None,
     })
 }
 

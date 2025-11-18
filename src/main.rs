@@ -134,7 +134,7 @@ fn main() -> Result<()> {
             println!("{} {}", "Parsing".cyan().bold(), path);
 
             let content = std::fs::read_to_string(&path)?;
-            match jcl::parser::parse_str(&content) {
+            match jcl::parse_str(&content) {
                 Ok(module) => {
                     println!("{}", "✓ Parse successful".green());
                     println!("\n{}", "AST:".bold());
@@ -153,7 +153,7 @@ fn main() -> Result<()> {
             let content = std::fs::read_to_string(&path)?;
 
             // Parse the file
-            let module = match jcl::parser::parse_str(&content) {
+            let module = match jcl::parse_str(&content) {
                 Ok(m) => m,
                 Err(e) => {
                     eprintln!("{} {}", "✗ Parse failed:".red().bold(), e);
@@ -230,7 +230,7 @@ fn main() -> Result<()> {
                     }
                 };
 
-                match jcl::parser::parse_str(&content) {
+                match jcl::parse_str(&content) {
                     Ok(_) => {
                         println!("{} {}", "✓".green(), display_path);
                         validated += 1;
@@ -280,7 +280,7 @@ fn main() -> Result<()> {
             for file_path in files {
                 let path_str = file_path.display().to_string();
 
-                match jcl::parser::parse_file(&path_str) {
+                match jcl::parse_file(&path_str) {
                     Ok(module) => {
                         match jcl::formatter::format(&module) {
                             Ok(formatted_code) => {
@@ -356,7 +356,7 @@ fn main() -> Result<()> {
             for file_path in files {
                 let path_str = file_path.display().to_string();
 
-                match jcl::parser::parse_file(&path_str) {
+                match jcl::parse_file(&path_str) {
                     Ok(module) => {
                         match jcl::linter::lint(&module) {
                             Ok(issues) => {
@@ -422,7 +422,7 @@ fn main() -> Result<()> {
         Commands::Doc { path, output } => {
             println!("{} {}", "Generating documentation:".cyan().bold(), path);
 
-            match jcl::parser::parse_file(&path) {
+            match jcl::parse_file(&path) {
                 Ok(module) => {
                     match jcl::docgen::generate(&module) {
                         Ok(doc) => {

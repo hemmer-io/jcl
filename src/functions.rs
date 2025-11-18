@@ -232,9 +232,142 @@ fn fn_join(args: &[Value]) -> Result<Value> {
     Ok(Value::String(strings?.join(&sep)))
 }
 
-fn fn_format(_args: &[Value]) -> Result<Value> {
-    // TODO: Implement printf-style formatting
-    Ok(Value::String("TODO: format".to_string()))
+fn fn_format(args: &[Value]) -> Result<Value> {
+    require_args_min(args, 1, "format")?;
+    let format_str = as_string(&args[0])?;
+
+    let mut result = String::new();
+    let mut chars = format_str.chars().peekable();
+    let mut arg_index = 1;
+
+    while let Some(ch) = chars.next() {
+        if ch == '%' {
+            if let Some(&next_ch) = chars.peek() {
+                chars.next(); // consume the format specifier
+
+                match next_ch {
+                    '%' => result.push('%'),
+                    's' => {
+                        // String format
+                        if arg_index < args.len() {
+                            result.push_str(&format_value_as_string(&args[arg_index])?);
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    'd' | 'i' => {
+                        // Integer format
+                        if arg_index < args.len() {
+                            let val = as_int(&args[arg_index])?;
+                            result.push_str(&val.to_string());
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    'f' => {
+                        // Float format
+                        if arg_index < args.len() {
+                            let val = as_number(&args[arg_index])?;
+                            result.push_str(&val.to_string());
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    'b' => {
+                        // Boolean format
+                        if arg_index < args.len() {
+                            match &args[arg_index] {
+                                Value::Bool(b) => result.push_str(&b.to_string()),
+                                _ => return Err(anyhow!("format: expected boolean for %b")),
+                            }
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    'v' => {
+                        // Value format (any type)
+                        if arg_index < args.len() {
+                            result.push_str(&format!("{:?}", args[arg_index]));
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    'x' => {
+                        // Hexadecimal format
+                        if arg_index < args.len() {
+                            let val = as_int(&args[arg_index])?;
+                            result.push_str(&format!("{:x}", val));
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    'X' => {
+                        // Hexadecimal format (uppercase)
+                        if arg_index < args.len() {
+                            let val = as_int(&args[arg_index])?;
+                            result.push_str(&format!("{:X}", val));
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    'o' => {
+                        // Octal format
+                        if arg_index < args.len() {
+                            let val = as_int(&args[arg_index])?;
+                            result.push_str(&format!("{:o}", val));
+                            arg_index += 1;
+                        } else {
+                            return Err(anyhow!("format: not enough arguments for format string"));
+                        }
+                    }
+                    _ => {
+                        // Unknown format specifier, just include it literally
+                        result.push('%');
+                        result.push(next_ch);
+                    }
+                }
+            } else {
+                result.push('%');
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+
+    Ok(Value::String(result))
+}
+
+/// Helper function to format a value as a string for %s
+fn format_value_as_string(val: &Value) -> Result<String> {
+    match val {
+        Value::String(s) => Ok(s.clone()),
+        Value::Int(i) => Ok(i.to_string()),
+        Value::Float(f) => Ok(f.to_string()),
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Null => Ok("null".to_string()),
+        Value::List(items) => {
+            let formatted: Vec<String> = items
+                .iter()
+                .map(|v| format_value_as_string(v))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(format!("[{}]", formatted.join(", ")))
+        }
+        Value::Map(map) => {
+            let formatted: Vec<String> = map
+                .iter()
+                .map(|(k, v)| Ok(format!("{} = {}", k, format_value_as_string(v)?)))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(format!("({})", formatted.join(", ")))
+        }
+        Value::Function { .. } => Ok("<function>".to_string()),
+    }
 }
 
 fn fn_substr(args: &[Value]) -> Result<Value> {
@@ -830,7 +963,9 @@ fn fn_coalesce(args: &[Value]) -> Result<Value> {
 
 fn fn_try(args: &[Value]) -> Result<Value> {
     require_args_min(args, 1, "try")?;
-    // TODO: Implement proper try/catch for expressions
+    // Note: try() error handling is implemented in the evaluator (Expression::Try)
+    // This function is not directly called - the parser generates Expression::Try AST nodes
+    // which are handled by evaluator.rs lines 285-296
     Ok(args[0].clone())
 }
 
@@ -1075,6 +1210,76 @@ mod tests {
         } else {
             panic!("Expected map");
         }
+    }
+
+    #[test]
+    fn test_format_basic() {
+        // String formatting
+        let result = fn_format(&[
+            Value::String("Hello, %s!".to_string()),
+            Value::String("World".to_string()),
+        ]).unwrap();
+        assert_eq!(result, Value::String("Hello, World!".to_string()));
+    }
+
+    #[test]
+    fn test_format_integer() {
+        // Integer formatting
+        let result = fn_format(&[
+            Value::String("Count: %d".to_string()),
+            Value::Int(42),
+        ]).unwrap();
+        assert_eq!(result, Value::String("Count: 42".to_string()));
+    }
+
+    #[test]
+    fn test_format_float() {
+        // Float formatting
+        let result = fn_format(&[
+            Value::String("Pi: %f".to_string()),
+            Value::Float(3.14159),
+        ]).unwrap();
+        assert_eq!(result, Value::String("Pi: 3.14159".to_string()));
+    }
+
+    #[test]
+    fn test_format_hex() {
+        // Hexadecimal formatting
+        let result = fn_format(&[
+            Value::String("Hex: %x".to_string()),
+            Value::Int(255),
+        ]).unwrap();
+        assert_eq!(result, Value::String("Hex: ff".to_string()));
+    }
+
+    #[test]
+    fn test_format_percent_escape() {
+        // Percent sign escaping - %% in format string should produce single %
+        let result = fn_format(&[
+            Value::String("100%% complete".to_string()),
+        ]).unwrap();
+        assert_eq!(result, Value::String("100% complete".to_string()));
+    }
+
+    #[test]
+    fn test_format_multiple() {
+        // Multiple arguments
+        let result = fn_format(&[
+            Value::String("%s is %d years old".to_string()),
+            Value::String("Alice".to_string()),
+            Value::Int(30),
+        ]).unwrap();
+        assert_eq!(result, Value::String("Alice is 30 years old".to_string()));
+    }
+
+    #[test]
+    fn test_format_boolean() {
+        // Boolean formatting
+        let result = fn_format(&[
+            Value::String("Active: %b".to_string()),
+            Value::Bool(true),
+        ]).unwrap();
+        assert_eq!(result, Value::String("Active: true".to_string()));
     }
 
     #[test]

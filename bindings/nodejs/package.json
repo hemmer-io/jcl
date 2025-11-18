@@ -1,0 +1,34 @@
+{
+  "name": "@hemmerio/jcl",
+  "version": "0.1.0",
+  "description": "Jack-of-All Configuration Language - Node.js bindings",
+  "main": "index.node",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "cargo-cp-artifact -nc index.node -- cargo build --message-format=json-render-diagnostics --features nodejs",
+    "build-release": "cargo-cp-artifact -nc index.node -- cargo build --release --message-format=json-render-diagnostics --features nodejs",
+    "install": "cargo-cp-artifact -nc index.node -- cargo build --message-format=json-render-diagnostics --features nodejs",
+    "test": "cargo test --features nodejs"
+  },
+  "keywords": [
+    "configuration",
+    "infrastructure",
+    "iac",
+    "devops",
+    "automation",
+    "neon",
+    "rust"
+  ],
+  "author": "Turner Hemmer",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/turner-hemmer/jcl"
+  },
+  "devDependencies": {
+    "cargo-cp-artifact": "^0.1"
+  },
+  "engines": {
+    "node": ">= 12"
+  }
+}

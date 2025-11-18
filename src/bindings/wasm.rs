@@ -63,7 +63,7 @@ impl Jcl {
 
     /// Parse JCL source code
     pub fn parse(&mut self, source: &str) -> JclResult {
-        match parser::parse_str(source) {
+        match crate::parse_str(source) {
             Ok(module) => {
                 self.module = Some(module);
                 JclResult {
@@ -82,7 +82,7 @@ impl Jcl {
 
     /// Format JCL source code
     pub fn format(&self, source: &str) -> JclResult {
-        match parser::parse_str(source) {
+        match crate::parse_str(source) {
             Ok(module) => match formatter::format(&module) {
                 Ok(formatted) => JclResult {
                     success: true,
@@ -105,7 +105,7 @@ impl Jcl {
 
     /// Run linter on JCL source code
     pub fn lint(&self, source: &str) -> JclResult {
-        match parser::parse_str(source) {
+        match crate::parse_str(source) {
             Ok(module) => match linter::lint(&module) {
                 Ok(issues) => {
                     if issues.is_empty() {
@@ -140,7 +140,7 @@ impl Jcl {
 
     /// Generate documentation from JCL source code
     pub fn generate_docs(&self, source: &str, module_name: &str) -> JclResult {
-        match parser::parse_str(source) {
+        match crate::parse_str(source) {
             Ok(module) => match docgen::generate(&module) {
                 Ok(doc) => {
                     let markdown = docgen::format_markdown(&doc, module_name);

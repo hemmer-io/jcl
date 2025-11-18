@@ -53,6 +53,7 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 return_type,
                 body,
                 doc_comments,
+                ..
             } => {
                 // Use doc comments if available, otherwise infer from name
                 let description = doc_comments
@@ -87,6 +88,7 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 type_annotation,
                 mutable,
                 doc_comments: _,
+                ..
             } => {
                 doc.variables.push(VariableDoc {
                     name: name.clone(),
@@ -208,17 +210,17 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
 /// Convert an expression to a string representation
 fn expr_to_string(expr: &Expression) -> String {
     match expr {
-        Expression::Literal(val) => value_to_string(val),
-        Expression::Variable(name) => name.clone(),
-        Expression::List(items) => {
-            let items_str = items
+        Expression::Literal { value, .. } => value_to_string(value),
+        Expression::Variable { name, .. } => name.clone(),
+        Expression::List { elements, .. } => {
+            let items_str = elements
                 .iter()
                 .map(expr_to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("[{}]", items_str)
         }
-        Expression::Map(entries) => {
+        Expression::Map { entries, .. } => {
             let entries_str = entries
                 .iter()
                 .map(|(k, v)| format!("{} = {}", k, expr_to_string(v)))
@@ -226,7 +228,7 @@ fn expr_to_string(expr: &Expression) -> String {
                 .join(", ");
             format!("({})", entries_str)
         }
-        Expression::Lambda { params, body } => {
+        Expression::Lambda { params, body, .. } => {
             let params_str = params
                 .iter()
                 .map(|p| p.name.as_str())
@@ -234,7 +236,7 @@ fn expr_to_string(expr: &Expression) -> String {
                 .join(", ");
             format!("({}) => {}", params_str, expr_to_string(body))
         }
-        Expression::FunctionCall { name, args } => {
+        Expression::FunctionCall { name, args, .. } => {
             let args_str = args
                 .iter()
                 .map(expr_to_string)
@@ -242,17 +244,17 @@ fn expr_to_string(expr: &Expression) -> String {
                 .join(", ");
             format!("{}({})", name, args_str)
         }
-        Expression::BinaryOp { left, right, op } => {
+        Expression::BinaryOp { left, right, op, .. } => {
             format!("{} {:?} {}", expr_to_string(left), op, expr_to_string(right))
         }
-        Expression::If { condition, then_expr, else_expr } => {
+        Expression::If { condition, then_expr, else_expr, .. } => {
             let else_str = else_expr
                 .as_ref()
                 .map(|e| format!(" else {}", expr_to_string(e)))
                 .unwrap_or_default();
             format!("if {} then {}{}", expr_to_string(condition), expr_to_string(then_expr), else_str)
         }
-        Expression::MemberAccess { object, field } => {
+        Expression::MemberAccess { object, field, .. } => {
             format!("{}.{}", expr_to_string(object), field)
         }
         _ => "<expr>".to_string(),
