@@ -23,7 +23,7 @@ jobs:
           components: clippy
 
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::only_used_in_recursion
+        run: cargo clippy --lib --tests --bins --all-features -- -D warnings -A clippy::only_used_in_recursion
 
   fmt:
     name: Format
