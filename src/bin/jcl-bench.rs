@@ -5,10 +5,12 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use colored::Colorize;
-use jcl::{evaluator::Evaluator, parse_str};
+use jcl::{evaluator::Evaluator, parse_files_parallel, parse_str};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use tempfile::TempDir;
 
 #[derive(Parser, Debug)]
 #[command(name = "jcl-bench")]
@@ -33,6 +35,14 @@ struct Args {
     /// Disable AST caching (critical for accurate benchmarks)
     #[arg(long)]
     no_cache: bool,
+
+    /// Benchmark parallel parsing performance
+    #[arg(long)]
+    parallel: bool,
+
+    /// Number of files to create for parallel benchmark
+    #[arg(long, default_value = "100")]
+    num_files: usize,
 }
 
 fn main() -> Result<()> {
@@ -46,14 +56,16 @@ fn main() -> Result<()> {
     println!("{}", "JCL Benchmarking Tool".cyan().bold());
     println!();
 
-    if args.builtin {
+    if args.parallel {
+        run_parallel_benchmark(&args)?;
+    } else if args.builtin {
         run_builtin_benchmarks(&args)?;
     } else if let Some(file) = &args.file {
         benchmark_file(file, &args)?;
     } else {
         eprintln!(
             "{}",
-            "Error: Please provide a file to benchmark or use --builtin".red()
+            "Error: Please provide a file to benchmark, use --builtin, or use --parallel".red()
         );
         std::process::exit(1);
     }
@@ -260,6 +272,71 @@ fn run_builtin_benchmarks(args: &Args) -> Result<()> {
         );
         println!();
     }
+
+    Ok(())
+}
+
+fn run_parallel_benchmark(args: &Args) -> Result<()> {
+    println!("{}", "Parallel Parsing Benchmark".cyan().bold());
+    println!();
+    println!("{} {} files", "Creating:".blue().bold(), args.num_files);
+    println!();
+
+    // Create temporary directory with test files
+    let temp_dir = TempDir::new()?;
+    let mut paths = Vec::new();
+
+    for i in 0..args.num_files {
+        let file_path = temp_dir.path().join(format!("test_{}.jcl", i));
+        let mut file = fs::File::create(&file_path)?;
+        writeln!(file, "x_{} = {}\ny_{} = \"test_{}\"", i, i * 10, i, i)?;
+        paths.push(file_path);
+    }
+
+    println!("{} Sequential parsing...", "⏱️ ".yellow().bold());
+    let sequential_start = Instant::now();
+    for path in &paths {
+        jcl::parse_file(path)?;
+    }
+    let sequential_duration = sequential_start.elapsed();
+
+    println!(
+        "  {} {:?} ({:.2} files/sec)",
+        "Sequential:".green(),
+        sequential_duration,
+        args.num_files as f64 / sequential_duration.as_secs_f64()
+    );
+    println!();
+
+    println!("{} Parallel parsing...", "⚡".yellow().bold());
+    let parallel_start = Instant::now();
+    parse_files_parallel(&paths)?;
+    let parallel_duration = parallel_start.elapsed();
+
+    println!(
+        "  {} {:?} ({:.2} files/sec)",
+        "Parallel:  ".green(),
+        parallel_duration,
+        args.num_files as f64 / parallel_duration.as_secs_f64()
+    );
+    println!();
+
+    let speedup = sequential_duration.as_secs_f64() / parallel_duration.as_secs_f64();
+
+    println!("{}", "Summary".cyan().bold());
+    println!("{}", "─".repeat(50));
+    println!("Files parsed:        {}", args.num_files);
+    println!("Sequential time:     {:?}", sequential_duration);
+    println!("Parallel time:       {:?}", parallel_duration);
+    println!(
+        "Speedup:             {:.2}x {}",
+        speedup,
+        if speedup > 1.5 { "✨" } else { "" }
+    );
+    println!(
+        "Efficiency:          {:.1}%",
+        (speedup / num_cpus::get() as f64) * 100.0
+    );
 
     Ok(())
 }
