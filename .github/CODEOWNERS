@@ -1,0 +1,62 @@
+# CODEOWNERS - Code Ownership for JCL
+#
+# This file defines code ownership for the JCL repository.
+# When a pull request is opened, GitHub automatically requests reviews from the code owners.
+#
+# Format: <path pattern> <owner(s)>
+# Owners can be GitHub usernames or teams (e.g., @hemmer-io/engineering)
+#
+# Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+* @hemmer-io/engineering
+
+# Core language components
+/src/lexer.pest @hemmer-io/engineering
+/src/parser.rs @hemmer-io/engineering
+/src/token_parser.rs @hemmer-io/engineering
+/src/evaluator.rs @hemmer-io/engineering
+/src/types.rs @hemmer-io/engineering
+/src/ast.rs @hemmer-io/engineering
+/src/functions.rs @hemmer-io/engineering
+
+# CLI tools
+/src/bin/ @hemmer-io/engineering
+/src/main.rs @hemmer-io/engineering
+/src/repl.rs @hemmer-io/engineering
+
+# Language Server Protocol
+/src/lsp.rs @hemmer-io/engineering
+/src/symbol_table.rs @hemmer-io/engineering
+
+# Code quality tools
+/src/formatter.rs @hemmer-io/engineering
+/src/linter.rs @hemmer-io/engineering
+/src/validator.rs @hemmer-io/engineering
+
+# Language bindings
+/bindings/ @hemmer-io/engineering
+/src/bindings/ @hemmer-io/engineering
+
+# Schema and migration
+/src/schema.rs @hemmer-io/engineering
+/src/migration.rs @hemmer-io/engineering
+
+# Documentation
+/docs/ @hemmer-io/engineering
+*.md @hemmer-io/engineering
+
+# CI/CD workflows
+/.github/workflows/ @hemmer-io/engineering
+
+# Configuration files
+/Cargo.toml @hemmer-io/engineering
+/Cargo.lock @hemmer-io/engineering
+/rust-toolchain.toml @hemmer-io/engineering
+
+# Tests
+/tests/ @hemmer-io/engineering
+
+# Build and distribution
+/scripts/ @hemmer-io/engineering
+/Dockerfile @hemmer-io/engineering
