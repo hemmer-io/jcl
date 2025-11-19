@@ -16,12 +16,12 @@ cargo install jcl
 
 ### Via Binary Download
 
-Download pre-built binaries from the [releases page](https://github.com/turner-hemmer/jcl/releases).
+Download pre-built binaries from the [releases page](https://github.com/hemmer-io/jcl/releases).
 
 ### From Source
 
 ```bash
-git clone https://github.com/turner-hemmer/jcl.git
+git clone https://github.com/hemmer-io/jcl.git
 cd jcl
 cargo build --release
 ```
@@ -30,7 +30,7 @@ cargo build --release
 
 ```bash
 # Run the interactive REPL
-jcl
+jcl repl
 
 # Evaluate a JCL file
 jcl eval config.jcl
@@ -47,11 +47,11 @@ jcl-migrate config.json --from json
 
 ## Documentation
 
-- **[Getting Started Guide](https://turner-hemmer.github.io/jcl/getting-started/)** - Learn JCL basics
-- **[Language Specification](https://turner-hemmer.github.io/jcl/reference/language-spec)** - Complete syntax reference
-- **[Built-in Functions](https://turner-hemmer.github.io/jcl/reference/functions)** - 70+ functions documented
-- **[CLI Tools](https://turner-hemmer.github.io/jcl/reference/cli-tools)** - Command-line utilities
-- **[Comparison Guide](https://turner-hemmer.github.io/jcl/guides/comparison)** - JCL vs other formats
+- **[Getting Started Guide](https://hemmer-io.github.io/jcl/getting-started/)** - Learn JCL basics
+- **[Language Specification](https://hemmer-io.github.io/jcl/reference/language-spec)** - Complete syntax reference
+- **[Built-in Functions](https://hemmer-io.github.io/jcl/reference/functions)** - 70+ functions documented
+- **[CLI Tools](https://hemmer-io.github.io/jcl/reference/cli-tools)** - Command-line utilities
+- **[Comparison Guide](https://hemmer-io.github.io/jcl/guides/comparison)** - JCL vs other formats
 
 ## Key Features
 
@@ -86,49 +86,40 @@ jcl-migrate config.json --from json
 
 ## Example
 
-```
+```jcl
 # Simple, readable configuration
-environments = (prod, dev, staging)
+environments = ["prod", "dev", "staging"]
 
-env.prod = (
-  region = us-west-2
-
-  vars (
-    app_name = myapp
-    version = 1.2.3
+env_prod = (
+  region = "us-west-2",
+  vars = (
+    app_name = "myapp",
+    version = "1.2.3",
     replicas = 3
-  )
-
-  tags (
-    team = platform
-    cost_center = engineering
+  ),
+  tags = (
+    team = "platform",
+    cost_center = "engineering"
   )
 )
 
 # String interpolation
-greeting = "Hello, ${env.prod.vars.app_name}!"
+greeting = "Hello, ${env_prod.vars.app_name}!"
 
 # Built-in functions
-uppercased = upper(env.prod.vars.app_name)
-config_json = jsonencode(env.prod.vars)
-config_yaml = yamlencode(env.prod.vars)
+uppercased = upper(env_prod.vars.app_name)
+config_json = jsonencode(env_prod.vars)
+config_yaml = yamlencode(env_prod.vars)
 
 # Collections and data manipulation
-regions = (us-west-2, us-east-1, eu-west-1)
+regions = ["us-west-2", "us-east-1", "eu-west-1"]
 region_count = length(regions)
-merged_tags = merge(env.prod.tags, (environment=prod managed_by=jcl))
+merged_tags = merge(env_prod.tags, (environment = "prod", managed_by = "jcl"))
 
-# List comprehensions and pipelines
-formatted_regions = regions
-  | map r => upper(r)
-  | sort
-  | join ", "
-
-# Template rendering
-nginx_config = templatefile(nginx.conf.tpl, (
-  port = 8080
-  server_name = env.prod.vars.app_name
-))
+# List comprehensions
+formatted_regions = [upper(r) for r in regions]
+sorted_regions = sort(formatted_regions)
+joined_regions = join(sorted_regions, ", ")
 ```
 
 ## Features
@@ -155,12 +146,12 @@ nginx_config = templatefile(nginx.conf.tpl, (
 - **Benchmarking** (`jcl-bench`): Performance measurement tools
 
 ### Multi-Language Support
-- **Rust**: Native implementation (crate available on crates.io)
-- **Python**: PyO3 bindings for Python integration
-- **Node.js**: Neon bindings for JavaScript/TypeScript
+- **Rust**: `cargo install jcl` - Native implementation
+- **Python**: `pip install jcl-lang` - PyO3 bindings
+- **Node.js**: `npm install @hemmer-io/jcl` - Neon bindings
+- **Ruby**: `gem install jcl` - Magnus bindings
 - **Go**: cgo bindings for Go projects
 - **Java**: JNI bindings for Java applications
-- **Ruby**: Magnus bindings for Ruby gems
 - **WebAssembly**: Browser and serverless support
 - **C FFI**: Embed in any language with C interop
 
@@ -251,8 +242,8 @@ at your option.
 
 ## Community
 
-- **Documentation**: [https://turner-hemmer.github.io/jcl/](https://turner-hemmer.github.io/jcl/)
-- **Repository**: [https://github.com/turner-hemmer/jcl](https://github.com/turner-hemmer/jcl)
-- **Issues**: [https://github.com/turner-hemmer/jcl/issues](https://github.com/turner-hemmer/jcl/issues)
+- **Documentation**: [https://hemmer-io.github.io/jcl/](https://hemmer-io.github.io/jcl/)
+- **Repository**: [https://github.com/hemmer-io/jcl](https://github.com/hemmer-io/jcl)
+- **Issues**: [https://github.com/hemmer-io/jcl/issues](https://github.com/hemmer-io/jcl/issues)
 
 Built with ❤️ in Rust
