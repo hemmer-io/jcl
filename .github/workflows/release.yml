@@ -202,7 +202,7 @@ jobs:
 
       - name: Build Python wheels
         working-directory: bindings/python
-        run: maturin build --release --features python
+        run: maturin build --release
 
       - name: Publish to PyPI (with trusted publishing)
         uses: pypa/gh-action-pypi-publish@release/v1
