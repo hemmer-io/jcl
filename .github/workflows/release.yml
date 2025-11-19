@@ -242,4 +242,6 @@ jobs:
 
       - name: Publish to RubyGems (with trusted publishing)
         uses: rubygems/release-gem@v1
+        with:
+          working-directory: bindings/ruby
 
