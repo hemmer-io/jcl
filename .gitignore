@@ -20,6 +20,9 @@ build/
 venv/
 *.pyo
 *.pyd
+# Maturin build artifacts
+bindings/python/target/
+bindings/python/.cargo/
 
 # Node.js
 node_modules/

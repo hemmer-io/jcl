@@ -240,8 +240,10 @@ jobs:
           gem install bundler rake rake-compiler rb_sys
           gem build jcl.gemspec
 
-      - name: Publish to RubyGems (with trusted publishing)
-        uses: rubygems/release-gem@v1
-        with:
-          working-directory: bindings/ruby
+      - name: Configure RubyGems credentials (trusted publishing)
+        uses: rubygems/configure-rubygems-credentials@v1.0.0
+
+      - name: Publish to RubyGems
+        working-directory: bindings/ruby
+        run: gem push jcl-lang-*.gem
 

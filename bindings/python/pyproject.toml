@@ -38,6 +38,4 @@ Issues = "https://github.com/hemmer-io/jcl/issues"
 Changelog = "https://github.com/hemmer-io/jcl/blob/main/CHANGELOG.md"
 
 [tool.maturin]
-features = ["python"]
-python-source = "python"
 module-name = "jcl"
