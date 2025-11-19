@@ -239,11 +239,15 @@ jobs:
         run: |
           gem install bundler rake rake-compiler rb_sys
           gem build jcl.gemspec
+          ls -la *.gem
 
       - name: Configure RubyGems credentials (trusted publishing)
         uses: rubygems/configure-rubygems-credentials@v1.0.0
 
       - name: Publish to RubyGems
         working-directory: bindings/ruby
-        run: gem push jcl-*.gem
+        run: |
+          GEM_FILE=$(ls *.gem | head -1)
+          echo "Publishing $GEM_FILE"
+          gem push "$GEM_FILE"
 
