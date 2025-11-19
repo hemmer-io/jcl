@@ -24,6 +24,10 @@ struct Cli {
     /// Working directory
     #[arg(short = 'C', long, global = true)]
     directory: Option<PathBuf>,
+
+    /// Disable AST caching (always re-parse files)
+    #[arg(long, global = true)]
+    no_cache: bool,
 }
 
 #[derive(Subcommand)]
@@ -108,6 +112,11 @@ fn main() -> Result<()> {
     // Change directory if specified
     if let Some(dir) = &cli.directory {
         std::env::set_current_dir(dir)?;
+    }
+
+    // Handle caching flag
+    if cli.no_cache {
+        jcl::disable_cache();
     }
 
     println!(

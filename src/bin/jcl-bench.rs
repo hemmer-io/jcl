@@ -29,10 +29,19 @@ struct Args {
     /// Run built-in benchmarks
     #[arg(long)]
     builtin: bool,
+
+    /// Disable AST caching (critical for accurate benchmarks)
+    #[arg(long)]
+    no_cache: bool,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Handle caching flag (important for accurate benchmarks)
+    if args.no_cache {
+        jcl::disable_cache();
+    }
 
     println!("{}", "JCL Benchmarking Tool".cyan().bold());
     println!();
