@@ -349,6 +349,152 @@ fn test_jcl_bench_exists() {
 }
 
 #[test]
+fn test_jcl_validate_multiple_files() {
+    let jcl_validate_path = get_binary_path("jcl-validate");
+
+    // Create test schema
+    let schema_file = create_temp_file(
+        "test_multifile_schema.yaml",
+        r#"
+version: "1.0"
+type:
+  kind: map
+  required:
+    - name
+  properties:
+    name:
+      type:
+        kind: string
+"#,
+    );
+
+    // Create valid config files
+    let config1 = create_temp_file("test_multifile_1.jcl", "name = \"config1\"");
+    let config2 = create_temp_file("test_multifile_2.jcl", "name = \"config2\"");
+
+    let output = Command::new(&jcl_validate_path)
+        .arg("--schema")
+        .arg(&schema_file)
+        .arg(&config1)
+        .arg(&config2)
+        .output()
+        .expect("Failed to execute jcl-validate");
+
+    assert!(
+        output.status.success(),
+        "jcl-validate should succeed with multiple valid files"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("2 file(s)"),
+        "Should indicate 2 files validated"
+    );
+    assert!(
+        stdout.contains("All files passed validation"),
+        "Should show success message"
+    );
+}
+
+#[test]
+fn test_jcl_validate_directory() {
+    let jcl_validate_path = get_binary_path("jcl-validate");
+
+    // Create test directory
+    let temp_dir = std::env::temp_dir().join("jcl_validate_dir_test");
+    fs::create_dir_all(&temp_dir).expect("Failed to create test directory");
+
+    // Create schema
+    let schema_file = create_temp_file(
+        "test_dir_schema.yaml",
+        r#"
+version: "1.0"
+type:
+  kind: map
+  properties:
+    value:
+      type:
+        kind: number
+"#,
+    );
+
+    // Create test files in directory
+    fs::write(temp_dir.join("test1.jcl"), "value = 10").expect("Failed to write test1.jcl");
+    fs::write(temp_dir.join("test2.jcl"), "value = 20").expect("Failed to write test2.jcl");
+
+    let output = Command::new(&jcl_validate_path)
+        .arg("--schema")
+        .arg(&schema_file)
+        .arg("--dir")
+        .arg(&temp_dir)
+        .output()
+        .expect("Failed to execute jcl-validate");
+
+    // Cleanup
+    fs::remove_dir_all(&temp_dir).ok();
+
+    assert!(
+        output.status.success(),
+        "jcl-validate should succeed with directory of valid files"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("file(s)"),
+        "Should show files validated from directory"
+    );
+}
+
+#[test]
+fn test_jcl_validate_no_fail_fast() {
+    let jcl_validate_path = get_binary_path("jcl-validate");
+
+    // Create test schema
+    let schema_file = create_temp_file(
+        "test_no_fail_fast_schema.yaml",
+        r#"
+version: "1.0"
+type:
+  kind: map
+  required:
+    - required_field
+  properties:
+    required_field:
+      type:
+        kind: string
+"#,
+    );
+
+    // Create files - some valid, some invalid
+    let config1 = create_temp_file("test_nff_1.jcl", "required_field = \"valid\"");
+    let config2 = create_temp_file("test_nff_2.jcl", "other_field = \"invalid\""); // Missing required field
+    let config3 = create_temp_file("test_nff_3.jcl", "required_field = \"also_valid\"");
+
+    let output = Command::new(&jcl_validate_path)
+        .arg("--schema")
+        .arg(&schema_file)
+        .arg("--no-fail-fast")
+        .arg(&config1)
+        .arg(&config2)
+        .arg(&config3)
+        .output()
+        .expect("Failed to execute jcl-validate");
+
+    assert!(
+        !output.status.success(),
+        "jcl-validate should fail when files have errors"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // With --no-fail-fast, should validate all 3 files
+    assert!(
+        stdout.contains("3"),
+        "Should validate all 3 files with --no-fail-fast"
+    );
+    assert!(
+        !stdout.contains("Stopped on first error"),
+        "Should not show 'stopped on first error' message with --no-fail-fast"
+    );
+}
+
+#[test]
 fn test_jcl_watch_help() {
     let jcl_watch_path = get_binary_path("jcl-watch");
 
