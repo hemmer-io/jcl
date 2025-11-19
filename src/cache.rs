@@ -86,8 +86,7 @@ impl AstCache {
     ///
     /// Panics if capacity is 0
     pub fn new(capacity: usize) -> Self {
-        let capacity = NonZeroUsize::new(capacity)
-            .expect("Cache capacity must be greater than 0");
+        let capacity = NonZeroUsize::new(capacity).expect("Cache capacity must be greater than 0");
 
         Self {
             cache: Mutex::new(LruCache::new(capacity)),
@@ -119,11 +118,7 @@ impl AstCache {
     /// - **Cache Hit**: Returns existing AST in <1µs (cheap Arc clone)
     /// - **Cache Miss**: Parses file and stores in cache
     /// - **Invalidation**: Automatic if file modification time changes
-    pub fn get_or_parse<F>(
-        &self,
-        path: &std::path::Path,
-        parse_fn: F,
-    ) -> Result<Arc<Module>>
+    pub fn get_or_parse<F>(&self, path: &std::path::Path, parse_fn: F) -> Result<Arc<Module>>
     where
         F: FnOnce(&std::path::Path) -> Result<Module>,
     {
@@ -243,14 +238,10 @@ mod tests {
         let path = temp_file.path();
 
         // First access - cache miss
-        let module1 = cache
-            .get_or_parse(path, |p| crate::parse_file(p))
-            .unwrap();
+        let module1 = cache.get_or_parse(path, |p| crate::parse_file(p)).unwrap();
 
         // Second access - cache hit
-        let module2 = cache
-            .get_or_parse(path, |p| crate::parse_file(p))
-            .unwrap();
+        let module2 = cache.get_or_parse(path, |p| crate::parse_file(p)).unwrap();
 
         // Should return the same Arc (pointer equality)
         assert!(Arc::ptr_eq(&module1, &module2));
@@ -266,9 +257,7 @@ mod tests {
         let path = temp_file.path().to_path_buf();
 
         // First parse
-        let module1 = cache
-            .get_or_parse(&path, |p| crate::parse_file(p))
-            .unwrap();
+        let module1 = cache.get_or_parse(&path, |p| crate::parse_file(p)).unwrap();
 
         assert_eq!(cache.len(), 1);
 
@@ -278,9 +267,7 @@ mod tests {
         temp_file.flush().unwrap();
 
         // Second parse after modification - should be cache miss
-        let module2 = cache
-            .get_or_parse(&path, |p| crate::parse_file(p))
-            .unwrap();
+        let module2 = cache.get_or_parse(&path, |p| crate::parse_file(p)).unwrap();
 
         // Different Arc instances (different parse)
         assert!(!Arc::ptr_eq(&module1, &module2));
