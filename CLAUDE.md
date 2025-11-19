@@ -654,6 +654,74 @@ Follow the template (`.github/PULL_REQUEST_TEMPLATE.md`):
 4. ✅ Documentation updated (if needed)
 5. ✅ No new compiler warnings
 
+### Issue and PR Metadata
+
+**ALWAYS** add appropriate labels when creating issues or PRs using the `--label` flag with `gh issue create` or `gh pr create`.
+
+#### Label Categories
+
+**Type Labels** (choose one):
+- `bug` - Something isn't working
+- `enhancement` - New feature or request
+- `documentation` - Documentation improvements
+- `question` - Further information is requested
+- `type: testing` - Testing-related changes
+- `type: breaking-change` - Breaking API changes
+- `type: performance` - Performance improvements
+- `type: refactor` - Code refactoring
+
+**Area Labels** (choose one or more as applicable):
+- `area: parser` - Lexer, token parsing
+- `area: type-system` - Type inference, type checking
+- `area: cli-tools` - CLI tools (fmt, validate, migrate, etc)
+- `area: evaluator` - Expression evaluation, runtime
+- `area: lsp` - Language Server Protocol
+- `area: bindings` - Multi-language bindings (general)
+- `area: ffi` - C Foreign Function Interface
+- `area: formatter` - Code formatter (jcl-fmt)
+- `area: wasm` - WebAssembly support
+- `area: linter` - Linting rules and diagnostics
+- `area: repl` - Interactive REPL
+- `area: validator` - Schema validation (jcl-validate)
+
+**Language-Specific Bindings** (if applicable):
+- `lang: go` - Go bindings (cgo)
+- `lang: nodejs` - Node.js bindings (Neon)
+- `lang: python` - Python bindings (PyO3)
+- `lang: java` - Java bindings (JNI)
+- `lang: ruby` - Ruby bindings (Magnus)
+
+#### Examples
+
+```bash
+# Bug in parser
+gh issue create --title "Parser fails on nested maps" \
+  --body "..." \
+  --label "bug,area: parser"
+
+# Enhancement for Python bindings
+gh issue create --title "Add async support to Python bindings" \
+  --body "..." \
+  --label "enhancement,area: bindings,lang: python"
+
+# Documentation for LSP
+gh issue create --title "Document LSP configuration options" \
+  --body "..." \
+  --label "documentation,area: lsp"
+
+# PR for type system refactor
+gh pr create --title "Refactor type inference engine" \
+  --body "..." \
+  --label "type: refactor,area: type-system"
+```
+
+**Guidelines**:
+- Always include at least one type label (`bug`, `enhancement`, `documentation`, etc.)
+- Add relevant area labels to help categorize the issue/PR
+- Add language-specific labels when working on bindings
+- Multiple labels are encouraged for better organization
+- Labels help with project management and filtering
+
 ---
 
 ## Common Pitfalls
