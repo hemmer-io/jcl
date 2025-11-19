@@ -11,8 +11,8 @@ Add the following dependency to your `pom.xml`:
 ```xml
 <dependency>
     <groupId>io.hemmer</groupId>
-    <artifactId>jcl</artifactId>
-    <version>0.1.0</version>
+    <artifactId>jcl-lang</artifactId>
+    <version>1.0.0</version>
 </dependency>
 
 <!-- Also add Gson for JSON handling -->
@@ -29,7 +29,7 @@ Add the following to your `build.gradle`:
 
 ```gradle
 dependencies {
-    implementation 'io.hemmer:jcl:0.1.0'
+    implementation 'io.hemmer:jcl-lang:1.0.0'
     implementation 'com.google.gson:gson:2.10.1'
 }
 ```

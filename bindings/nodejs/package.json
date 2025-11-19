@@ -1,7 +1,7 @@
 {
-  "name": "@hemmerio/jcl",
-  "version": "0.1.0",
-  "description": "Jack-of-All Configuration Language - Node.js bindings",
+  "name": "@hemmer-io/jcl",
+  "version": "1.0.0",
+  "description": "Jack-of-All Configuration Language - A general-purpose configuration language with powerful built-in functions",
   "main": "index.node",
   "types": "index.d.ts",
   "scripts": {
@@ -12,23 +12,31 @@
   },
   "keywords": [
     "configuration",
-    "infrastructure",
-    "iac",
-    "devops",
-    "automation",
+    "config",
+    "parser",
+    "language",
+    "template",
     "neon",
     "rust"
   ],
-  "author": "Turner Hemmer",
+  "author": {
+    "name": "Hemmer IO",
+    "email": "info@hemmer.io"
+  },
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/turner-hemmer/jcl"
+    "url": "https://github.com/hemmer-io/jcl",
+    "directory": "bindings/nodejs"
+  },
+  "homepage": "https://hemmer-io.github.io/jcl/",
+  "bugs": {
+    "url": "https://github.com/hemmer-io/jcl/issues"
   },
   "devDependencies": {
     "cargo-cp-artifact": "^0.1"
   },
   "engines": {
-    "node": ">= 12"
+    "node": ">= 14"
   }
 }

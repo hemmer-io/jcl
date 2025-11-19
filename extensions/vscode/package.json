@@ -1,0 +1,118 @@
+{
+  "name": "jcl-lang",
+  "displayName": "JCL Language Support",
+  "description": "Language support for Jack-of-All Configuration Language (JCL)",
+  "version": "1.0.0",
+  "publisher": "hemmer-io",
+  "author": {
+    "name": "Hemmer IO",
+    "email": "info@hemmer.io"
+  },
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hemmer-io/jcl"
+  },
+  "homepage": "https://hemmer-io.github.io/jcl/",
+  "bugs": {
+    "url": "https://github.com/hemmer-io/jcl/issues"
+  },
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters"
+  ],
+  "keywords": [
+    "jcl",
+    "configuration",
+    "config",
+    "language",
+    "lsp"
+  ],
+  "activationEvents": [
+    "onLanguage:jcl"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "jcl",
+        "aliases": [
+          "JCL",
+          "jcl"
+        ],
+        "extensions": [
+          ".jcl"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jcl",
+        "scopeName": "source.jcl",
+        "path": "./syntaxes/jcl.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "JCL",
+      "properties": {
+        "jcl.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable JCL Language Server"
+        },
+        "jcl.lsp.path": {
+          "type": "string",
+          "default": "jcl-lsp",
+          "description": "Path to jcl-lsp executable"
+        },
+        "jcl.format.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable formatting on save"
+        },
+        "jcl.lint.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable linting"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "jcl.format",
+        "title": "Format Document",
+        "category": "JCL"
+      },
+      {
+        "command": "jcl.lint",
+        "title": "Lint Document",
+        "category": "JCL"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "node extension.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}
