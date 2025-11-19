@@ -1,5 +1,5 @@
 Gem::Specification.new do |spec|
-  spec.name          = "jcl-lang"
+  spec.name          = "jcl"
   spec.version       = "1.0.0"
   spec.authors       = ["Hemmer IO"]
   spec.email         = ["info@hemmer.io"]

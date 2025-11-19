@@ -245,5 +245,5 @@ jobs:
 
       - name: Publish to RubyGems
         working-directory: bindings/ruby
-        run: gem push jcl-lang-*.gem
+        run: gem push jcl-*.gem
 
