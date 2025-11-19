@@ -73,6 +73,13 @@ regex = "1.10"
 # Caching
 lru = "0.12"
 
+# Parallel processing
+rayon = "1.8"
+num_cpus = "1.16"
+
+# Testing utilities (needed by benchmarking tool)
+tempfile = { version = "3.8", optional = true }
+
 # WebAssembly
 wasm-bindgen = "0.2"
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -102,7 +109,7 @@ tempfile = "3.8"
 
 [features]
 default = ["cli"]
-cli = ["clap", "rustyline", "glob", "notify", "tokio", "futures", "tower-lsp", "uuid"]
+cli = ["clap", "rustyline", "glob", "notify", "tokio", "futures", "tower-lsp", "uuid", "tempfile"]
 wasm = ["console_error_panic_hook", "wee_alloc", "uuid"]
 ffi = ["uuid"]
 python = ["pyo3", "uuid"]
