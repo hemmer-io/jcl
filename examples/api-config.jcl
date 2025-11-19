@@ -61,7 +61,7 @@ endpoints = [
 # Authentication configuration
 auth = (
     type = "jwt",
-    secret_key = env("JWT_SECRET"),
+    secret_key = "your-secret-key-here",  # In production, load from environment
     algorithm = "HS256",
     token_expiry = 3600,  # 1 hour
     refresh_token_expiry = 604800,  # 7 days
@@ -70,14 +70,14 @@ auth = (
     oauth = (
         google = (
             enabled = true,
-            client_id = env("GOOGLE_CLIENT_ID"),
-            client_secret = env("GOOGLE_CLIENT_SECRET"),
+            client_id = "your-google-client-id",
+            client_secret = "your-google-client-secret",
             redirect_uri = "https://api.example.com/auth/google/callback"
         ),
         github = (
             enabled = true,
-            client_id = env("GITHUB_CLIENT_ID"),
-            client_secret = env("GITHUB_CLIENT_SECRET"),
+            client_id = "your-github-client-id",
+            client_secret = "your-github-client-secret",
             redirect_uri = "https://api.example.com/auth/github/callback"
         )
     )
@@ -154,21 +154,24 @@ documentation = (
 )
 
 # Generate OpenAPI-style endpoint summaries
-endpoint_summaries = for endpoint in endpoints do (
-    path = "${api.base_path}${endpoint.path}",
-    methods = join(endpoint.methods, ", "),
-    auth = if endpoint.auth_required then "Required" else "Not Required",
-    rate_limit = format("%d requests/min", endpoint.rate_limit)
-)
+endpoint_summaries = [
+    (
+        path = "${api.base_path}${endpoint.path}",
+        methods = join(endpoint.methods, ", "),
+        auth = if endpoint.auth_required then "Required" else "Not Required",
+        rate_limit = format("%d requests/min", endpoint.rate_limit)
+    )
+    for endpoint in endpoints
+]
 
 # Security headers
 security_headers = (
-    "X-Content-Type-Options" = "nosniff",
-    "X-Frame-Options" = "DENY",
-    "X-XSS-Protection" = "1; mode=block",
-    "Strict-Transport-Security" = "max-age=31536000; includeSubDomains",
-    "Content-Security-Policy" = "default-src 'self'",
-    "Referrer-Policy" = "strict-origin-when-cross-origin"
+    x_content_type_options = "nosniff",
+    x_frame_options = "DENY",
+    x_xss_protection = "1; mode=block",
+    strict_transport_security = "max-age=31536000; includeSubDomains",
+    content_security_policy = "default-src 'self'",
+    referrer_policy = "strict-origin-when-cross-origin"
 )
 
 # Middleware pipeline (order matters)
@@ -210,10 +213,10 @@ config_summary = (
     version = api.version,
     total_endpoints = length(endpoints),
     authenticated_endpoints = length(
-        for e in endpoints if e.auth_required do e
+        [e for e in endpoints if e.auth_required]
     ),
     public_endpoints = length(
-        for e in endpoints if !e.auth_required do e
+        [e for e in endpoints if !e.auth_required]
     ),
     middleware_count = length(middleware),
     oauth_providers = length(keys(auth.oauth))
