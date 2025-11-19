@@ -304,6 +304,28 @@ fn run_builtin_benchmarks(args: &Args) -> Result<()> {
             result = sum * 10
         "#,
         ),
+        // Phase 3A: List Comprehension Index Optimization
+        (
+            "Phase 3A: Comprehension index (first)",
+            r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            first = [x * 2 for x in numbers][0]
+        "#,
+        ),
+        (
+            "Phase 3A: Comprehension index (middle)",
+            r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+            tenth = [x * 2 for x in numbers][9]
+        "#,
+        ),
+        (
+            "Phase 3A: Comprehension with filter",
+            r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+            filtered = [x for x in numbers if x > 5][2]
+        "#,
+        ),
     ];
 
     for (name, code) in benchmarks {
