@@ -385,7 +385,10 @@ type:
         "jcl-validate should succeed with multiple valid files"
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("2 file(s)"), "Should indicate 2 files validated");
+    assert!(
+        stdout.contains("2 file(s)"),
+        "Should indicate 2 files validated"
+    );
     assert!(
         stdout.contains("All files passed validation"),
         "Should show success message"
