@@ -1,4 +1,9 @@
-# For Loops and Iteration in JCL
+---
+layout: default
+title: For Loops and Iteration
+parent: Guides
+nav_order: 3
+---
 
 JCL provides powerful iteration constructs for processing collections and generating configurations.
 

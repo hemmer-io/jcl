@@ -1,4 +1,9 @@
-# JCL Syntax Guide
+---
+layout: default
+title: Syntax Guide v1
+parent: Reference
+nav_order: 5
+---
 
 ## Overview
 

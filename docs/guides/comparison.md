@@ -711,4 +711,4 @@ jcl-fmt config.jcl
 jcl eval config.jcl
 ```
 
-[Learn more →](../getting-started/index.html)
+[Learn more →](../getting-started/)

@@ -1,4 +1,9 @@
-# JCL C Foreign Function Interface (FFI)
+---
+layout: default
+title: C Foreign Function Interface (FFI)
+parent: Guides
+nav_order: 2
+---
 
 This document explains how to use JCL from C and other languages via the C FFI.
 

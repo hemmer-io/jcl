@@ -1,5 +1,10 @@
 
-**Jack-of-All Configuration Language**
+---
+layout: default
+title: Language Specification
+parent: Reference
+nav_order: 1
+---
 
 A general-purpose configuration language designed for human readability, type safety, and powerful data manipulation.
 
