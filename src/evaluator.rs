@@ -199,6 +199,32 @@ impl Evaluator {
             }
 
             Expression::Index { object, index, .. } => {
+                // Phase 3A Optimization: If indexing a list comprehension, only evaluate needed item
+                // Only optimize for non-negative indices (negative indices need full list length)
+                if let Expression::ListComprehension {
+                    expr,
+                    variable,
+                    iterable,
+                    condition,
+                    ..
+                } = object.as_ref()
+                {
+                    let index_value = self.evaluate_expression(index)?;
+                    if let Value::Int(target_idx) = index_value {
+                        // Only optimize for non-negative indices
+                        if target_idx >= 0 {
+                            return self.evaluate_comprehension_at_index(
+                                expr,
+                                variable,
+                                iterable,
+                                condition.as_ref().map(|v| &**v),
+                                target_idx,
+                            );
+                        }
+                    }
+                }
+
+                // Standard evaluation for non-comprehension indexing
                 let obj_value = self.evaluate_expression(object)?;
                 let index_value = self.evaluate_expression(index)?;
 
@@ -627,6 +653,50 @@ impl Evaluator {
             Value::String(s) => !s.is_empty(),
             Value::List(l) => !l.is_empty(),
             _ => true,
+        }
+    }
+
+    /// Phase 3A: Evaluate list comprehension at a specific index
+    /// Only evaluates items until the target index is reached
+    fn evaluate_comprehension_at_index(
+        &self,
+        expr: &Expression,
+        variable: &str,
+        iterable: &Expression,
+        condition: Option<&Expression>,
+        target_idx: i64,
+    ) -> Result<Value> {
+        let iter_value = self.evaluate_expression(iterable)?;
+        match iter_value {
+            Value::List(items) => {
+                let mut current_result_idx = 0i64;
+
+                for item in items {
+                    // Create new scope with loop variable
+                    let scoped_eval = self.clone_with_var(variable, item);
+
+                    // Check condition if present
+                    let should_include = if let Some(cond) = condition {
+                        let cond_val = scoped_eval.evaluate_expression(cond)?;
+                        scoped_eval.is_truthy(&cond_val)
+                    } else {
+                        true
+                    };
+
+                    if should_include {
+                        // Check if this is the target index
+                        if current_result_idx == target_idx {
+                            // Found the target - evaluate and return immediately
+                            return scoped_eval.evaluate_expression(expr);
+                        }
+                        current_result_idx += 1;
+                    }
+                }
+
+                // Index out of bounds
+                Err(anyhow!("Index out of bounds: {}", target_idx))
+            }
+            _ => Err(anyhow!("List comprehension requires iterable to be a list")),
         }
     }
 
@@ -1780,5 +1850,142 @@ mod tests {
 
         assert_eq!(result.bindings.get("value").unwrap(), &Value::Int(2));
         assert_eq!(result.bindings.get("result").unwrap(), &Value::Int(4));
+    }
+
+    // Phase 3A: List comprehension index optimization tests
+    #[test]
+    fn test_list_comprehension_index_first() {
+        // Test accessing first element only evaluates first item
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            first = [x * 2 for x in numbers][0]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(result.bindings.get("first").unwrap(), &Value::Int(2));
+    }
+
+    #[test]
+    fn test_list_comprehension_index_middle() {
+        // Test accessing middle element only evaluates up to that index
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            fifth = [x * 3 for x in numbers][4]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(result.bindings.get("fifth").unwrap(), &Value::Int(15));
+    }
+
+    #[test]
+    fn test_list_comprehension_index_with_filter() {
+        // Test filtered comprehension with index
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            filtered_third = [x for x in numbers if x > 3][2]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        // Items > 3: [4, 5, 6, 7, 8, 9, 10]
+        // Index 2: 6
+        assert_eq!(
+            result.bindings.get("filtered_third").unwrap(),
+            &Value::Int(6)
+        );
+    }
+
+    #[test]
+    fn test_list_comprehension_index_out_of_bounds() {
+        // Test that indexing beyond comprehension size fails gracefully
+        let input = r#"
+            numbers = [1, 2, 3]
+            invalid = [x * 2 for x in numbers][10]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Index out of bounds"));
+    }
+
+    #[test]
+    fn test_list_comprehension_index_negative() {
+        // Test that negative indices work (they should NOT hit optimization)
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5]
+            last = [x * 2 for x in numbers][-1]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(result.bindings.get("last").unwrap(), &Value::Int(10));
+    }
+
+    #[test]
+    fn test_list_comprehension_index_complex_expression() {
+        // Test complex expression in comprehension with index access
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5]
+            result = [x * 2 + 1 for x in numbers][2]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        // [3, 5, 7, 9, 11][2] = 7
+        assert_eq!(result.bindings.get("result").unwrap(), &Value::Int(7));
+    }
+
+    #[test]
+    fn test_list_comprehension_index_string_elements() {
+        // Test comprehension with string elements and index
+        let input = r#"
+            words = ["hello", "world", "test"]
+            second = [upper(w) for w in words][1]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(
+            result.bindings.get("second").unwrap(),
+            &Value::String("WORLD".to_string())
+        );
+    }
+
+    #[test]
+    fn test_list_comprehension_normal_evaluation_still_works() {
+        // Ensure normal (non-indexed) comprehensions still work correctly
+        let input = r#"
+            numbers = [1, 2, 3, 4, 5]
+            doubled = [x * 2 for x in numbers]
+            sum = doubled[0] + doubled[4]
+        "#;
+        let module = crate::parse_str(input).unwrap();
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).unwrap();
+
+        assert_eq!(
+            result.bindings.get("doubled").unwrap(),
+            &Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+                Value::Int(8),
+                Value::Int(10)
+            ])
+        );
+        assert_eq!(result.bindings.get("sum").unwrap(), &Value::Int(12));
     }
 }
