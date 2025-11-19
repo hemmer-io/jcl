@@ -1,4 +1,9 @@
-# JCL - Concise Configuration Syntax
+---
+layout: default
+title: Concise Syntax v3
+parent: Reference
+nav_order: 7
+---
 
 ## Core Philosophy
 - Declare structure first, define details later

@@ -1,4 +1,9 @@
-# JCL - Human-Readable Syntax Design
+---
+layout: default
+title: Syntax Design v2
+parent: Reference
+nav_order: 6
+---
 
 ## Philosophy
 - Minimal punctuation

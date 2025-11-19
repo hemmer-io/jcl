@@ -15,7 +15,7 @@ plugins:
   - jekyll-seo-tag
 
 # Just the Docs theme configuration
-color_scheme: light
+color_scheme: dark
 search_enabled: true
 search:
   heading_level: 2

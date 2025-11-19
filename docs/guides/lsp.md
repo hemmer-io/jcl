@@ -1,4 +1,9 @@
-# JCL Language Server Protocol (LSP)
+---
+layout: default
+title: Language Server Protocol (LSP)
+parent: Guides
+nav_order: 4
+---
 
 The JCL Language Server provides IDE features like diagnostics, autocomplete, and hover information.
 

@@ -1,5 +1,9 @@
-# JCL - Jack Configuration Language
-## Design Document
+---
+layout: default
+title: Design Document
+parent: Reference
+nav_order: 4
+---
 
 ## Overview
 A Rust-based configuration language that bridges infrastructure as code and configuration management, combining Ruby's ease of use with Go template's power.

@@ -249,7 +249,7 @@ is_list([1, 2])         # true
 is_map((x = 1))         # true
 ```
 
-[See full function reference →](../reference/functions.html)
+[See full function reference →](../reference/functions/)
 
 ## CLI Tools
 
@@ -418,10 +418,10 @@ log_format = "json"
 
 ## Next Steps
 
-- [Language Specification](../reference/language-spec.html) - Complete syntax reference
-- [Built-in Functions](../reference/functions.html) - All 70+ functions documented
-- [CLI Tools](../reference/cli-tools.html) - Complete CLI reference
-- [Comparison Guide](../guides/comparison.html) - JCL vs JSON/YAML/TOML/HCL
+- [Language Specification](../reference/language-spec/) - Complete syntax reference
+- [Built-in Functions](../reference/functions/) - All 70+ functions documented
+- [CLI Tools](../reference/cli-tools/) - Complete CLI reference
+- [Comparison Guide](../guides/comparison/) - JCL vs JSON/YAML/TOML/HCL
 
 ## Editor Support
 

@@ -1,4 +1,9 @@
-# JCL Online Playground
+---
+layout: default
+title: Online Playground
+parent: Guides
+nav_order: 5
+---
 
 An interactive, browser-based playground for trying JCL without installing anything.
 

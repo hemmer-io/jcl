@@ -1,4 +1,9 @@
-# Templating in JCL
+---
+layout: default
+title: Templating Guide
+parent: Guides
+nav_order: 6
+---
 
 JCL provides powerful templating capabilities through its existing features, without requiring a separate template syntax like Jinja2.
 

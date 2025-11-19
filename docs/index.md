@@ -41,10 +41,10 @@ config_hash = sha256(name + version)
 
 ## Getting Started
 
-- [Installation](getting-started/index.html)
-- [Language Basics](reference/language-spec.html)
-- [Built-in Functions](reference/functions.html)
-- [CLI Tools](reference/cli-tools.html)
+- [Installation](getting-started/)
+- [Language Basics](reference/language-spec/)
+- [Built-in Functions](reference/functions/)
+- [CLI Tools](reference/cli-tools/)
 
 ## Tools
 
@@ -78,7 +78,7 @@ JCL comes with a comprehensive suite of CLI tools:
 - Better for complex configurations
 - Consistent syntax
 
-[Learn more in our comparison guide →](guides/comparison.html)
+[Learn more in our comparison guide →](guides/comparison/)
 
 ## Community
 

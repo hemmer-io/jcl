@@ -1,4 +1,9 @@
-# JCL WebAssembly Build
+---
+layout: default
+title: WebAssembly Build
+parent: Guides
+nav_order: 7
+---
 
 This document explains how to build and use JCL as a WebAssembly module in the browser.
 
