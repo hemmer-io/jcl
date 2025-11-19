@@ -70,6 +70,9 @@ lazy_static = "1.5"
 # Regular expressions (for schema validation)
 regex = "1.10"
 
+# Caching
+lru = "0.12"
+
 # WebAssembly
 wasm-bindgen = "0.2"
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -95,6 +98,7 @@ pretty_assertions = "1.4"
 criterion = "0.5"
 proptest = "1.4"
 wasm-bindgen-test = "0.3"
+tempfile = "3.8"
 
 [features]
 default = ["cli"]
