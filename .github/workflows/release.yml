@@ -176,38 +176,39 @@ jobs:
       - name: Publish to npm (with provenance)
         working-directory: bindings/nodejs
         run: npm publish --provenance --access public
+        continue-on-error: true
 
-  # TODO: Re-enable when Python bindings are properly set up with maturin
-  # publish-pypi:
-  #   name: Publish to PyPI
-  #   needs: build-release
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Setup Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.11'
-  #
-  #     - name: Install Rust
-  #       uses: dtolnay/rust-toolchain@stable
-  #
-  #     - name: Install maturin
-  #       run: pip install maturin
-  #
-  #     - name: Build Python wheels
-  #       run: maturin build --release --manifest-path bindings/python/Cargo.toml
-  #
-  #     - name: Publish to PyPI (with trusted publishing)
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         packages-dir: target/wheels/
-  #         skip-existing: true
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build Python wheels
+        working-directory: bindings/python
+        run: maturin build --release --features python
+
+      - name: Publish to PyPI (with trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: bindings/python/target/wheels/
+          skip-existing: true
 
   publish-rubygems:
     name: Publish to RubyGems
@@ -240,15 +241,5 @@ jobs:
           gem build jcl.gemspec
 
       - name: Publish to RubyGems (with trusted publishing)
-        working-directory: bindings/ruby
-        run: |
-          mkdir -p ~/.gem
-          cat << EOF > ~/.gem/credentials
-          ---
-          :rubygems_api_key: ${RUBY_GEMS_API}
-          EOF
-          chmod 0600 ~/.gem/credentials
-          gem push jcl-lang-*.gem
-        env:
-          RUBY_GEMS_API: ${{ secrets.RUBY_GEMS_API }}
+        uses: rubygems/release-gem@v1
 
