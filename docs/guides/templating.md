@@ -9,7 +9,7 @@ JCL provides powerful templating capabilities through its existing features, wit
 
 ## Why No Separate Template Syntax?
 
-JCL's design philosophy is to keep the language unified and composable. Instead of adding `{% if %}...{% endif %}` blocks, we leverage:
+JCL's design philosophy is to keep the language unified and composable. Instead of adding {% raw %}`{% if %}...{% endif %}`{% endraw %} blocks, we leverage:
 
 1. **String interpolation** with `${...}` - embeds any expression
 2. **Conditional expressions** - ternary, if/then/else, when
@@ -342,6 +342,7 @@ deploy_script = header + "\n" + deploy_function + "\n" + deploy_commands + "\n" 
 ## Comparison with Jinja2
 
 **Jinja2 Style:**
+{% raw %}
 ```jinja2
 {% if env == "prod" %}
 production config
@@ -353,6 +354,7 @@ dev config
 server {{ server.name }}
 {% endfor %}
 ```
+{% endraw %}
 
 **JCL Style:**
 ```jcl
@@ -446,4 +448,4 @@ JCL provides powerful templating through composition of existing features:
 - ✅ Type safety: all expressions are checked
 - ✅ Editor support: standard syntax highlighting
 
-No need for `{% %}` template syntax - JCL's unified design is more powerful and maintainable.
+No need for {% raw %}`{% %}`{% endraw %} template syntax - JCL's unified design is more powerful and maintainable.
