@@ -1,4 +1,3 @@
-# JCL Language Specification v1.0
 
 **Jack-of-All Configuration Language**
 

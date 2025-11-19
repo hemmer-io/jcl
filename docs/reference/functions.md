@@ -1,10 +1,11 @@
 ---
-layout: page
+layout: default
 title: Built-in Functions Reference
+parent: Reference
+nav_order: 2
 permalink: /reference/functions/
 ---
 
-# Built-in Functions Reference
 
 JCL provides 70+ built-in functions organized by category. All functions are globally available and can be used in any expression.
 

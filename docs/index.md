@@ -1,11 +1,15 @@
 ---
-layout: home
-title: JCL - Jack-of-All Configuration Language
+layout: default
+title: Home
+nav_order: 0
+permalink: /
 ---
 
 # JCL - Jack-of-All Configuration Language
+{: .fs-9 }
 
 A powerful, flexible configuration language designed for modern infrastructure and application configuration.
+{: .fs-6 .fw-300 }
 
 ## Features
 

@@ -1,6 +1,8 @@
 ---
-layout: page
+layout: default
 title: JCL vs Other Configuration Languages
+parent: Guides
+nav_order: 1
 permalink: /guides/comparison/
 ---
 
