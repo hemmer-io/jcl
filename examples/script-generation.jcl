@@ -30,15 +30,15 @@ VERSION="${app_config.version}"
 PORT=${app_config.port}
 
 # Servers
-${["SERVER_${upper(replace(s.name, "-", "_"))}=\"${s.ip}\"" for s in web_servers] | join "\n"}
+${join(["SERVER_${upper(replace(s.name, "-", "_"))}=\"${s.ip}\"" for s in web_servers], "\n")}
 
 # Deploy to all web servers
-${["echo \"Deploying to ${s.name}...\"" for s in web_servers] | join "\n"}
+${join(["echo \"Deploying to ${s.name}...\"" for s in web_servers], "\n")}
 
 echo "All deployments complete!"
 """
 
-out.deploy = bash_deploy
+deploy = bash_deploy
 
 # Example 2: Generate Python Health Check Script
 
@@ -63,14 +63,14 @@ for server in servers:
     print(f"Checking {server['name']}...")
 """
 
-out.healthcheck = python_healthcheck
+healthcheck = python_healthcheck
 
 # Example 3: Generate Nginx Configuration
 
-nginx_upstreams = [
+nginx_upstreams = join([
   "    server ${s.ip}:${app_config.port};"
   for s in web_servers
-] | join "\n"
+], "\n")
 
 nginx_config = """
 # Generated Nginx configuration for ${app_config.name}
@@ -95,7 +95,7 @@ server {
 }
 """
 
-out.nginx = nginx_config
+nginx = nginx_config
 
 # Example 4: Generate Docker Compose
 
@@ -115,7 +115,7 @@ docker_compose = yamlencode((
   )
 ))
 
-out.docker_compose = docker_compose
+docker_compose = docker_compose
 
 # Example 5: Generate Makefile
 
@@ -139,11 +139,11 @@ build:
 
 deploy:
 \t@echo "Deploying to servers..."
-${["\t@echo \"Deploying to ${s.name}...\"" for s in web_servers] | join "\n"}
+${join(["\t@echo \"Deploying to ${s.name}...\"" for s in web_servers], "\n")}
 \t@echo "Deployment complete!"
 """
 
-out.Makefile = makefile_targets
+Makefile = makefile_targets
 
 # Summary
 
