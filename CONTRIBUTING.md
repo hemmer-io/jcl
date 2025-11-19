@@ -75,6 +75,32 @@ cargo run --bin jcl-fmt -- config.jcl
 cargo run --bin jcl-lsp
 ```
 
+### Installing Git Hooks (Recommended)
+
+We provide pre-commit hooks that automatically run code quality checks before each commit. This helps catch issues early and ensures consistent code quality.
+
+**To install the hooks:**
+
+```bash
+./scripts/install-hooks.sh
+```
+
+The pre-commit hook will automatically:
+- Format your code with `cargo fmt`
+- Run linting with `cargo clippy`
+- Run all tests with `cargo test`
+
+**Benefits:**
+- Prevents committing code that fails CI checks
+- Automatically formats code before commits
+- Catches bugs and issues before they reach the repository
+- Saves time by catching issues locally instead of in CI
+
+**Tips:**
+- To bypass the hook temporarily: `git commit --no-verify`
+- To uninstall: `rm .git/hooks/pre-commit`
+- To reinstall: Run `./scripts/install-hooks.sh` again
+
 ## How to Contribute
 
 ### Reporting Bugs

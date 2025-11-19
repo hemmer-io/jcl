@@ -342,9 +342,26 @@ Edit tool without reading first
 3. Edit with precise old_string/new_string
 ```
 
-### 3. Test Before Committing
+### 3. Pre-commit Hooks (Automated Quality Checks)
 
-**MANDATORY**: All changes must pass tests AND formatting checks before committing:
+**RECOMMENDED**: Install the pre-commit hooks to automatically run quality checks:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+Once installed, the pre-commit hook will **automatically** run these checks before every commit:
+- `cargo fmt --all` - Auto-format code
+- `cargo clippy --lib --tests --bins --all-features` - Check for warnings
+- `cargo test` - Run all tests
+
+**Benefits**:
+- ✅ Prevents committing code that fails CI
+- ✅ Automatically formats code (no manual `cargo fmt` needed)
+- ✅ Catches issues locally before they reach the repository
+- ✅ Saves time and reduces CI failures
+
+**If hooks are not installed** (manual checklist):
 
 ```bash
 # REQUIRED BEFORE EVERY COMMIT (in this order):
@@ -369,12 +386,10 @@ cargo clippy --lib --tests --bins --all-features
 # CRITICAL: If any of these fail, DO NOT commit. Fix the issues first.
 ```
 
-**Pre-commit checklist**:
-- [ ] `git status` - Verify no unwanted files (venv, build artifacts, etc.)
-- [ ] `cargo fmt --all` - Format all code
-- [ ] `cargo fmt --all -- --check` - Verify formatting
-- [ ] `cargo test` - All 144 tests pass
-- [ ] `cargo clippy --lib --tests --bins --all-features` - Zero warnings
+**Bypassing the hook** (when absolutely necessary):
+```bash
+git commit --no-verify  # Use sparingly - may cause CI failures
+```
 
 **Test counts (as of v1.0.0)**:
 - Unit tests: 117
@@ -382,7 +397,7 @@ cargo clippy --lib --tests --bins --all-features
 - Integration tests: 9
 - **Total: 144 tests**
 
-### 3. Incremental Development
+### 4. Incremental Development
 
 ```
 1. Read relevant files
@@ -392,7 +407,7 @@ cargo clippy --lib --tests --bins --all-features
 5. Repeat
 ```
 
-### 4. Preserve Exact Indentation
+### 5. Preserve Exact Indentation
 
 When using `Edit` tool:
 - **DO NOT** include line number prefixes in `old_string` or `new_string`
@@ -410,7 +425,7 @@ Example:
     }
 ```
 
-### 5. Handle Pattern Matching Carefully
+### 6. Handle Pattern Matching Carefully
 
 Rust pattern matching requires all fields unless using `..`:
 
