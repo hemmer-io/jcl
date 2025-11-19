@@ -161,9 +161,9 @@ features = [
   (name = "analytics", prod_only = true)
 ]
 
-# Generate environment-specific configs
-for env in environments (
-  out."config_${env}" = """
+# Generate environment-specific configs using map comprehension
+configs = {
+  "config_${env}": """
 # Configuration for ${env}
 
 [features]
@@ -179,7 +179,8 @@ instance_type = ${when env (
   * => "t3.small"
 )}
 """
-)
+  for env in environments
+}
 ```
 
 ## Pattern 7: Complex Multi-Section Templates

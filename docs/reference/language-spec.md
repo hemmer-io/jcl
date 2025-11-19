@@ -61,12 +61,11 @@ filtered = servers | filter s => contains(s, "web")
 # Conditionals
 size = env == "prod" ? "large" : "small"
 
-# Iteration
-for server in servers (
-  resource.${server} = (
-    type = "t3.medium"
-  )
-)
+# List comprehensions
+server_configs = [
+  (name = server, type = "t3.medium")
+  for server in servers
+]
 ```
 
 ---
@@ -530,34 +529,7 @@ category = when value (
 
 ### Iteration
 
-#### For Loop
-
-```
-# Over list
-for item in items (
-  process(item)
-)
-
-# Over map (key-value pairs)
-for key, value in map (
-  resource.${key} = value
-)
-
-# Over range
-for i in range(10) (
-  server.${i} = (...)
-)
-
-# With index
-for i, item in enumerate(items) (
-  indexed.${i} = item
-)
-
-# Multi-dimensional (Cartesian product)
-for region in regions, env in environments (
-  config.${region}.${env} = (...)
-)
-```
+JCL uses list and map comprehensions for iteration, not standalone for loops.
 
 #### List Comprehensions
 
@@ -784,22 +756,22 @@ servers = [
   (name = "api-1", role = "api", zone = "a")
 ]
 
-# Generate configurations for each environment
-for env in environments (
-  config.${env} = (
-    app_name = app_name
-    app_version = app_version
-    settings = get_config(env)
+# Generate configurations for each environment using map comprehension
+config = {
+  env: (
+    app_name = app_name,
+    app_version = app_version,
+    settings = get_config(env),
 
     # Generate server configs
     servers = {
       s.name: (
-        role = s.role
-        zone = s.zone
+        role = s.role,
+        zone = s.zone,
         type = get_config(env).instance_type
       )
       for s in servers
-    }
+    },
 
     # Generate deployment script
     deploy_script = """
@@ -820,7 +792,8 @@ ${[
 echo "Deployment complete!"
 """
   )
-)
+  for env in environments
+}
 
 # Outputs
 out.environments = environments

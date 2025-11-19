@@ -34,7 +34,7 @@ cargo install --path .
 
 **Python:**
 ```bash
-pip install jcl
+pip install jcl-lang
 ```
 
 **Node.js:**
@@ -160,21 +160,21 @@ fn greet(name) = (
 )
 ```
 
-### For Loops
+### List Comprehensions
 
 ```jcl
 # Map over a list
 numbers = [1, 2, 3, 4, 5]
-doubled = for x in numbers do x * 2
+doubled = [x * 2 for x in numbers]
 # Result: [2, 4, 6, 8, 10]
 
 # Filter a list
-evens = for x in numbers if x % 2 == 0 do x
+evens = [x for x in numbers if x % 2 == 0]
 # Result: [2, 4]
 
 # Transform objects
 users = [(name = "Alice"), (name = "Bob")]
-names = for user in users do user.name
+names = [user.name for user in users]
 # Result: ["Alice", "Bob"]
 ```
 
