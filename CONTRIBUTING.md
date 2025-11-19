@@ -242,9 +242,21 @@ mod tests {
 - Respond to review comments promptly
 - Be patient - reviews may take time
 
+### Code Owners
+
+This repository uses GitHub's CODEOWNERS feature to automatically assign reviewers to pull requests based on the files changed. The CODEOWNERS file (`.github/CODEOWNERS`) assigns ownership to the `@hemmer-io/engineering` team for all code paths.
+
+**What this means for contributors**:
+- When you open a PR, GitHub will automatically request reviews from the appropriate code owners
+- Review requests are distributed among available team members
+- This ensures consistent code review and maintains code quality standards
+
+**Note**: You don't need to manually request reviewers for your PRs - the CODEOWNERS system handles this automatically.
+
 ### After Submitting
 
 - CI will automatically run tests, linting, and builds
+- Code owners will be automatically requested for review
 - Address any CI failures
 - Respond to reviewer feedback
 - Make requested changes in new commits (don't force-push until approved)
