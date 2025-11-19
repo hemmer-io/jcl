@@ -1,0 +1,168 @@
+name: Dependabot Auto-Merge
+
+# This workflow automatically merges Dependabot PRs when they meet safety criteria:
+# - Patch/minor updates auto-merge if all tests pass
+# - Major updates require manual review
+# - Only runs during business hours (9 AM - 5 PM ET, Monday-Friday)
+# - Sends email notifications on auto-merge
+
+on:
+  pull_request:
+    branches: [main]
+
+# Ensure only one auto-merge runs at a time
+concurrency:
+  group: dependabot-auto-merge
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-business-hours:
+    name: Check Business Hours
+    runs-on: ubuntu-latest
+    outputs:
+      is-business-hours: ${{ steps.check.outputs.is-business-hours }}
+    steps:
+      - name: Check if current time is within business hours
+        id: check
+        run: |
+          # Get current time in ET timezone
+          current_hour=$(TZ='America/New_York' date +%H)
+          current_day=$(TZ='America/New_York' date +%u)
+
+          # Business hours: 9 AM - 5 PM ET (09-17), Monday-Friday (1-5)
+          if [ "$current_day" -ge 1 ] && [ "$current_day" -le 5 ] && \
+             [ "$current_hour" -ge 9 ] && [ "$current_hour" -lt 17 ]; then
+            echo "is-business-hours=true" >> $GITHUB_OUTPUT
+            echo "✓ Within business hours (Mon-Fri, 9 AM - 5 PM ET)"
+          else
+            echo "is-business-hours=false" >> $GITHUB_OUTPUT
+            echo "✗ Outside business hours (current: day=$current_day, hour=$current_hour ET)"
+          fi
+
+  auto-merge:
+    name: Auto-Merge Dependabot PR
+    needs: check-business-hours
+    if: |
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      needs.check-business-hours.outputs.is-business-hours == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine update type
+        id: update-type
+        run: |
+          echo "Update type: ${{ steps.metadata.outputs.update-type }}"
+          echo "Dependency names: ${{ steps.metadata.outputs.dependency-names }}"
+
+          # Determine if we should auto-merge based on semver
+          UPDATE_TYPE="${{ steps.metadata.outputs.update-type }}"
+
+          if [ "$UPDATE_TYPE" == "version-update:semver-patch" ] || \
+             [ "$UPDATE_TYPE" == "version-update:semver-minor" ]; then
+            echo "auto-merge=true" >> $GITHUB_OUTPUT
+            echo "✓ Auto-merge approved for $UPDATE_TYPE"
+          elif [ "$UPDATE_TYPE" == "version-update:semver-major" ]; then
+            echo "auto-merge=false" >> $GITHUB_OUTPUT
+            echo "✗ Major version update requires manual review"
+          else
+            echo "auto-merge=false" >> $GITHUB_OUTPUT
+            echo "✗ Unknown update type: $UPDATE_TYPE"
+          fi
+
+      - name: Wait for CI checks
+        if: steps.update-type.outputs.auto-merge == 'true'
+        uses: lewagon/wait-on-check-action@v1.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20
+          running-workflow-name: 'Auto-Merge Dependabot PR'
+          allowed-conclusions: success
+
+      - name: Auto-approve PR
+        if: steps.update-type.outputs.auto-merge == 'true'
+        run: |
+          gh pr review --approve "${{ github.event.pull_request.number }}" \
+            --body "✓ Auto-approved: ${{ steps.metadata.outputs.update-type }} update passed all checks"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge
+        if: steps.update-type.outputs.auto-merge == 'true'
+        run: |
+          gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
+          echo "✓ Auto-merge enabled for PR #${{ github.event.pull_request.number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send notification
+        if: steps.update-type.outputs.auto-merge == 'true'
+        run: |
+          echo "✉️ Notification: Dependabot PR #${{ github.event.pull_request.number }} auto-merged"
+          echo "Dependencies: ${{ steps.metadata.outputs.dependency-names }}"
+          echo "Update type: ${{ steps.metadata.outputs.update-type }}"
+          # GitHub will send email notifications automatically for merged PRs
+
+  require-manual-review:
+    name: Require Manual Review
+    needs: check-business-hours
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if major version update
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: |
+          echo "🔔 Major version update detected - requires manual review"
+          echo "Dependencies: ${{ steps.metadata.outputs.dependency-names }}"
+
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "⚠️ **Major Version Update Detected**
+
+          This PR updates dependencies with major version changes that may include breaking changes.
+
+          **Manual review required:**
+          - Review CHANGELOG/release notes for breaking changes
+          - Verify all tests pass
+          - One team member approval needed before merge
+
+          Dependencies updated: ${{ steps.metadata.outputs.dependency-names }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if outside business hours
+        if: needs.check-business-hours.outputs.is-business-hours == 'false'
+        run: |
+          echo "⏰ Outside business hours - auto-merge disabled"
+          echo "Auto-merge will run automatically during business hours (Mon-Fri, 9 AM - 5 PM ET)"
+
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "⏰ **Outside Business Hours**
+
+          This PR was created outside of business hours (Mon-Fri, 9 AM - 5 PM ET).
+
+          Auto-merge will run automatically when:
+          - Within business hours
+          - All CI checks pass
+          - Update type allows auto-merge (patch/minor versions)
+
+          You can manually merge this PR at any time if needed." || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
