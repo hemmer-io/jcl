@@ -291,7 +291,44 @@ impl TypeEnvironment {
 
 ## Development Workflow
 
-### 1. Always Read Files First
+### 1. NEVER Push Directly to Main
+
+**CRITICAL RULE**: NEVER push commits directly to the `main` branch.
+
+**ALWAYS follow this workflow**:
+
+```bash
+# ❌ NEVER DO THIS:
+git push origin main
+
+# ✅ ALWAYS DO THIS:
+# 1. Create a feature branch
+git checkout -b feature/your-feature-name
+
+# 2. Make changes and commit
+git add .
+git commit -m "Your commit message"
+
+# 3. Push to feature branch
+git push origin feature/your-feature-name
+
+# 4. Create an issue first (if not exists)
+gh issue create --title "..." --body "..."
+
+# 5. Create a pull request referencing the issue
+gh pr create --title "..." --body "Closes #XX ..."
+```
+
+**Why this matters**:
+- Maintains code review process
+- Enables CI/CD checks before merging
+- Creates audit trail via issues and PRs
+- Prevents accidental breaking changes
+- Allows for discussion and collaboration
+
+**Exception**: There are NO exceptions. Even trivial changes must go through PR process.
+
+### 2. Always Read Files First
 
 **CRITICAL**: Always use the `Read` tool before `Edit` or `Write`:
 
@@ -305,7 +342,7 @@ Edit tool without reading first
 3. Edit with precise old_string/new_string
 ```
 
-### 2. Test Before Committing
+### 3. Test Before Committing
 
 **MANDATORY**: All changes must pass tests AND formatting checks before committing:
 
