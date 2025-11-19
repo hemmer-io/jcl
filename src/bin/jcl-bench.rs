@@ -240,7 +240,10 @@ fn run_builtin_benchmarks(args: &Args) -> Result<()> {
 
     let benchmarks = vec![
         ("Simple arithmetic", "x = 1 + 2 + 3"),
-        ("String operations", r#"name = "hello" + " " + "world""#),
+        (
+            "String interpolation",
+            "name = \"world\"\ngreeting = \"Hello, ${name}!\"",
+        ),
         ("List operations", "numbers = [1, 2, 3, 4, 5]"),
         (
             "Map operations",
@@ -254,6 +257,51 @@ fn run_builtin_benchmarks(args: &Args) -> Result<()> {
             y = 20
             z = x * y + 5
             result = if z > 100 then "large" else "small"
+        "#,
+        ),
+        // Phase 1: Lazy Conditionals
+        (
+            "Lazy conditionals (if/then/else)",
+            r#"
+            x = 10
+            result = if x > 5 then "large" else "small"
+        "#,
+        ),
+        (
+            "Lazy conditionals (ternary)",
+            r#"
+            score = 85
+            grade = score >= 80 ? "pass" : "fail"
+        "#,
+        ),
+        // Phase 2: Lazy Variables
+        (
+            "Lazy variables (dependency chain)",
+            r#"
+            a = 10
+            b = a * 2
+            c = b + a
+            d = c - 5
+            result = d / 5
+        "#,
+        ),
+        (
+            "Lazy variables (unused computation)",
+            r#"
+            used = 42
+            unused1 = [x * 2 for x in [1, 2, 3, 4, 5]]
+            unused2 = (name = "test", value = 123)
+            unused3 = "hello world"
+            result = used * 2
+        "#,
+        ),
+        (
+            "Lazy variables (complex dependency)",
+            r#"
+            numbers = [1, 2, 3, 4, 5]
+            doubled = [x * 2 for x in numbers]
+            sum = doubled[0] + doubled[1] + doubled[2]
+            result = sum * 10
         "#,
         ),
     ];
