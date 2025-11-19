@@ -2,10 +2,10 @@
 name = "jcl"
 version = "1.0.0"
 edition = "2021"
-authors = ["Jack Turner <turner@hemmer.io>"]
+authors = ["Hemmer IO <info@hemmer.io>"]
 description = "Jack-of-All Configuration Language - A general-purpose configuration language with powerful built-in functions"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/turner-hemmer/jcl"
+repository = "https://github.com/hemmer-io/jcl"
 readme = "README.md"
 keywords = ["configuration", "config", "parser", "language", "template"]
 categories = ["command-line-utilities", "development-tools", "config", "parser-implementations"]

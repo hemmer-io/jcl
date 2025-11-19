@@ -5,7 +5,7 @@ Python bindings for the Jack-of-All Configuration Language (JCL).
 ## Installation
 
 ```bash
-pip install jcl
+pip install jcl-lang
 ```
 
 Or build from source:
@@ -23,7 +23,7 @@ maturin develop --features python
 ### Parse JCL Code
 
 ```python
-import jcl
+import jcl_lang as jcl
 
 # Parse JCL source code
 result = jcl.parse("""

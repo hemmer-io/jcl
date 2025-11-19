@@ -3,20 +3,22 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "jcl"
-version = "0.1.0"
-description = "Jack-of-All Configuration Language - Python bindings"
-readme = "PYTHON_README.md"
-requires-python = ">=3.7"
+name = "jcl-lang"
+version = "1.0.0"
+description = "Jack-of-All Configuration Language - A general-purpose configuration language with powerful built-in functions"
+readme = "README.md"
+requires-python = ">=3.8"
 license = {text = "MIT OR Apache-2.0"}
-keywords = ["configuration", "infrastructure", "iac", "devops", "automation"]
+authors = [
+    {name = "Hemmer IO", email = "info@hemmer.io"}
+]
+keywords = ["configuration", "config", "parser", "language", "template"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -24,11 +26,16 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Rust",
     "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Text Processing :: Markup",
 ]
 
 [project.urls]
-Homepage = "https://github.com/turner-hemmer/jcl"
-Repository = "https://github.com/turner-hemmer/jcl"
+Homepage = "https://hemmer-io.github.io/jcl/"
+Documentation = "https://hemmer-io.github.io/jcl/"
+Repository = "https://github.com/hemmer-io/jcl"
+Issues = "https://github.com/hemmer-io/jcl/issues"
+Changelog = "https://github.com/hemmer-io/jcl/blob/main/CHANGELOG.md"
 
 [tool.maturin]
 features = ["python"]

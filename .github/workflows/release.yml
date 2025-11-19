@@ -8,47 +8,54 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: write
+
 jobs:
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
     steps:
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
+          generate_release_notes: true
 
   build-release:
     name: Build Release for ${{ matrix.target }}
     needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: jcl
-            asset_name: jcl-linux-amd64
+            archive_ext: tar.gz
+            platform: linux-amd64
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: jcl
-            asset_name: jcl-macos-amd64
+            archive_ext: tar.gz
+            platform: macos-amd64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: jcl
-            asset_name: jcl-macos-arm64
+            archive_ext: tar.gz
+            platform: macos-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: jcl.exe
-            asset_name: jcl-windows-amd64.exe
+            archive_ext: zip
+            platform: windows-amd64
 
     steps:
       - name: Checkout code
@@ -59,22 +66,66 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Build release binary
+      - name: Build release binaries
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Strip binary (Linux and macOS)
+      - name: Strip binaries (Linux and macOS)
         if: matrix.os != 'windows-latest'
-        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+        run: |
+          strip target/${{ matrix.target }}/release/jcl-cli || true
+          strip target/${{ matrix.target }}/release/jcl-lsp || true
+          strip target/${{ matrix.target }}/release/jcl-validate || true
+          strip target/${{ matrix.target }}/release/jcl-migrate || true
+          strip target/${{ matrix.target }}/release/jcl-fmt || true
+          strip target/${{ matrix.target }}/release/jcl-watch || true
+          strip target/${{ matrix.target }}/release/jcl-bench || true
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare binaries (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p release-binaries
+          cd target/${{ matrix.target }}/release
+
+          # Copy and rename binaries for individual upload
+          cp jcl-cli ../../../release-binaries/jcl-cli-${{ matrix.platform }}
+          cp jcl-lsp ../../../release-binaries/jcl-lsp-${{ matrix.platform }}
+          cp jcl-validate ../../../release-binaries/jcl-validate-${{ matrix.platform }}
+          cp jcl-migrate ../../../release-binaries/jcl-migrate-${{ matrix.platform }}
+          cp jcl-fmt ../../../release-binaries/jcl-fmt-${{ matrix.platform }}
+          cp jcl-watch ../../../release-binaries/jcl-watch-${{ matrix.platform }}
+          cp jcl-bench ../../../release-binaries/jcl-bench-${{ matrix.platform }}
+
+          # Create archive with all binaries
+          tar czf jcl-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}.tar.gz \
+            jcl-cli jcl-lsp jcl-validate jcl-migrate jcl-fmt jcl-watch jcl-bench
+          mv jcl-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}.tar.gz ../../..
+
+      - name: Prepare binaries (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-binaries
+          cd target/${{ matrix.target }}/release
+
+          # Copy and rename binaries for individual upload
+          Copy-Item jcl-cli.exe ../../../release-binaries/jcl-cli-${{ matrix.platform }}.exe
+          Copy-Item jcl-lsp.exe ../../../release-binaries/jcl-lsp-${{ matrix.platform }}.exe
+          Copy-Item jcl-validate.exe ../../../release-binaries/jcl-validate-${{ matrix.platform }}.exe
+          Copy-Item jcl-migrate.exe ../../../release-binaries/jcl-migrate-${{ matrix.platform }}.exe
+          Copy-Item jcl-fmt.exe ../../../release-binaries/jcl-fmt-${{ matrix.platform }}.exe
+          Copy-Item jcl-watch.exe ../../../release-binaries/jcl-watch-${{ matrix.platform }}.exe
+          Copy-Item jcl-bench.exe ../../../release-binaries/jcl-bench-${{ matrix.platform }}.exe
+
+          # Create archive with all binaries
+          Compress-Archive -Path jcl-cli.exe,jcl-lsp.exe,jcl-validate.exe,jcl-migrate.exe,jcl-fmt.exe,jcl-watch.exe,jcl-bench.exe `
+            -DestinationPath ../../../jcl-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}.zip
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
+          files: |
+            jcl-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}.${{ matrix.archive_ext }}
+            release-binaries/*
 
   publish-crates:
     name: Publish to crates.io
@@ -87,5 +138,116 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Run tests
+        run: cargo test --all-features
+
       - name: Publish to crates.io
-        run: cargo publish --token ${{ secrets.CARGO_TOKEN }}
+        run: cargo publish --token ${{ secrets.CRATES_IO_API_KEY }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_API_KEY }}
+
+  publish-npm:
+    name: Publish to npm
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: bindings/nodejs
+        run: npm install
+
+      - name: Build Node.js bindings
+        run: cargo build --release --features nodejs
+
+      - name: Publish to npm (with provenance)
+        working-directory: bindings/nodejs
+        run: npm publish --provenance --access public
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build Python wheels
+        run: maturin build --release --manifest-path bindings/python/Cargo.toml
+
+      - name: Publish to PyPI (with trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: target/wheels/
+          skip-existing: true
+
+  publish-rubygems:
+    name: Publish to RubyGems
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install rb_sys dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby-dev
+
+      - name: Build gem
+        working-directory: bindings/ruby
+        run: |
+          gem install bundler rake rake-compiler rb_sys
+          gem build jcl.gemspec
+
+      - name: Publish to RubyGems (with trusted publishing)
+        working-directory: bindings/ruby
+        run: |
+          mkdir -p ~/.gem
+          cat << EOF > ~/.gem/credentials
+          ---
+          :rubygems_api_key: ${RUBYGEMS_API_KEY}
+          EOF
+          chmod 0600 ~/.gem/credentials
+          gem push jcl-lang-*.gem
+        env:
+          RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+
