@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
-use jcl::{parse_file, schema::Validator};
+use jcl::{parse_file, parse_files_parallel, schema::Validator};
 use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -144,27 +144,23 @@ fn main() -> Result<()> {
 
     let start_time = Instant::now();
 
-    // Parse and validate each file
-    // TODO: Use parse_files_parallel() when PR #36 is merged for better performance
+    // Parse all files (use parallel parsing for better performance with multiple files)
+    let parsed_files = if files.len() > 1 {
+        parse_files_parallel(&files)?
+    } else {
+        // Single file - use regular parsing
+        vec![(
+            files[0].clone(),
+            parse_file(&files[0])
+                .with_context(|| format!("Failed to parse JCL file: {}", files[0].display()))?,
+        )]
+    };
+
+    // Validate each parsed file
     let mut results = Vec::new();
     let mut failed_count = 0;
 
-    for file_path in &files {
-        // Parse the file
-        let module = match parse_file(file_path) {
-            Ok(m) => m,
-            Err(e) => {
-                println!(
-                    "  {} {} - parse error: {}",
-                    "❌".red(),
-                    file_path.display(),
-                    e
-                );
-                failed_count += 1;
-                continue;
-            }
-        };
-
+    for (file_path, module) in parsed_files {
         // Validate the module
         let errors = validator.validate_module(&module)?;
         let passed = errors.is_empty();
