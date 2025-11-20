@@ -358,6 +358,109 @@ impl Evaluator {
                 }
             }
 
+            Expression::Range {
+                start,
+                end,
+                step,
+                inclusive,
+                ..
+            } => {
+                // Evaluate start, end, and optional step
+                let start_val = self.evaluate_expression(start)?;
+                let end_val = self.evaluate_expression(end)?;
+
+                // Support both integer and float ranges
+                match (start_val, end_val) {
+                    (Value::Int(s), Value::Int(e)) => {
+                        let step_val = if let Some(st) = step {
+                            let val = self.evaluate_expression(st)?;
+                            if let Value::Int(i) = val {
+                                if i == 0 {
+                                    return Err(anyhow!("Range step cannot be zero"));
+                                }
+                                i
+                            } else {
+                                return Err(anyhow!("Range step must be an integer"));
+                            }
+                        } else {
+                            // Default step: 1 if ascending, -1 if descending
+                            if s <= e {
+                                1
+                            } else {
+                                -1
+                            }
+                        };
+
+                        // Generate the range
+                        let mut result = Vec::new();
+                        let end_adjusted = if *inclusive { e } else { e - step_val.signum() };
+
+                        if step_val > 0 {
+                            // Forward iteration
+                            let mut i = s;
+                            while i <= end_adjusted {
+                                result.push(Value::Int(i));
+                                i += step_val;
+                            }
+                        } else {
+                            // Backward iteration
+                            let mut i = s;
+                            while i >= end_adjusted {
+                                result.push(Value::Int(i));
+                                i += step_val; // step_val is negative
+                            }
+                        }
+
+                        Ok(Value::List(result))
+                    }
+                    (Value::Float(s), Value::Float(e)) => {
+                        let step_val = if let Some(st) = step {
+                            let val = self.evaluate_expression(st)?;
+                            if let Value::Float(f) = val {
+                                if f == 0.0 {
+                                    return Err(anyhow!("Range step cannot be zero"));
+                                }
+                                f
+                            } else {
+                                return Err(anyhow!("Range step must be a float"));
+                            }
+                        } else {
+                            // Default step: 1.0 if ascending, -1.0 if descending
+                            if s <= e {
+                                1.0
+                            } else {
+                                -1.0
+                            }
+                        };
+
+                        // Generate the range
+                        let mut result = Vec::new();
+                        let end_adjusted = if *inclusive { e } else { e - step_val.signum() };
+
+                        if step_val > 0.0 {
+                            // Forward iteration
+                            let mut i = s;
+                            while i <= end_adjusted {
+                                result.push(Value::Float(i));
+                                i += step_val;
+                            }
+                        } else {
+                            // Backward iteration
+                            let mut i = s;
+                            while i >= end_adjusted {
+                                result.push(Value::Float(i));
+                                i += step_val; // step_val is negative
+                            }
+                        }
+
+                        Ok(Value::List(result))
+                    }
+                    _ => Err(anyhow!(
+                        "Range requires both start and end to be integers or floats"
+                    )),
+                }
+            }
+
             Expression::FunctionCall { name, args, .. } => self.call_function(name, args),
 
             Expression::MethodCall {
@@ -2788,6 +2891,183 @@ mod tests {
                 Value::Int(32),
                 Value::Int(23),
                 Value::Int(33)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_range_inclusive() {
+        let evaluator = Evaluator::new();
+
+        // [0..5] should produce [0, 1, 2, 3, 4, 5]
+        let expr = Expression::Range {
+            start: Box::new(Expression::Literal {
+                value: Value::Int(0),
+                span: None,
+            }),
+            end: Box::new(Expression::Literal {
+                value: Value::Int(5),
+                span: None,
+            }),
+            step: None,
+            inclusive: true,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(0),
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4),
+                Value::Int(5),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_range_exclusive() {
+        let evaluator = Evaluator::new();
+
+        // [0..<5] should produce [0, 1, 2, 3, 4]
+        let expr = Expression::Range {
+            start: Box::new(Expression::Literal {
+                value: Value::Int(0),
+                span: None,
+            }),
+            end: Box::new(Expression::Literal {
+                value: Value::Int(5),
+                span: None,
+            }),
+            step: None,
+            inclusive: false,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(0),
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_range_with_step() {
+        let evaluator = Evaluator::new();
+
+        // [0..10:2] should produce [0, 2, 4, 6, 8, 10]
+        let expr = Expression::Range {
+            start: Box::new(Expression::Literal {
+                value: Value::Int(0),
+                span: None,
+            }),
+            end: Box::new(Expression::Literal {
+                value: Value::Int(10),
+                span: None,
+            }),
+            step: Some(Box::new(Expression::Literal {
+                value: Value::Int(2),
+                span: None,
+            })),
+            inclusive: true,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(0),
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+                Value::Int(8),
+                Value::Int(10),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_range_descending() {
+        let evaluator = Evaluator::new();
+
+        // [10..0:-1] should produce [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+        let expr = Expression::Range {
+            start: Box::new(Expression::Literal {
+                value: Value::Int(10),
+                span: None,
+            }),
+            end: Box::new(Expression::Literal {
+                value: Value::Int(0),
+                span: None,
+            }),
+            step: Some(Box::new(Expression::Literal {
+                value: Value::Int(-1),
+                span: None,
+            })),
+            inclusive: true,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(10),
+                Value::Int(9),
+                Value::Int(8),
+                Value::Int(7),
+                Value::Int(6),
+                Value::Int(5),
+                Value::Int(4),
+                Value::Int(3),
+                Value::Int(2),
+                Value::Int(1),
+                Value::Int(0),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_range_float() {
+        let evaluator = Evaluator::new();
+
+        // [0.0..2.0:0.5] should produce [0.0, 0.5, 1.0, 1.5, 2.0]
+        let expr = Expression::Range {
+            start: Box::new(Expression::Literal {
+                value: Value::Float(0.0),
+                span: None,
+            }),
+            end: Box::new(Expression::Literal {
+                value: Value::Float(2.0),
+                span: None,
+            }),
+            step: Some(Box::new(Expression::Literal {
+                value: Value::Float(0.5),
+                span: None,
+            })),
+            inclusive: true,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Float(0.0),
+                Value::Float(0.5),
+                Value::Float(1.0),
+                Value::Float(1.5),
+                Value::Float(2.0),
             ])
         );
     }

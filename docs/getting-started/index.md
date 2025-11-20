@@ -89,6 +89,11 @@ score = 95.5
 ports = [80, 443, 8080]
 names = ["Alice", "Bob", "Carol"]
 mixed = [1, "two", true, 4.5]
+
+# Generate number sequences with ranges
+numbers = [0..5]           # [0, 1, 2, 3, 4, 5]
+evens = [0..10:2]          # [0, 2, 4, 6, 8, 10]
+countdown = [5..1:-1]      # [5, 4, 3, 2, 1]
 ```
 
 ### Maps (Objects)
@@ -167,6 +172,10 @@ fn greet(name) = (
 numbers = [1, 2, 3, 4, 5]
 doubled = [x * 2 for x in numbers]
 # Result: [2, 4, 6, 8, 10]
+
+# Use ranges to generate sequences
+squares = [x * x for x in [1..10]]
+# Result: [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
 
 # Filter a list
 evens = [x for x in numbers if x % 2 == 0]

@@ -866,6 +866,32 @@ impl TokenParser {
         // Parse first expression - use parse_or to stop at 'for' keyword
         let first = self.parse_or()?;
 
+        // Check for range syntax: [start..end] or [start..<end] or [start..end:step]
+        if self.check(&TokenKind::DotDot) || self.check(&TokenKind::DotDotLess) {
+            let inclusive = self.check(&TokenKind::DotDot);
+            self.advance(); // consume .. or ..<
+
+            let end = self.parse_or()?;
+
+            // Check for optional step parameter: :step
+            let step = if self.check(&TokenKind::Colon) {
+                self.advance(); // consume :
+                Some(Box::new(self.parse_or()?))
+            } else {
+                None
+            };
+
+            self.expect(&TokenKind::RightBracket)?;
+
+            return Ok(Expression::Range {
+                start: Box::new(first),
+                end: Box::new(end),
+                step,
+                inclusive,
+                span: self.span_from(start),
+            });
+        }
+
         // Check for list comprehension
         if self.check(&TokenKind::For) {
             // Parse multiple for clauses: for x in list1 for y in list2 ...

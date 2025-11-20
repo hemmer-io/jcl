@@ -312,6 +312,15 @@ impl SymbolTable {
                     self.process_expression(st);
                 }
             }
+            Expression::Range {
+                start, end, step, ..
+            } => {
+                self.process_expression(start);
+                self.process_expression(end);
+                if let Some(st) = step {
+                    self.process_expression(st);
+                }
+            }
             Expression::MemberAccess { object, .. } => {
                 self.process_expression(object);
             }
