@@ -1,0 +1,141 @@
+# Dependabot Configuration for JCL
+#
+# This configuration manages automated dependency updates with intelligent grouping
+# to minimize PR noise while maintaining safety and security.
+#
+# Reference: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Rust/Cargo Dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "enhancement"
+    groups:
+      # Group 1: Core Language Dependencies
+      # Parser, serialization, error handling - tightly coupled core functionality
+      core-language:
+        patterns:
+          - "pest"
+          - "pest_derive"
+          - "serde"
+          - "serde_json"
+          - "serde_yaml"
+          - "toml"
+          - "anyhow"
+          - "thiserror"
+          - "regex"
+
+      # Group 2: CLI & Terminal Dependencies
+      # CLI framework, REPL, colors, file watching
+      cli-terminal:
+        patterns:
+          - "clap"
+          - "rustyline"
+          - "colored"
+          - "glob"
+          - "notify"
+
+      # Group 3: LSP & Async Runtime
+      # Server and async runtime dependencies
+      lsp-async:
+        patterns:
+          - "tower-lsp"
+          - "tokio"
+          - "futures"
+
+      # Group 4: Cryptography & Encoding
+      # Security-sensitive dependencies that should update together
+      crypto-encoding:
+        patterns:
+          - "base64"
+          - "md5"
+          - "sha1"
+          - "sha2"
+          - "urlencoding"
+
+      # Group 5: Python Bindings
+      python-bindings:
+        patterns:
+          - "pyo3"
+
+      # Group 6: Node.js Bindings
+      nodejs-bindings:
+        patterns:
+          - "neon"
+
+      # Group 7: Java Bindings
+      java-bindings:
+        patterns:
+          - "jni"
+
+      # Group 8: Ruby Bindings
+      ruby-bindings:
+        patterns:
+          - "magnus"
+
+      # Group 9: WebAssembly Dependencies
+      wasm-dependencies:
+        patterns:
+          - "wasm-bindgen"
+          - "console_error_panic_hook"
+          - "wee_alloc"
+          - "wasm-bindgen-test"
+
+      # Group 10: Utility Libraries
+      # General utilities that rarely break things
+      utilities:
+        patterns:
+          - "chrono"
+          - "uuid"
+          - "lazy_static"
+          - "lru"
+          - "petgraph"
+          - "handlebars"
+
+      # Group 11: Performance & Parallelism
+      performance:
+        patterns:
+          - "rayon"
+          - "num_cpus"
+
+      # Group 12: Logging & Tracing
+      logging:
+        patterns:
+          - "tracing"
+          - "tracing-subscriber"
+
+      # Group 13: Development Dependencies
+      # Testing and development tools
+      dev-dependencies:
+        patterns:
+          - "pretty_assertions"
+          - "criterion"
+          - "proptest"
+          - "tempfile"
+
+  # GitHub Actions Dependencies
+  # Update monthly to minimize workflow disruption
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "enhancement"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
