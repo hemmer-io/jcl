@@ -509,6 +509,58 @@ impl TypeChecker {
                 }
             }
 
+            Expression::Slice {
+                object,
+                start,
+                end,
+                step,
+                span,
+            } => {
+                let obj_type = self.infer_expression(object)?;
+
+                match obj_type {
+                    Type::List(elem_type) => {
+                        // Type check slice parameters if present
+                        if let Some(s) = start {
+                            let start_type = self.infer_expression(s)?;
+                            if !self.is_compatible(&start_type, &Type::Int) {
+                                return Err(TypeError::new(
+                                    format!("Slice start must be Int, got {:?}", start_type),
+                                    span.clone(),
+                                ));
+                            }
+                        }
+
+                        if let Some(e) = end {
+                            let end_type = self.infer_expression(e)?;
+                            if !self.is_compatible(&end_type, &Type::Int) {
+                                return Err(TypeError::new(
+                                    format!("Slice end must be Int, got {:?}", end_type),
+                                    span.clone(),
+                                ));
+                            }
+                        }
+
+                        if let Some(st) = step {
+                            let step_type = self.infer_expression(st)?;
+                            if !self.is_compatible(&step_type, &Type::Int) {
+                                return Err(TypeError::new(
+                                    format!("Slice step must be Int, got {:?}", step_type),
+                                    span.clone(),
+                                ));
+                            }
+                        }
+
+                        // Slice of List<T> returns List<T>
+                        Ok(Type::List(elem_type))
+                    }
+                    _ => Err(TypeError::new(
+                        format!("Cannot slice type {:?}", obj_type),
+                        span.clone(),
+                    )),
+                }
+            }
+
             // Default to Any for unimplemented expressions
             _ => Ok(Type::Any),
         }

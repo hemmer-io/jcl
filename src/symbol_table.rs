@@ -294,6 +294,24 @@ impl SymbolTable {
                 self.process_expression(object);
                 self.process_expression(index);
             }
+            Expression::Slice {
+                object,
+                start,
+                end,
+                step,
+                ..
+            } => {
+                self.process_expression(object);
+                if let Some(s) = start {
+                    self.process_expression(s);
+                }
+                if let Some(e) = end {
+                    self.process_expression(e);
+                }
+                if let Some(st) = step {
+                    self.process_expression(st);
+                }
+            }
             Expression::MemberAccess { object, .. } => {
                 self.process_expression(object);
             }

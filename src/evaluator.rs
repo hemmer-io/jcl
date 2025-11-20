@@ -256,6 +256,105 @@ impl Evaluator {
                 }
             }
 
+            Expression::Slice {
+                object,
+                start,
+                end,
+                step,
+                ..
+            } => {
+                let obj_value = self.evaluate_expression(object)?;
+
+                match obj_value {
+                    Value::List(list) => {
+                        let list_len = list.len() as i64;
+
+                        // Evaluate step first to determine defaults for start/end
+                        let step_val = if let Some(st) = step {
+                            let val = self.evaluate_expression(st)?;
+                            if let Value::Int(i) = val {
+                                if i == 0 {
+                                    return Err(anyhow!("Slice step cannot be zero"));
+                                }
+                                i
+                            } else {
+                                return Err(anyhow!("Slice step must be an integer"));
+                            }
+                        } else {
+                            1
+                        };
+
+                        // Evaluate slice parameters with defaults based on step direction
+                        let start_idx = if let Some(s) = start {
+                            let val = self.evaluate_expression(s)?;
+                            if let Value::Int(i) = val {
+                                i
+                            } else {
+                                return Err(anyhow!("Slice start must be an integer"));
+                            }
+                        } else if step_val < 0 {
+                            // For negative step, default start is end of list
+                            list_len - 1
+                        } else {
+                            0
+                        };
+
+                        let end_idx = if let Some(e) = end {
+                            let val = self.evaluate_expression(e)?;
+                            if let Value::Int(i) = val {
+                                i
+                            } else {
+                                return Err(anyhow!("Slice end must be an integer"));
+                            }
+                        } else if step_val < 0 {
+                            // For negative step, default end is before beginning
+                            -list_len - 1
+                        } else {
+                            list_len
+                        };
+
+                        // Normalize negative indices
+                        let norm_start = if start_idx < 0 {
+                            (list_len + start_idx).max(0)
+                        } else {
+                            start_idx.min(list_len)
+                        };
+
+                        let norm_end = if end_idx < 0 {
+                            list_len + end_idx
+                        } else {
+                            end_idx.min(list_len)
+                        };
+
+                        // Perform slicing
+                        let mut result = Vec::new();
+
+                        if step_val > 0 {
+                            // Forward iteration
+                            let mut i = norm_start;
+                            while i < norm_end {
+                                if let Some(val) = list.get(i as usize) {
+                                    result.push(val.clone());
+                                }
+                                i += step_val;
+                            }
+                        } else {
+                            // Backward iteration (reverse)
+                            let mut i = norm_start;
+                            while i > norm_end {
+                                if let Some(val) = list.get(i as usize) {
+                                    result.push(val.clone());
+                                }
+                                i += step_val; // step_val is negative
+                            }
+                        }
+
+                        Ok(Value::List(result))
+                    }
+                    _ => Err(anyhow!("Cannot slice non-list value")),
+                }
+            }
+
             Expression::FunctionCall { name, args, .. } => self.call_function(name, args),
 
             Expression::MethodCall {

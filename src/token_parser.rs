@@ -573,7 +573,7 @@ impl TokenParser {
 
     /// Parse postfix expressions (calls, member access, indexing)
     fn parse_postfix(&mut self) -> Result<Expression> {
-        let start = self.mark_position();
+        let start_pos = self.mark_position();
         let mut expr = self.parse_primary()?;
 
         loop {
@@ -591,7 +591,7 @@ impl TokenParser {
                     expr = Expression::FunctionCall {
                         name,
                         args,
-                        span: self.span_from(start),
+                        span: self.span_from(start_pos),
                     };
                 } else {
                     unreachable!()
@@ -603,7 +603,7 @@ impl TokenParser {
                 expr = Expression::MemberAccess {
                     object: Box::new(expr),
                     field,
-                    span: self.span_from(start),
+                    span: self.span_from(start_pos),
                 };
             } else if self.check(&TokenKind::QuestionDot) {
                 // Optional chaining
@@ -612,17 +612,64 @@ impl TokenParser {
                 expr = Expression::OptionalChain {
                     object: Box::new(expr),
                     field,
-                    span: self.span_from(start),
+                    span: self.span_from(start_pos),
                 };
             } else if self.check(&TokenKind::LeftBracket) {
-                // Index access
+                // Index or slice access
                 self.advance();
-                let index = self.parse_expression()?;
+
+                // Check if this is a slice (starts with colon or has colon after first expr)
+                let mut slice_start = None;
+                let mut slice_end = None;
+                let mut slice_step = None;
+
+                if !self.check(&TokenKind::Colon) && !self.check(&TokenKind::RightBracket) {
+                    // Parse first expression (could be index or slice start)
+                    let first_expr = self.parse_expression()?;
+
+                    if self.check(&TokenKind::Colon) {
+                        // This is a slice: list[start:...]
+                        slice_start = Some(Box::new(first_expr));
+                    } else {
+                        // This is an index: list[index]
+                        self.expect(&TokenKind::RightBracket)?;
+                        expr = Expression::Index {
+                            object: Box::new(expr),
+                            index: Box::new(first_expr),
+                            span: self.span_from(start_pos),
+                        };
+                        continue;
+                    }
+                }
+
+                // At this point, we're parsing a slice
+                // Handle first colon (between start and end)
+                if self.check(&TokenKind::Colon) {
+                    self.advance();
+
+                    // Parse end if present
+                    if !self.check(&TokenKind::Colon) && !self.check(&TokenKind::RightBracket) {
+                        slice_end = Some(Box::new(self.parse_expression()?));
+                    }
+                }
+
+                // Handle second colon (between end and step)
+                if self.check(&TokenKind::Colon) {
+                    self.advance();
+
+                    // Parse step if present
+                    if !self.check(&TokenKind::RightBracket) {
+                        slice_step = Some(Box::new(self.parse_expression()?));
+                    }
+                }
+
                 self.expect(&TokenKind::RightBracket)?;
-                expr = Expression::Index {
+                expr = Expression::Slice {
                     object: Box::new(expr),
-                    index: Box::new(index),
-                    span: self.span_from(start),
+                    start: slice_start,
+                    end: slice_end,
+                    step: slice_step,
+                    span: self.span_from(start_pos),
                 };
             } else {
                 break;
