@@ -28,11 +28,15 @@ bindings/python/.cargo/
 node_modules/
 npm-debug.log
 yarn-error.log
+package-lock.json
+*.node
+bindings/nodejs/target/
 
 # Ruby
 *.gem
 .bundle/
 vendor/
+bindings/ruby/target/
 
 # Java
 *.class
