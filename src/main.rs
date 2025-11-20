@@ -92,6 +92,21 @@ enum Commands {
 
     /// Start interactive REPL (Read-Eval-Print Loop)
     Repl,
+
+    /// Cache management commands
+    Cache {
+        #[command(subcommand)]
+        cache_command: CacheCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum CacheCommands {
+    /// Show cache statistics
+    Stats,
+
+    /// Clear the AST cache
+    Clear,
 }
 
 fn main() -> Result<()> {
@@ -503,6 +518,89 @@ fn main() -> Result<()> {
                 Err(e) => {
                     eprintln!("{} Parse failed: {}", "✗".red().bold(), e);
                     std::process::exit(1);
+                }
+            }
+        }
+
+        Commands::Cache { cache_command } => {
+            match cache_command {
+                CacheCommands::Stats => {
+                    println!("{}", "AST Cache Statistics".bold());
+                    println!("{}", "────────────────────".dimmed());
+                    println!();
+
+                    // Get global cache stats
+                    let cache = jcl::global_cache();
+                    let metrics = cache.metrics_snapshot();
+                    let capacity = cache.capacity();
+                    let current_size = cache.len();
+
+                    // Display capacity info
+                    println!("{:20} {} entries", "Capacity:".bold(), capacity);
+                    println!(
+                        "{:20} {} entries ({:.1}% full)",
+                        "Current size:".bold(),
+                        current_size,
+                        (current_size as f64 / capacity as f64) * 100.0
+                    );
+                    println!();
+
+                    // Display metrics
+                    let total = metrics.total_requests();
+                    if total > 0 {
+                        println!("{:20} {:.1}%", "Hit rate:".bold().green(), metrics.hit_rate() * 100.0);
+                        println!("{:20} {}", "Hits:".bold(), metrics.hits);
+                        println!("{:20} {}", "Misses:".bold(), metrics.misses);
+                        println!("{:20} {}", "Evictions:".bold(), metrics.evictions);
+                        println!();
+
+                        // Performance indicator
+                        let hit_rate = metrics.hit_rate();
+                        let indicator = if hit_rate > 0.8 {
+                            "⚡ Cache is working well!".green()
+                        } else if hit_rate > 0.5 {
+                            "⚠  Consider increasing cache size".yellow()
+                        } else {
+                            "❌ Low hit rate - check cache configuration".red()
+                        };
+                        println!("{}", indicator);
+
+                        // Eviction warning
+                        if metrics.evictions > 0 {
+                            println!();
+                            println!(
+                                "{}",
+                                format!(
+                                    "💡 Tip: {} evictions detected. Consider increasing JCL_CACHE_SIZE (current: {})",
+                                    metrics.evictions, capacity
+                                )
+                                .yellow()
+                            );
+                        }
+                    } else {
+                        println!("{}", "No cache requests yet".dimmed());
+                        println!();
+                        println!("{}", "💡 The cache tracks requests as you parse files".dimmed());
+                    }
+
+                    println!();
+                    println!("{}", "Environment:".bold());
+                    if let Ok(size) = std::env::var("JCL_CACHE_SIZE") {
+                        println!("{:20} {}", "JCL_CACHE_SIZE:".bold(), size);
+                    } else {
+                        println!("{:20} {} (default)", "JCL_CACHE_SIZE:".bold().dimmed(), "1000");
+                    }
+                }
+
+                CacheCommands::Clear => {
+                    let cache = jcl::global_cache();
+                    let size_before = cache.len();
+                    cache.clear();
+                    cache.reset_metrics();
+
+                    println!("{}", "✓ Cache cleared".green().bold());
+                    println!("  Removed {} cached ASTs", size_before);
+                    println!("  Reset metrics");
                 }
             }
         }

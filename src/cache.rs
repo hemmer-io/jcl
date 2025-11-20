@@ -3,12 +3,25 @@
 //! This module provides an LRU cache for parsed AST modules, keyed by file path
 //! and modification time. This dramatically improves performance for repeated
 //! parsing of the same files (e.g., in LSP, watch mode, or CI/CD pipelines).
+//!
+//! # Configuration
+//!
+//! Cache size can be configured via the `JCL_CACHE_SIZE` environment variable:
+//!
+//! ```bash
+//! # Use larger cache for CI/CD
+//! export JCL_CACHE_SIZE=5000
+//!
+//! # Disable cache for debugging
+//! export JCL_CACHE_SIZE=0
+//! ```
 
 use crate::ast::Module;
 use anyhow::Result;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
@@ -34,6 +47,78 @@ impl CacheKey {
             path: canonical_path,
             mtime,
         })
+    }
+}
+
+/// Cache metrics for observability
+///
+/// Tracks cache hits, misses, and evictions to help tune cache size
+/// and understand cache effectiveness.
+#[derive(Debug, Default)]
+pub struct CacheMetrics {
+    /// Number of cache hits
+    pub hits: AtomicU64,
+    /// Number of cache misses
+    pub misses: AtomicU64,
+    /// Number of cache evictions (LRU)
+    pub evictions: AtomicU64,
+}
+
+impl CacheMetrics {
+    /// Calculate cache hit rate as a percentage (0.0 to 1.0)
+    ///
+    /// Returns 0.0 if no requests have been made yet.
+    pub fn hit_rate(&self) -> f64 {
+        let hits = self.hits.load(Ordering::Relaxed);
+        let misses = self.misses.load(Ordering::Relaxed);
+        let total = hits + misses;
+
+        if total == 0 {
+            0.0
+        } else {
+            hits as f64 / total as f64
+        }
+    }
+
+    /// Reset all metrics to zero
+    pub fn reset(&self) {
+        self.hits.store(0, Ordering::Relaxed);
+        self.misses.store(0, Ordering::Relaxed);
+        self.evictions.store(0, Ordering::Relaxed);
+    }
+
+    /// Clone the current metrics values (for reporting)
+    pub fn snapshot(&self) -> CacheMetricsSnapshot {
+        CacheMetricsSnapshot {
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            evictions: self.evictions.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// Snapshot of cache metrics at a point in time
+#[derive(Debug, Clone, Copy)]
+pub struct CacheMetricsSnapshot {
+    pub hits: u64,
+    pub misses: u64,
+    pub evictions: u64,
+}
+
+impl CacheMetricsSnapshot {
+    /// Calculate hit rate as a percentage (0.0 to 1.0)
+    pub fn hit_rate(&self) -> f64 {
+        let total = self.hits + self.misses;
+        if total == 0 {
+            0.0
+        } else {
+            self.hits as f64 / total as f64
+        }
+    }
+
+    /// Total number of cache requests
+    pub fn total_requests(&self) -> u64 {
+        self.hits + self.misses
     }
 }
 
@@ -71,8 +156,11 @@ impl CacheKey {
 /// // Both modules point to the same underlying AST
 /// assert!(Arc::ptr_eq(&module1, &module2));
 /// ```
+#[derive(Clone)]
 pub struct AstCache {
-    cache: Mutex<LruCache<CacheKey, Arc<Module>>>,
+    cache: Arc<Mutex<LruCache<CacheKey, Arc<Module>>>>,
+    metrics: Arc<CacheMetrics>,
+    capacity: Arc<AtomicUsize>,
 }
 
 impl AstCache {
@@ -86,16 +174,25 @@ impl AstCache {
     ///
     /// Panics if capacity is 0
     pub fn new(capacity: usize) -> Self {
-        let capacity = NonZeroUsize::new(capacity).expect("Cache capacity must be greater than 0");
+        let capacity_val = NonZeroUsize::new(capacity).expect("Cache capacity must be greater than 0");
 
         Self {
-            cache: Mutex::new(LruCache::new(capacity)),
+            cache: Arc::new(Mutex::new(LruCache::new(capacity_val))),
+            metrics: Arc::new(CacheMetrics::default()),
+            capacity: Arc::new(AtomicUsize::new(capacity)),
         }
     }
 
-    /// Create a new cache with default capacity (100 entries)
+    /// Create a new cache with default capacity (1000 entries)
+    ///
+    /// Can be overridden with `JCL_CACHE_SIZE` environment variable
     pub fn with_default_capacity() -> Self {
-        Self::new(100)
+        let capacity = std::env::var("JCL_CACHE_SIZE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1000);
+
+        Self::new(capacity)
     }
 
     /// Get a cached AST or parse the file if not cached
@@ -129,18 +226,27 @@ impl AstCache {
         {
             let mut cache = self.cache.lock().unwrap();
             if let Some(cached_module) = cache.get(&key) {
+                // Cache hit!
+                self.metrics.hits.fetch_add(1, Ordering::Relaxed);
                 return Ok(Arc::clone(cached_module));
             }
         }
 
         // Cache miss - parse the file
+        self.metrics.misses.fetch_add(1, Ordering::Relaxed);
         let module = parse_fn(path)?;
         let module_arc = Arc::new(module);
 
         // Store in cache
         {
             let mut cache = self.cache.lock().unwrap();
+            let old_len = cache.len();
             cache.put(key, Arc::clone(&module_arc));
+
+            // Track eviction if cache was full
+            if old_len == cache.cap().get() && cache.len() == cache.cap().get() {
+                self.metrics.evictions.fetch_add(1, Ordering::Relaxed);
+            }
         }
 
         Ok(module_arc)
@@ -161,6 +267,21 @@ impl AstCache {
         cache.clear();
     }
 
+    /// Get cache metrics
+    pub fn metrics(&self) -> &CacheMetrics {
+        &self.metrics
+    }
+
+    /// Get a snapshot of current metrics
+    pub fn metrics_snapshot(&self) -> CacheMetricsSnapshot {
+        self.metrics.snapshot()
+    }
+
+    /// Reset cache metrics
+    pub fn reset_metrics(&self) {
+        self.metrics.reset();
+    }
+
     /// Get the number of cached ASTs
     pub fn len(&self) -> usize {
         let cache = self.cache.lock().unwrap();
@@ -175,8 +296,7 @@ impl AstCache {
 
     /// Get cache capacity
     pub fn capacity(&self) -> usize {
-        let cache = self.cache.lock().unwrap();
-        cache.cap().get()
+        self.capacity.load(Ordering::Relaxed)
     }
 }
 
@@ -342,8 +462,10 @@ mod tests {
 
     #[test]
     fn test_default_cache() {
+        // Unset env var for this test
+        std::env::remove_var("JCL_CACHE_SIZE");
         let cache = AstCache::default();
-        assert_eq!(cache.capacity(), 100);
+        assert_eq!(cache.capacity(), 1000);
         assert!(cache.is_empty());
     }
 
@@ -351,5 +473,104 @@ mod tests {
     #[should_panic(expected = "Cache capacity must be greater than 0")]
     fn test_zero_capacity_panics() {
         AstCache::new(0);
+    }
+
+    #[test]
+    fn test_cache_metrics_hits_and_misses() {
+        let cache = AstCache::new(10);
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "x = 42").unwrap();
+        temp_file.flush().unwrap();
+
+        let path = temp_file.path();
+
+        // First access - cache miss
+        cache.get_or_parse(path, |p| crate::parse_file(p)).unwrap();
+
+        let metrics = cache.metrics_snapshot();
+        assert_eq!(metrics.hits, 0);
+        assert_eq!(metrics.misses, 1);
+        assert_eq!(metrics.hit_rate(), 0.0);
+
+        // Second access - cache hit
+        cache.get_or_parse(path, |p| crate::parse_file(p)).unwrap();
+
+        let metrics = cache.metrics_snapshot();
+        assert_eq!(metrics.hits, 1);
+        assert_eq!(metrics.misses, 1);
+        assert_eq!(metrics.hit_rate(), 0.5);
+
+        // Third access - cache hit
+        cache.get_or_parse(path, |p| crate::parse_file(p)).unwrap();
+
+        let metrics = cache.metrics_snapshot();
+        assert_eq!(metrics.hits, 2);
+        assert_eq!(metrics.misses, 1);
+        assert!((metrics.hit_rate() - 0.6666).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_cache_metrics_evictions() {
+        let cache = AstCache::new(2); // Small capacity
+
+        // Create 3 temp files
+        let mut file1 = NamedTempFile::new().unwrap();
+        let mut file2 = NamedTempFile::new().unwrap();
+        let mut file3 = NamedTempFile::new().unwrap();
+
+        writeln!(file1, "x = 1").unwrap();
+        writeln!(file2, "x = 2").unwrap();
+        writeln!(file3, "x = 3").unwrap();
+
+        file1.flush().unwrap();
+        file2.flush().unwrap();
+        file3.flush().unwrap();
+
+        // Parse first two files (fills cache)
+        cache.get_or_parse(file1.path(), |p| crate::parse_file(p)).unwrap();
+        cache.get_or_parse(file2.path(), |p| crate::parse_file(p)).unwrap();
+
+        let metrics = cache.metrics_snapshot();
+        assert_eq!(metrics.evictions, 0);
+
+        // Parse third file (causes eviction)
+        cache.get_or_parse(file3.path(), |p| crate::parse_file(p)).unwrap();
+
+        let metrics = cache.metrics_snapshot();
+        assert_eq!(metrics.evictions, 1);
+    }
+
+    #[test]
+    fn test_cache_metrics_reset() {
+        let cache = AstCache::new(10);
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "x = 42").unwrap();
+        temp_file.flush().unwrap();
+
+        // Generate some metrics
+        cache.get_or_parse(temp_file.path(), |p| crate::parse_file(p)).unwrap();
+        cache.get_or_parse(temp_file.path(), |p| crate::parse_file(p)).unwrap();
+
+        let metrics = cache.metrics_snapshot();
+        assert_eq!(metrics.hits, 1);
+        assert_eq!(metrics.misses, 1);
+
+        // Reset metrics
+        cache.reset_metrics();
+
+        let metrics = cache.metrics_snapshot();
+        assert_eq!(metrics.hits, 0);
+        assert_eq!(metrics.misses, 0);
+    }
+
+    #[test]
+    fn test_env_var_cache_size() {
+        // Set env var
+        std::env::set_var("JCL_CACHE_SIZE", "500");
+        let cache = AstCache::with_default_capacity();
+        assert_eq!(cache.capacity(), 500);
+
+        // Clean up
+        std::env::remove_var("JCL_CACHE_SIZE");
     }
 }

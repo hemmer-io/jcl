@@ -64,6 +64,15 @@ pub fn disable_cache() {
     *cache = None;
 }
 
+/// Get a reference to the global AST cache
+///
+/// Returns a default cache if caching is disabled.
+/// This is useful for accessing cache statistics and management.
+pub fn global_cache() -> AstCache {
+    let cache_opt = GLOBAL_CACHE.lock().unwrap();
+    cache_opt.clone().unwrap_or_else(AstCache::default)
+}
+
 /// Clear the global AST cache
 pub fn clear_cache() {
     let cache = GLOBAL_CACHE.lock().unwrap();
