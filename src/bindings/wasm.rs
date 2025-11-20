@@ -3,7 +3,7 @@
 //! This module provides a JavaScript-friendly API for using JCL in the browser.
 
 use crate::ast::Module;
-use crate::{docgen, formatter, linter, parser};
+use crate::{docgen, formatter, linter};
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global allocator.

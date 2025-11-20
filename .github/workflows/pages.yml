@@ -46,7 +46,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM module
-        run: wasm-pack build --target web --out-dir pkg
+        run: wasm-pack build --target web --out-dir pkg --no-default-features --features wasm
 
       - name: Copy WASM files to docs
         run: |
