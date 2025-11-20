@@ -86,7 +86,7 @@ console_error_panic_hook = { version = "0.1", optional = true }
 wee_alloc = { version = "0.4", optional = true }
 
 # Python bindings
-pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.27", features = ["extension-module"], optional = true }
 
 # Node.js bindings
 neon = { version = "1.0", default-features = false, features = ["napi-6"], optional = true }
