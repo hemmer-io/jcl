@@ -533,19 +533,65 @@ JCL uses list and map comprehensions for iteration, not standalone for loops.
 
 #### List Comprehensions
 
+List comprehensions provide a concise way to create lists by transforming and filtering iterables.
+
+##### Basic Comprehensions
+
 ```
-# Basic
+# Basic transformation
 doubled = [x * 2 for x in numbers]
 
 # With filter
 evens = [x for x in numbers if x % 2 == 0]
 
-# With transformation
-uppercased = [upper(s) for s in strings]
+# With transformation and filter
+squares = [x * x for x in numbers if x > 0]
 
-# Multi-dimensional
-pairs = [(x, y) for x in [1, 2, 3] for y in ["a", "b"]]
+# String transformation
+uppercased = [upper(s) for s in strings]
 ```
+
+##### Multiple For Clauses (Flattening)
+
+Multiple `for` clauses in a single comprehension create a flattened result, equivalent to nested loops:
+
+```
+# Cartesian product - flattened
+pairs = [x + y for x in [1, 2] for y in [10, 20]]
+# Result: [11, 21, 12, 22]
+# Equivalent to: for x in [1,2]: for y in [10,20]: result.append(x+y)
+
+# Flattening nested lists
+nested = [[1, 2], [3, 4], [5, 6]]
+flattened = [num for sublist in nested for num in sublist]
+# Result: [1, 2, 3, 4, 5, 6]
+
+# With filter on flattened result
+positive_sums = [x + y for x in [-1, 0, 1] for y in [1, 2] if x + y > 0]
+# Result: [1, 2, 1, 2, 3]
+```
+
+##### Nested Comprehensions
+
+When a comprehension's expression is itself another comprehension, the result is nested (not flattened):
+
+```
+# 2D matrix
+matrix = [[i * j for j in [1, 2, 3]] for i in [1, 2, 3]]
+# Result: [[1, 2, 3], [2, 4, 6], [3, 6, 9]]
+
+# Nested with filters
+filtered_matrix = [[i * j for j in [1, 2, 3, 4, 5] if j > 2] for i in [1, 2, 3] if i > 1]
+# Result: [[6, 8, 10], [9, 12, 15]]
+
+# Processing 2D data
+coordinates = [[[x, y] for y in [0, 1, 2]] for x in [0, 1, 2]]
+# Result: [[[0,0], [0,1], [0,2]], [[1,0], [1,1], [1,2]], [[2,0], [2,1], [2,2]]]
+```
+
+**Key Difference:**
+- **Multiple `for` in one comprehension** → flattened: `[expr for x in A for y in B]`
+- **Nested comprehensions** → nested structure: `[[expr for y in B] for x in A]`
 
 #### List Slicing
 

@@ -881,8 +881,7 @@ fn parse_list_comprehension(pair: Pair<Rule>) -> Result<Expression> {
 
     Ok(Expression::ListComprehension {
         expr: Box::new(expr.ok_or_else(|| anyhow!("Missing comprehension expression"))?),
-        variable,
-        iterable: Box::new(iterable.ok_or_else(|| anyhow!("Missing iterable"))?),
+        iterators: vec![(variable, iterable.ok_or_else(|| anyhow!("Missing iterable"))?)],
         condition: condition.map(Box::new),
         span: None,
     })

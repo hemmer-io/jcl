@@ -201,25 +201,28 @@ impl Evaluator {
             Expression::Index { object, index, .. } => {
                 // Phase 3A Optimization: If indexing a list comprehension, only evaluate needed item
                 // Only optimize for non-negative indices (negative indices need full list length)
+                // Only optimize for single-iterator comprehensions (multi-iterator would be complex)
                 if let Expression::ListComprehension {
                     expr,
-                    variable,
-                    iterable,
+                    iterators,
                     condition,
                     ..
                 } = object.as_ref()
                 {
-                    let index_value = self.evaluate_expression(index)?;
-                    if let Value::Int(target_idx) = index_value {
-                        // Only optimize for non-negative indices
-                        if target_idx >= 0 {
-                            return self.evaluate_comprehension_at_index(
-                                expr,
-                                variable,
-                                iterable,
-                                condition.as_ref().map(|v| &**v),
-                                target_idx,
-                            );
+                    if iterators.len() == 1 {
+                        let (variable, iterable) = &iterators[0];
+                        let index_value = self.evaluate_expression(index)?;
+                        if let Value::Int(target_idx) = index_value {
+                            // Only optimize for non-negative indices
+                            if target_idx >= 0 {
+                                return self.evaluate_comprehension_at_index(
+                                    expr,
+                                    variable,
+                                    iterable,
+                                    condition.as_ref().map(|v| &**v),
+                                    target_idx,
+                                );
+                            }
                         }
                     }
                 }
@@ -428,36 +431,18 @@ impl Evaluator {
 
             Expression::ListComprehension {
                 expr,
-                variable,
-                iterable,
+                iterators,
                 condition,
                 ..
             } => {
-                let iter_value = self.evaluate_expression(iterable)?;
-                match iter_value {
-                    Value::List(items) => {
-                        let mut results = Vec::new();
-                        for item in items {
-                            // Create new scope with loop variable
-                            let scoped_eval = self.clone_with_var(variable, item);
+                // Recursively evaluate nested iterations
+                // [expr for x in list1 for y in list2 if cond]
+                // is equivalent to:
+                // for x in list1:
+                //     for y in list2:
+                //         if cond: results.append(expr)
 
-                            // Check condition if present
-                            let should_include = if let Some(cond) = condition {
-                                let cond_val = scoped_eval.evaluate_expression(cond)?;
-                                scoped_eval.is_truthy(&cond_val)
-                            } else {
-                                true
-                            };
-
-                            if should_include {
-                                let result = scoped_eval.evaluate_expression(expr)?;
-                                results.push(result);
-                            }
-                        }
-                        Ok(Value::List(results))
-                    }
-                    _ => Err(anyhow!("List comprehension requires iterable to be a list")),
-                }
+                self.evaluate_comprehension_recursive(expr, iterators, condition.as_ref().map(|c| &**c), 0)
             }
 
             Expression::Pipeline { stages, .. } => {
@@ -810,6 +795,81 @@ impl Evaluator {
         };
         new_eval.variables.insert(var_name.to_string(), value);
         new_eval
+    }
+
+    /// Recursively evaluate list comprehension with multiple for clauses
+    /// e.g., [expr for x in list1 for y in list2 if cond]
+    fn evaluate_comprehension_recursive(
+        &self,
+        expr: &Expression,
+        iterators: &[(String, Expression)],
+        condition: Option<&Expression>,
+        depth: usize,
+    ) -> Result<Value> {
+        if depth >= iterators.len() {
+            // Base case: all iterators exhausted, evaluate expression
+            // But check condition first
+            let should_include = if let Some(cond) = condition {
+                let cond_val = self.evaluate_expression(cond)?;
+                self.is_truthy(&cond_val)
+            } else {
+                true
+            };
+
+            if should_include {
+                Ok(self.evaluate_expression(expr)?)
+            } else {
+                // Return a special marker for "skip this item"
+                // We'll filter these out later
+                Ok(Value::Null) // Using Null as a marker - we'll need to handle this differently
+            }
+        } else {
+            // Recursive case: iterate over current iterator
+            let (var_name, iterable_expr) = &iterators[depth];
+            let iter_value = self.evaluate_expression(iterable_expr)?;
+
+            match iter_value {
+                Value::List(items) => {
+                    let mut results = Vec::new();
+
+                    for item in items {
+                        // Create new scope with current loop variable
+                        let scoped_eval = self.clone_with_var(var_name, item);
+
+                        // Recursively handle remaining iterators
+                        let sub_results = scoped_eval.evaluate_comprehension_recursive(
+                            expr,
+                            iterators,
+                            condition,
+                            depth + 1,
+                        )?;
+
+                        // Collect results
+                        // If the next depth is the base case, we got a single value to push
+                        // Otherwise, we got a list of results to extend (flatten)
+                        if depth + 1 >= iterators.len() {
+                            // Base case returned a single value (could be a List!)
+                            if !matches!(sub_results, Value::Null) {
+                                results.push(sub_results);
+                            }
+                        } else {
+                            // Recursive case returned a list to flatten
+                            match sub_results {
+                                Value::List(items) => results.extend(items),
+                                Value::Null => {} // Skip marker
+                                other => results.push(other),
+                            }
+                        }
+                    }
+
+                    Ok(Value::List(results))
+                }
+                _ => Err(anyhow!(
+                    "List comprehension requires iterable to be a list, got {:?}",
+                    iter_value
+                )),
+            }
+        }
     }
 
     /// Call a function (built-in or user-defined)
@@ -1634,11 +1694,13 @@ mod tests {
                 }),
                 span: None,
             }),
-            variable: "x".to_string(),
-            iterable: Box::new(Expression::Variable {
-                name: "numbers".to_string(),
-                span: None,
-            }),
+            iterators: vec![(
+                "x".to_string(),
+                Expression::Variable {
+                    name: "numbers".to_string(),
+                    span: None,
+                },
+            )],
             condition: Some(Box::new(Expression::BinaryOp {
                 op: BinaryOperator::GreaterThan,
                 left: Box::new(Expression::Variable {
@@ -2421,5 +2483,307 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Cannot slice non-list"));
+    }
+
+    #[test]
+    fn test_evaluate_multi_for_comprehension() {
+        let evaluator = Evaluator::new();
+
+        // [x + y for x in [1, 2] for y in [10, 20]]
+        // Expected: [11, 21, 12, 22]
+        let expr = Expression::ListComprehension {
+            expr: Box::new(Expression::BinaryOp {
+                op: BinaryOperator::Add,
+                left: Box::new(Expression::Variable {
+                    name: "x".to_string(),
+                    span: None,
+                }),
+                right: Box::new(Expression::Variable {
+                    name: "y".to_string(),
+                    span: None,
+                }),
+                span: None,
+            }),
+            iterators: vec![
+                (
+                    "x".to_string(),
+                    Expression::List {
+                        elements: vec![
+                            Expression::Literal {
+                                value: Value::Int(1),
+                                span: None,
+                            },
+                            Expression::Literal {
+                                value: Value::Int(2),
+                                span: None,
+                            },
+                        ],
+                        span: None,
+                    },
+                ),
+                (
+                    "y".to_string(),
+                    Expression::List {
+                        elements: vec![
+                            Expression::Literal {
+                                value: Value::Int(10),
+                                span: None,
+                            },
+                            Expression::Literal {
+                                value: Value::Int(20),
+                                span: None,
+                            },
+                        ],
+                        span: None,
+                    },
+                ),
+            ],
+            condition: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(11),
+                Value::Int(21),
+                Value::Int(12),
+                Value::Int(22)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_evaluate_nested_comprehension() {
+        let evaluator = Evaluator::new();
+
+        // [[i * j for j in [1, 2, 3]] for i in [1, 2, 3]]
+        // Expected: [[1, 2, 3], [2, 4, 6], [3, 6, 9]]
+        let inner_comp = Expression::ListComprehension {
+            expr: Box::new(Expression::BinaryOp {
+                op: BinaryOperator::Multiply,
+                left: Box::new(Expression::Variable {
+                    name: "i".to_string(),
+                    span: None,
+                }),
+                right: Box::new(Expression::Variable {
+                    name: "j".to_string(),
+                    span: None,
+                }),
+                span: None,
+            }),
+            iterators: vec![(
+                "j".to_string(),
+                Expression::List {
+                    elements: vec![
+                        Expression::Literal {
+                            value: Value::Int(1),
+                            span: None,
+                        },
+                        Expression::Literal {
+                            value: Value::Int(2),
+                            span: None,
+                        },
+                        Expression::Literal {
+                            value: Value::Int(3),
+                            span: None,
+                        },
+                    ],
+                    span: None,
+                },
+            )],
+            condition: None,
+            span: None,
+        };
+
+        let outer_comp = Expression::ListComprehension {
+            expr: Box::new(inner_comp),
+            iterators: vec![(
+                "i".to_string(),
+                Expression::List {
+                    elements: vec![
+                        Expression::Literal {
+                            value: Value::Int(1),
+                            span: None,
+                        },
+                        Expression::Literal {
+                            value: Value::Int(2),
+                            span: None,
+                        },
+                        Expression::Literal {
+                            value: Value::Int(3),
+                            span: None,
+                        },
+                    ],
+                    span: None,
+                },
+            )],
+            condition: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&outer_comp).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]),
+                Value::List(vec![Value::Int(2), Value::Int(4), Value::Int(6)]),
+                Value::List(vec![Value::Int(3), Value::Int(6), Value::Int(9)])
+            ])
+        );
+    }
+
+    #[test]
+    fn test_evaluate_flattening_comprehension() {
+        let mut evaluator = Evaluator::new();
+
+        // Set up nested_list = [[1, 2], [3, 4], [5, 6]]
+        evaluator.variables.insert(
+            "nested_list".to_string(),
+            Value::List(vec![
+                Value::List(vec![Value::Int(1), Value::Int(2)]),
+                Value::List(vec![Value::Int(3), Value::Int(4)]),
+                Value::List(vec![Value::Int(5), Value::Int(6)]),
+            ]),
+        );
+
+        // [num for sublist in nested_list for num in sublist]
+        // Expected: [1, 2, 3, 4, 5, 6]
+        let expr = Expression::ListComprehension {
+            expr: Box::new(Expression::Variable {
+                name: "num".to_string(),
+                span: None,
+            }),
+            iterators: vec![
+                (
+                    "sublist".to_string(),
+                    Expression::Variable {
+                        name: "nested_list".to_string(),
+                        span: None,
+                    },
+                ),
+                (
+                    "num".to_string(),
+                    Expression::Variable {
+                        name: "sublist".to_string(),
+                        span: None,
+                    },
+                ),
+            ],
+            condition: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(4),
+                Value::Int(5),
+                Value::Int(6)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_evaluate_multi_for_with_condition() {
+        let evaluator = Evaluator::new();
+
+        // [x + y for x in [1, 2, 3] for y in [10, 20, 30] if x + y > 20]
+        // Expected: [21, 31, 22, 32, 23, 33]
+        let expr = Expression::ListComprehension {
+            expr: Box::new(Expression::BinaryOp {
+                op: BinaryOperator::Add,
+                left: Box::new(Expression::Variable {
+                    name: "x".to_string(),
+                    span: None,
+                }),
+                right: Box::new(Expression::Variable {
+                    name: "y".to_string(),
+                    span: None,
+                }),
+                span: None,
+            }),
+            iterators: vec![
+                (
+                    "x".to_string(),
+                    Expression::List {
+                        elements: vec![
+                            Expression::Literal {
+                                value: Value::Int(1),
+                                span: None,
+                            },
+                            Expression::Literal {
+                                value: Value::Int(2),
+                                span: None,
+                            },
+                            Expression::Literal {
+                                value: Value::Int(3),
+                                span: None,
+                            },
+                        ],
+                        span: None,
+                    },
+                ),
+                (
+                    "y".to_string(),
+                    Expression::List {
+                        elements: vec![
+                            Expression::Literal {
+                                value: Value::Int(10),
+                                span: None,
+                            },
+                            Expression::Literal {
+                                value: Value::Int(20),
+                                span: None,
+                            },
+                            Expression::Literal {
+                                value: Value::Int(30),
+                                span: None,
+                            },
+                        ],
+                        span: None,
+                    },
+                ),
+            ],
+            condition: Some(Box::new(Expression::BinaryOp {
+                op: BinaryOperator::GreaterThan,
+                left: Box::new(Expression::BinaryOp {
+                    op: BinaryOperator::Add,
+                    left: Box::new(Expression::Variable {
+                        name: "x".to_string(),
+                        span: None,
+                    }),
+                    right: Box::new(Expression::Variable {
+                        name: "y".to_string(),
+                        span: None,
+                    }),
+                    span: None,
+                }),
+                right: Box::new(Expression::Literal {
+                    value: Value::Int(20),
+                    span: None,
+                }),
+                span: None,
+            })),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(21),
+                Value::Int(31),
+                Value::Int(22),
+                Value::Int(32),
+                Value::Int(23),
+                Value::Int(33)
+            ])
+        );
     }
 }

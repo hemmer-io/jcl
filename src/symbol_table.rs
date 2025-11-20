@@ -330,12 +330,14 @@ impl SymbolTable {
             }
             Expression::ListComprehension {
                 expr,
-                iterable,
+                iterators,
                 condition,
                 ..
             } => {
                 self.process_expression(expr);
-                self.process_expression(iterable);
+                for (_, iterable) in iterators {
+                    self.process_expression(iterable);
+                }
                 if let Some(cond) = condition {
                     self.process_expression(cond);
                 }

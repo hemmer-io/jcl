@@ -198,11 +198,12 @@ pub enum Expression {
         span: Option<SourceSpan>,
     },
 
-    /// List comprehension: `[expr for x in list if condition]`
+    /// List comprehension: `[expr for x in list for y in list2 if condition]`
+    /// Supports multiple for clauses for flattening/nested iteration
     ListComprehension {
         expr: Box<Expression>,
-        variable: String,
-        iterable: Box<Expression>,
+        /// Vector of (variable, iterable) pairs for each for clause
+        iterators: Vec<(String, Expression)>,
         condition: Option<Box<Expression>>,
         span: Option<SourceSpan>,
     },

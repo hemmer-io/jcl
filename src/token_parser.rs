@@ -863,14 +863,22 @@ impl TokenParser {
             });
         }
 
-        let first = self.parse_expression()?;
+        // Parse first expression - use parse_or to stop at 'for' keyword
+        let first = self.parse_or()?;
 
         // Check for list comprehension
         if self.check(&TokenKind::For) {
-            self.advance();
-            let var = self.parse_identifier()?;
-            self.expect(&TokenKind::In)?;
-            let iter = self.parse_expression()?;
+            // Parse multiple for clauses: for x in list1 for y in list2 ...
+            let mut iterators = Vec::new();
+
+            while self.check(&TokenKind::For) {
+                self.advance();
+                let var = self.parse_identifier()?;
+                self.expect(&TokenKind::In)?;
+                // Use parse_or instead of parse_expression to stop at keywords like 'for' and 'if'
+                let iter = self.parse_or()?;
+                iterators.push((var, iter));
+            }
 
             let condition = if self.check(&TokenKind::If) {
                 self.advance();
@@ -883,8 +891,7 @@ impl TokenParser {
 
             return Ok(Expression::ListComprehension {
                 expr: Box::new(first),
-                variable: var,
-                iterable: Box::new(iter),
+                iterators,
                 condition,
                 span: self.span_from(start),
             });
