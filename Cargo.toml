@@ -102,7 +102,7 @@ uuid = { version = "1.6", features = ["v4", "serde", "js"], optional = true }
 
 [dev-dependencies]
 pretty_assertions = "1.4"
-criterion = "0.5"
+criterion = "0.7"
 proptest = "1.4"
 wasm-bindgen-test = "0.3"
 tempfile = "3.8"
