@@ -442,7 +442,12 @@ impl Evaluator {
                 //     for y in list2:
                 //         if cond: results.append(expr)
 
-                self.evaluate_comprehension_recursive(expr, iterators, condition.as_ref().map(|c| &**c), 0)
+                self.evaluate_comprehension_recursive(
+                    expr,
+                    iterators,
+                    condition.as_ref().map(|c| &**c),
+                    0,
+                )
             }
 
             Expression::Pipeline { stages, .. } => {
