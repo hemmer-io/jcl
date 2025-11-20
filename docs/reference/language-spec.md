@@ -547,6 +547,49 @@ uppercased = [upper(s) for s in strings]
 pairs = [(x, y) for x in [1, 2, 3] for y in ["a", "b"]]
 ```
 
+#### List Slicing
+
+Lists support Python-style slicing with `[start:end:step]` syntax:
+
+```
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Basic slicing [start:end]
+first_three = numbers[0:3]       # [1, 2, 3]
+middle = numbers[3:7]             # [4, 5, 6, 7]
+
+# Omit start (defaults to 0)
+first_five = numbers[:5]          # [1, 2, 3, 4, 5]
+
+# Omit end (defaults to list length)
+from_fifth = numbers[5:]          # [6, 7, 8, 9, 10]
+
+# Full copy
+copy = numbers[:]                 # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Negative indices (from end)
+last_three = numbers[-3:]         # [8, 9, 10]
+all_but_last = numbers[:-1]       # [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+# Step parameter [start:end:step]
+evens = numbers[::2]              # [1, 3, 5, 7, 9] (every other)
+odds = numbers[1::2]              # [2, 4, 6, 8, 10]
+
+# Reverse with negative step
+reverse = numbers[::-1]           # [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+partial_reverse = numbers[7:2:-1] # [8, 7, 6, 5, 4]
+
+# Empty slices
+empty = numbers[5:2]              # [] (start > end with positive step)
+```
+
+**Slice Semantics:**
+- `start` (optional): Starting index (inclusive), defaults to 0 for positive step, end of list for negative step
+- `end` (optional): Ending index (exclusive), defaults to list length for positive step, before beginning for negative step
+- `step` (optional): Step size, defaults to 1. Cannot be 0. Negative step reverses direction
+- Negative indices count from the end: `-1` is last element, `-2` is second-to-last, etc.
+- Out-of-bounds indices are clamped to valid range
+
 #### Map Comprehensions
 
 ```
