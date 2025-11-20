@@ -55,8 +55,8 @@ handlebars = "5.1"
 uuid = { version = "1.6", features = ["v4", "serde"], optional = true }
 
 # Encoding/Hashing
-base64 = "0.21"
-md5 = "0.7"
+base64 = "0.22"
+md5 = "0.8"
 sha1 = "0.10"
 sha2 = "0.10"
 urlencoding = "2.1"
