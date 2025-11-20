@@ -25,7 +25,7 @@ fn parse(source: &str) -> PyResult<String> {
 
 /// Evaluate JCL source code and return the result
 #[pyfunction]
-fn eval(py: Python, source: &str) -> PyResult<PyObject> {
+fn eval(py: Python, source: &str) -> PyResult<Py<PyAny>> {
     // Parse the source
     let module = crate::parse_str(source).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PySyntaxError, _>(format!("Parse error: {}", e))
@@ -48,7 +48,7 @@ fn eval(py: Python, source: &str) -> PyResult<PyObject> {
 
 /// Evaluate JCL from a file
 #[pyfunction]
-fn eval_file(py: Python, path: &str) -> PyResult<PyObject> {
+fn eval_file(py: Python, path: &str) -> PyResult<Py<PyAny>> {
     let content = std::fs::read_to_string(path).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to read file: {}", e))
     })?;
@@ -69,7 +69,7 @@ fn format(source: &str) -> PyResult<String> {
 
 /// Lint JCL source code and return issues
 #[pyfunction]
-fn lint(py: Python, source: &str) -> PyResult<PyObject> {
+fn lint(py: Python, source: &str) -> PyResult<Py<PyAny>> {
     let module = crate::parse_str(source).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PySyntaxError, _>(format!("Parse error: {}", e))
     })?;
@@ -78,42 +78,43 @@ fn lint(py: Python, source: &str) -> PyResult<PyObject> {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Linter error: {}", e))
     })?;
 
-    let py_issues = PyList::empty(py);
-    for issue in issues {
-        let issue_dict = PyDict::new(py);
-        issue_dict.set_item("rule", issue.rule)?;
-        issue_dict.set_item("message", issue.message)?;
-        issue_dict.set_item(
-            "severity",
-            match issue.severity {
-                linter::Severity::Error => "error",
-                linter::Severity::Warning => "warning",
-                linter::Severity::Info => "info",
-            },
-        )?;
-        if let Some(suggestion) = issue.suggestion {
-            issue_dict.set_item("suggestion", suggestion)?;
-        }
-        py_issues.append(issue_dict)?;
-    }
+    let py_issue_dicts: Result<Vec<Py<PyAny>>, PyErr> = issues
+        .into_iter()
+        .map(|issue| {
+            let issue_dict = PyDict::new(py);
+            issue_dict.set_item("rule", issue.rule)?;
+            issue_dict.set_item("message", issue.message)?;
+            issue_dict.set_item(
+                "severity",
+                match issue.severity {
+                    linter::Severity::Error => "error",
+                    linter::Severity::Warning => "warning",
+                    linter::Severity::Info => "info",
+                },
+            )?;
+            if let Some(suggestion) = issue.suggestion {
+                issue_dict.set_item("suggestion", suggestion)?;
+            }
+            Ok(issue_dict.into())
+        })
+        .collect();
 
-    Ok(py_issues.into())
+    Ok(PyList::new(py, py_issue_dicts?)?.into())
 }
 
 /// Convert JCL Value to Python object
-fn value_to_python(py: Python, value: &Value) -> PyResult<PyObject> {
+fn value_to_python(py: Python, value: &Value) -> PyResult<Py<PyAny>> {
+    use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
     match value {
-        Value::String(s) => Ok(s.to_object(py)),
-        Value::Int(i) => Ok(i.to_object(py)),
-        Value::Float(f) => Ok(f.to_object(py)),
-        Value::Bool(b) => Ok(b.to_object(py)),
+        Value::String(s) => Ok(PyString::new(py, s).into_any().unbind()),
+        Value::Int(i) => Ok(PyInt::new(py, *i).into_any().unbind()),
+        Value::Float(f) => Ok(PyFloat::new(py, *f).into_any().unbind()),
+        Value::Bool(b) => Ok(PyBool::new(py, *b).to_owned().into_any().unbind()),
         Value::Null => Ok(py.None()),
         Value::List(items) => {
-            let py_list = PyList::empty(py);
-            for item in items {
-                py_list.append(value_to_python(py, item)?)?;
-            }
-            Ok(py_list.into())
+            let values: Result<Vec<Py<PyAny>>, PyErr> =
+                items.iter().map(|item| value_to_python(py, item)).collect();
+            Ok(PyList::new(py, values?)?.into())
         }
         Value::Map(map) => {
             let py_dict = PyDict::new(py);
@@ -124,14 +125,14 @@ fn value_to_python(py: Python, value: &Value) -> PyResult<PyObject> {
         }
         Value::Function { .. } => {
             // Functions can't be directly converted to Python
-            Ok("<function>".to_object(py))
+            Ok(py.None())
         }
     }
 }
 
 /// JCL Python module
 #[pymodule]
-fn jcl(_py: Python, m: &PyModule) -> PyResult<()> {
+fn jcl(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse, m)?)?;
     m.add_function(wrap_pyfunction!(eval, m)?)?;
     m.add_function(wrap_pyfunction!(eval_file, m)?)?;
