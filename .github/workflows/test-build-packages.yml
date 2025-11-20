@@ -6,8 +6,11 @@ name: Test Build Packages
 
 on:
   workflow_dispatch:  # Manual trigger
+  push:
+    branches:
+      - main  # Run when PRs are merged to main
   schedule:
-    # Run weekly on Monday at 9 AM UTC
+    # Run weekly on Monday at 9 AM UTC as backup
     - cron: '0 9 * * 1'
 
 jobs:
