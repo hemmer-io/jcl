@@ -22,13 +22,13 @@ serde_yaml = "0.9"
 toml = "0.8"
 
 # CLI (not available in WASM)
-clap = { version = "4.4", features = ["derive", "color", "suggestions"], optional = true }
-rustyline = { version = "14.0", optional = true }
+clap = { version = "4.5", features = ["derive", "color", "suggestions"], optional = true }
+rustyline = { version = "17.0", optional = true }
 glob = { version = "0.3", optional = true }
-notify = { version = "6.1", optional = true }
+notify = { version = "8.2", optional = true }
 
 # Terminal colors (used by error formatting)
-colored = "2.1"
+colored = "3.0"
 
 # Error handling
 anyhow = "1.0"
