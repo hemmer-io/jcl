@@ -46,10 +46,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Graph algorithms (for dependency resolution)
-petgraph = "0.6"
+petgraph = "0.8"
 
 # Templating
-handlebars = "5.1"
+handlebars = "6.3"
 
 # UUID generation
 uuid = { version = "1.6", features = ["v4", "serde"], optional = true }
@@ -71,7 +71,7 @@ lazy_static = "1.5"
 regex = "1.10"
 
 # Caching
-lru = "0.12"
+lru = "0.16"
 
 # Parallel processing
 rayon = "1.8"
