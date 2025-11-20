@@ -174,7 +174,8 @@ impl AstCache {
     ///
     /// Panics if capacity is 0
     pub fn new(capacity: usize) -> Self {
-        let capacity_val = NonZeroUsize::new(capacity).expect("Cache capacity must be greater than 0");
+        let capacity_val =
+            NonZeroUsize::new(capacity).expect("Cache capacity must be greater than 0");
 
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(capacity_val))),
@@ -527,14 +528,20 @@ mod tests {
         file3.flush().unwrap();
 
         // Parse first two files (fills cache)
-        cache.get_or_parse(file1.path(), |p| crate::parse_file(p)).unwrap();
-        cache.get_or_parse(file2.path(), |p| crate::parse_file(p)).unwrap();
+        cache
+            .get_or_parse(file1.path(), |p| crate::parse_file(p))
+            .unwrap();
+        cache
+            .get_or_parse(file2.path(), |p| crate::parse_file(p))
+            .unwrap();
 
         let metrics = cache.metrics_snapshot();
         assert_eq!(metrics.evictions, 0);
 
         // Parse third file (causes eviction)
-        cache.get_or_parse(file3.path(), |p| crate::parse_file(p)).unwrap();
+        cache
+            .get_or_parse(file3.path(), |p| crate::parse_file(p))
+            .unwrap();
 
         let metrics = cache.metrics_snapshot();
         assert_eq!(metrics.evictions, 1);
@@ -548,8 +555,12 @@ mod tests {
         temp_file.flush().unwrap();
 
         // Generate some metrics
-        cache.get_or_parse(temp_file.path(), |p| crate::parse_file(p)).unwrap();
-        cache.get_or_parse(temp_file.path(), |p| crate::parse_file(p)).unwrap();
+        cache
+            .get_or_parse(temp_file.path(), |p| crate::parse_file(p))
+            .unwrap();
+        cache
+            .get_or_parse(temp_file.path(), |p| crate::parse_file(p))
+            .unwrap();
 
         let metrics = cache.metrics_snapshot();
         assert_eq!(metrics.hits, 1);
