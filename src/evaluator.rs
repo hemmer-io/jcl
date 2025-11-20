@@ -2087,4 +2087,221 @@ mod tests {
         );
         assert_eq!(result.bindings.get("sum").unwrap(), &Value::Int(12));
     }
+
+    #[test]
+    fn test_evaluate_slice_basic() {
+        let mut evaluator = Evaluator::new();
+
+        // Create a list [1, 2, 3, 4, 5]
+        let list = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+                Expression::Literal { value: Value::Int(2), span: None },
+                Expression::Literal { value: Value::Int(3), span: None },
+                Expression::Literal { value: Value::Int(4), span: None },
+                Expression::Literal { value: Value::Int(5), span: None },
+            ],
+            span: None,
+        };
+
+        // Test [1:3] - should return [2, 3]
+        let slice = Expression::Slice {
+            object: Box::new(list.clone()),
+            start: Some(Box::new(Expression::Literal { value: Value::Int(1), span: None })),
+            end: Some(Box::new(Expression::Literal { value: Value::Int(3), span: None })),
+            step: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice).unwrap();
+        assert_eq!(result, Value::List(vec![Value::Int(2), Value::Int(3)]));
+    }
+
+    #[test]
+    fn test_evaluate_slice_full_copy() {
+        let mut evaluator = Evaluator::new();
+
+        let list = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+                Expression::Literal { value: Value::Int(2), span: None },
+                Expression::Literal { value: Value::Int(3), span: None },
+            ],
+            span: None,
+        };
+
+        // Test [:] - full copy
+        let slice = Expression::Slice {
+            object: Box::new(list),
+            start: None,
+            end: None,
+            step: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice).unwrap();
+        assert_eq!(result, Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]));
+    }
+
+    #[test]
+    fn test_evaluate_slice_negative_indices() {
+        let mut evaluator = Evaluator::new();
+
+        let list = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+                Expression::Literal { value: Value::Int(2), span: None },
+                Expression::Literal { value: Value::Int(3), span: None },
+                Expression::Literal { value: Value::Int(4), span: None },
+                Expression::Literal { value: Value::Int(5), span: None },
+            ],
+            span: None,
+        };
+
+        // Test [-2:] - last two elements
+        let slice = Expression::Slice {
+            object: Box::new(list),
+            start: Some(Box::new(Expression::Literal { value: Value::Int(-2), span: None })),
+            end: None,
+            step: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice).unwrap();
+        assert_eq!(result, Value::List(vec![Value::Int(4), Value::Int(5)]));
+    }
+
+    #[test]
+    fn test_evaluate_slice_with_step() {
+        let mut evaluator = Evaluator::new();
+
+        let list = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+                Expression::Literal { value: Value::Int(2), span: None },
+                Expression::Literal { value: Value::Int(3), span: None },
+                Expression::Literal { value: Value::Int(4), span: None },
+                Expression::Literal { value: Value::Int(5), span: None },
+            ],
+            span: None,
+        };
+
+        // Test [::2] - every other element
+        let slice = Expression::Slice {
+            object: Box::new(list),
+            start: None,
+            end: None,
+            step: Some(Box::new(Expression::Literal { value: Value::Int(2), span: None })),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice).unwrap();
+        assert_eq!(result, Value::List(vec![Value::Int(1), Value::Int(3), Value::Int(5)]));
+    }
+
+    #[test]
+    fn test_evaluate_slice_reverse() {
+        let mut evaluator = Evaluator::new();
+
+        let list = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+                Expression::Literal { value: Value::Int(2), span: None },
+                Expression::Literal { value: Value::Int(3), span: None },
+                Expression::Literal { value: Value::Int(4), span: None },
+                Expression::Literal { value: Value::Int(5), span: None },
+            ],
+            span: None,
+        };
+
+        // Test [::-1] - reverse
+        let slice = Expression::Slice {
+            object: Box::new(list),
+            start: None,
+            end: None,
+            step: Some(Box::new(Expression::Literal { value: Value::Int(-1), span: None })),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::Int(5),
+                Value::Int(4),
+                Value::Int(3),
+                Value::Int(2),
+                Value::Int(1)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_evaluate_slice_empty() {
+        let mut evaluator = Evaluator::new();
+
+        let list = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+                Expression::Literal { value: Value::Int(2), span: None },
+                Expression::Literal { value: Value::Int(3), span: None },
+            ],
+            span: None,
+        };
+
+        // Test [3:1] - backwards range with positive step (empty)
+        let slice = Expression::Slice {
+            object: Box::new(list),
+            start: Some(Box::new(Expression::Literal { value: Value::Int(3), span: None })),
+            end: Some(Box::new(Expression::Literal { value: Value::Int(1), span: None })),
+            step: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice).unwrap();
+        assert_eq!(result, Value::List(vec![]));
+    }
+
+    #[test]
+    fn test_evaluate_slice_error_zero_step() {
+        let mut evaluator = Evaluator::new();
+
+        let list = Expression::List {
+            elements: vec![
+                Expression::Literal { value: Value::Int(1), span: None },
+            ],
+            span: None,
+        };
+
+        // Test [::0] - zero step (error)
+        let slice = Expression::Slice {
+            object: Box::new(list),
+            start: None,
+            end: None,
+            step: Some(Box::new(Expression::Literal { value: Value::Int(0), span: None })),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("step cannot be zero"));
+    }
+
+    #[test]
+    fn test_evaluate_slice_error_non_list() {
+        let mut evaluator = Evaluator::new();
+
+        // Try to slice a non-list (error)
+        let slice = Expression::Slice {
+            object: Box::new(Expression::Literal { value: Value::Int(42), span: None }),
+            start: None,
+            end: None,
+            step: None,
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&slice);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Cannot slice non-list"));
+    }
 }
