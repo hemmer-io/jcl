@@ -7,17 +7,20 @@ permalink: /reference/functions/
 ---
 
 
-JCL provides 70+ built-in functions organized by category. All functions are globally available and can be used in any expression.
+JCL provides 80+ built-in functions organized by category. All functions are globally available and can be used in any expression.
 
 ## Table of Contents
 
 - [String Functions](#string-functions)
 - [List Functions](#list-functions)
 - [Map Functions](#map-functions)
+- [Set Operations](#set-operations)
 - [Encoding Functions](#encoding-functions)
 - [Hashing Functions](#hashing-functions)
 - [Numeric Functions](#numeric-functions)
 - [Type Conversion Functions](#type-conversion-functions)
+- [Type Introspection](#type-introspection)
+- [Boolean Aggregation](#boolean-aggregation)
 - [Date/Time Functions](#datetime-functions)
 - [File Functions](#file-functions)
 - [Template Functions](#template-functions)
@@ -140,6 +143,55 @@ strlen("hello")  # 5
 strlen("")  # 0
 ```
 
+### indent
+
+Add indentation to each line of a string.
+
+```jcl
+# Indent all lines by 2 spaces
+indent("line1\nline2\nline3", 2)
+# "  line1\n  line2\n  line3"
+
+# Don't indent the first line
+indent("line1\nline2\nline3", 2, false)
+# "line1\n  line2\n  line3"
+```
+
+**Parameters:**
+- `str` (string): The string to indent
+- `num_spaces` (int): Number of spaces to add
+- `indent_first` (bool, optional): Whether to indent first line (default: true)
+
+### chomp
+
+Remove trailing newlines from a string.
+
+```jcl
+chomp("hello\n")  # "hello"
+chomp("hello\n\n\n")  # "hello"
+chomp("hello")  # "hello"
+```
+
+### strrev
+
+Reverse a string.
+
+```jcl
+strrev("hello")  # "olleh"
+strrev("JCL")  # "LCJ"
+strrev("")  # ""
+```
+
+### title
+
+Capitalize the first letter of each word.
+
+```jcl
+title("hello world")  # "Hello World"
+title("the quick brown fox")  # "The Quick Brown Fox"
+title("Hello World")  # "Hello World"
+```
+
 ---
 
 ## List Functions
@@ -254,6 +306,71 @@ Look up a key in a map with a default value if not found.
 ```jcl
 lookup((a = 1, b = 2), "a", 0)  # 1
 lookup((a = 1, b = 2), "c", 0)  # 0
+```
+
+---
+
+## Set Operations
+
+### setunion
+
+Return the union of multiple sets (removes duplicates).
+
+```jcl
+a = [1, 2, 3]
+b = [3, 4, 5]
+setunion(a, b)  # [1, 2, 3, 4, 5]
+
+# Works with multiple sets
+setunion([1, 2], [2, 3], [3, 4])  # [1, 2, 3, 4]
+```
+
+### setintersection
+
+Return the intersection of sets (elements common to all).
+
+```jcl
+a = [1, 2, 3, 4]
+b = [3, 4, 5, 6]
+setintersection(a, b)  # [3, 4]
+
+# Works with multiple sets
+setintersection([1, 2, 3], [2, 3, 4], [3, 4, 5])  # [3]
+```
+
+### setdifference
+
+Return elements in the first set that are not in the second.
+
+```jcl
+a = [1, 2, 3, 4]
+b = [3, 4, 5]
+setdifference(a, b)  # [1, 2]
+```
+
+### setsymmetricdifference
+
+Return elements that are in one set but not both (symmetric difference).
+
+```jcl
+a = [1, 2, 3]
+b = [2, 3, 4]
+setsymmetricdifference(a, b)  # [1, 4]
+```
+
+**Use Cases:**
+```jcl
+# Find unique values across lists
+all_values = setunion(list1, list2, list3)
+
+# Find common configuration keys
+common_keys = setintersection(keys(config1), keys(config2))
+
+# Find missing dependencies
+missing = setdifference(required_deps, installed_deps)
+
+# Find differences between two configurations
+changes = setsymmetricdifference(keys(old_config), keys(new_config))
 ```
 
 ---
@@ -514,6 +631,116 @@ Convert parallel lists of keys and values to a map.
 
 ```jcl
 tomap(["a", "b"], [1, 2])  # (a = 1, b = 2)
+```
+
+---
+
+## Type Introspection
+
+### typeof
+
+Return the type of a value as a string.
+
+```jcl
+typeof(42)  # "int"
+typeof(3.14)  # "float"
+typeof("hello")  # "string"
+typeof(true)  # "bool"
+typeof(null)  # "null"
+typeof([1, 2, 3])  # "list"
+typeof((a = 1, b = 2))  # "map"
+typeof(x => x * 2)  # "function"
+```
+
+**Use Cases:**
+```jcl
+# Dynamic type checking
+validate_config = config => {
+  if typeof(config.port) != "int" then
+    error("port must be an integer")
+  else
+    config
+}
+
+# Conditional logic based on type
+process_value = value => {
+  type = typeof(value)
+  when type {
+    "string" => upper(value)
+    "int" => value * 2
+    "list" => length(value)
+    else => value
+  }
+}
+
+# Debug logging
+debug = value => {
+  print("Value: ${value}, Type: ${typeof(value)}")
+}
+```
+
+---
+
+## Boolean Aggregation
+
+### alltrue
+
+Return true if all elements in a list are truthy.
+
+```jcl
+alltrue([true, true, true])  # true
+alltrue([true, false, true])  # false
+alltrue([1, 2, 3])  # true (non-zero numbers are truthy)
+alltrue([1, 0, 2])  # false (0 is falsy)
+alltrue(["a", "b", "c"])  # true (non-empty strings are truthy)
+alltrue(["a", "", "c"])  # false (empty string is falsy)
+```
+
+**Truthy values:** Non-zero numbers, non-empty strings, non-empty lists, non-empty maps, true
+**Falsy values:** 0, 0.0, empty string, empty list, false, null
+
+### anytrue
+
+Return true if any element in a list is truthy.
+
+```jcl
+anytrue([false, false, true, false])  # true
+anytrue([false, false, false])  # false
+anytrue([0, 0, 42])  # true (42 is truthy)
+anytrue([0, 0, 0])  # false (all zeros)
+anytrue(["", "", "hello"])  # true ("hello" is truthy)
+anytrue(["", "", ""])  # false (all empty)
+```
+
+**Use Cases:**
+```jcl
+# Validation - ensure all checks pass
+all_valid = alltrue([
+  length(password) >= 8,
+  contains(password, "@"),
+  upper(password) != password
+])
+
+# Check if any feature flag is enabled
+any_enabled = anytrue([
+  config.feature_a_enabled,
+  config.feature_b_enabled,
+  config.feature_c_enabled
+])
+
+# Ensure all required fields are present
+all_present = alltrue([
+  config.host != null,
+  config.port != null,
+  config.username != null
+])
+
+# Check if any error occurred
+has_errors = anytrue([
+  length(syntax_errors) > 0,
+  length(type_errors) > 0,
+  length(runtime_errors) > 0
+])
 ```
 
 ---
