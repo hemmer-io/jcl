@@ -533,19 +533,108 @@ JCL uses list and map comprehensions for iteration, not standalone for loops.
 
 #### List Comprehensions
 
+List comprehensions provide a concise way to create lists by transforming and filtering iterables.
+
+##### Basic Comprehensions
+
 ```
-# Basic
+# Basic transformation
 doubled = [x * 2 for x in numbers]
 
 # With filter
 evens = [x for x in numbers if x % 2 == 0]
 
-# With transformation
-uppercased = [upper(s) for s in strings]
+# With transformation and filter
+squares = [x * x for x in numbers if x > 0]
 
-# Multi-dimensional
-pairs = [(x, y) for x in [1, 2, 3] for y in ["a", "b"]]
+# String transformation
+uppercased = [upper(s) for s in strings]
 ```
+
+##### Multiple For Clauses (Flattening)
+
+Multiple `for` clauses in a single comprehension create a flattened result, equivalent to nested loops:
+
+```
+# Cartesian product - flattened
+pairs = [x + y for x in [1, 2] for y in [10, 20]]
+# Result: [11, 21, 12, 22]
+# Equivalent to: for x in [1,2]: for y in [10,20]: result.append(x+y)
+
+# Flattening nested lists
+nested = [[1, 2], [3, 4], [5, 6]]
+flattened = [num for sublist in nested for num in sublist]
+# Result: [1, 2, 3, 4, 5, 6]
+
+# With filter on flattened result
+positive_sums = [x + y for x in [-1, 0, 1] for y in [1, 2] if x + y > 0]
+# Result: [1, 2, 1, 2, 3]
+```
+
+##### Nested Comprehensions
+
+When a comprehension's expression is itself another comprehension, the result is nested (not flattened):
+
+```
+# 2D matrix
+matrix = [[i * j for j in [1, 2, 3]] for i in [1, 2, 3]]
+# Result: [[1, 2, 3], [2, 4, 6], [3, 6, 9]]
+
+# Nested with filters
+filtered_matrix = [[i * j for j in [1, 2, 3, 4, 5] if j > 2] for i in [1, 2, 3] if i > 1]
+# Result: [[6, 8, 10], [9, 12, 15]]
+
+# Processing 2D data
+coordinates = [[[x, y] for y in [0, 1, 2]] for x in [0, 1, 2]]
+# Result: [[[0,0], [0,1], [0,2]], [[1,0], [1,1], [1,2]], [[2,0], [2,1], [2,2]]]
+```
+
+**Key Difference:**
+- **Multiple `for` in one comprehension** → flattened: `[expr for x in A for y in B]`
+- **Nested comprehensions** → nested structure: `[[expr for y in B] for x in A]`
+
+#### List Slicing
+
+Lists support Python-style slicing with `[start:end:step]` syntax:
+
+```
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Basic slicing [start:end]
+first_three = numbers[0:3]       # [1, 2, 3]
+middle = numbers[3:7]             # [4, 5, 6, 7]
+
+# Omit start (defaults to 0)
+first_five = numbers[:5]          # [1, 2, 3, 4, 5]
+
+# Omit end (defaults to list length)
+from_fifth = numbers[5:]          # [6, 7, 8, 9, 10]
+
+# Full copy
+copy = numbers[:]                 # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Negative indices (from end)
+last_three = numbers[-3:]         # [8, 9, 10]
+all_but_last = numbers[:-1]       # [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+# Step parameter [start:end:step]
+evens = numbers[::2]              # [1, 3, 5, 7, 9] (every other)
+odds = numbers[1::2]              # [2, 4, 6, 8, 10]
+
+# Reverse with negative step
+reverse = numbers[::-1]           # [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+partial_reverse = numbers[7:2:-1] # [8, 7, 6, 5, 4]
+
+# Empty slices
+empty = numbers[5:2]              # [] (start > end with positive step)
+```
+
+**Slice Semantics:**
+- `start` (optional): Starting index (inclusive), defaults to 0 for positive step, end of list for negative step
+- `end` (optional): Ending index (exclusive), defaults to list length for positive step, before beginning for negative step
+- `step` (optional): Step size, defaults to 1. Cannot be 0. Negative step reverses direction
+- Negative indices count from the end: `-1` is last element, `-2` is second-to-last, etc.
+- Out-of-bounds indices are clamped to valid range
 
 #### Map Comprehensions
 

@@ -129,6 +129,15 @@ pub enum Expression {
         span: Option<SourceSpan>,
     },
 
+    /// Slice access: `list[start:end]` or `list[start:end:step]`
+    Slice {
+        object: Box<Expression>,
+        start: Option<Box<Expression>>,
+        end: Option<Box<Expression>>,
+        step: Option<Box<Expression>>,
+        span: Option<SourceSpan>,
+    },
+
     /// Function call: `func(args)`
     FunctionCall {
         name: String,
@@ -189,11 +198,12 @@ pub enum Expression {
         span: Option<SourceSpan>,
     },
 
-    /// List comprehension: `[expr for x in list if condition]`
+    /// List comprehension: `[expr for x in list for y in list2 if condition]`
+    /// Supports multiple for clauses for flattening/nested iteration
     ListComprehension {
         expr: Box<Expression>,
-        variable: String,
-        iterable: Box<Expression>,
+        /// Vector of (variable, iterable) pairs for each for clause
+        iterators: Vec<(String, Expression)>,
         condition: Option<Box<Expression>>,
         span: Option<SourceSpan>,
     },
@@ -245,6 +255,7 @@ impl Expression {
             Expression::MemberAccess { span, .. } => span.as_ref(),
             Expression::OptionalChain { span, .. } => span.as_ref(),
             Expression::Index { span, .. } => span.as_ref(),
+            Expression::Slice { span, .. } => span.as_ref(),
             Expression::FunctionCall { span, .. } => span.as_ref(),
             Expression::MethodCall { span, .. } => span.as_ref(),
             Expression::BinaryOp { span, .. } => span.as_ref(),
