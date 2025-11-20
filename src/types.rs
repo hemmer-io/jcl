@@ -199,6 +199,100 @@ impl TypeEnvironment {
                 return_type: Box::new(Type::Float),
             },
         );
+
+        // New string functions
+        self.define_function(
+            "indent".to_string(),
+            Type::Function {
+                params: vec![Type::String, Type::Int],
+                return_type: Box::new(Type::String),
+            },
+        );
+        self.define_function(
+            "chomp".to_string(),
+            Type::Function {
+                params: vec![Type::String],
+                return_type: Box::new(Type::String),
+            },
+        );
+        self.define_function(
+            "strrev".to_string(),
+            Type::Function {
+                params: vec![Type::String],
+                return_type: Box::new(Type::String),
+            },
+        );
+        self.define_function(
+            "title".to_string(),
+            Type::Function {
+                params: vec![Type::String],
+                return_type: Box::new(Type::String),
+            },
+        );
+
+        // Set operations
+        self.define_function(
+            "setunion".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::Any))],
+                return_type: Box::new(Type::List(Box::new(Type::Any))),
+            },
+        );
+        self.define_function(
+            "setintersection".to_string(),
+            Type::Function {
+                params: vec![
+                    Type::List(Box::new(Type::Any)),
+                    Type::List(Box::new(Type::Any)),
+                ],
+                return_type: Box::new(Type::List(Box::new(Type::Any))),
+            },
+        );
+        self.define_function(
+            "setdifference".to_string(),
+            Type::Function {
+                params: vec![
+                    Type::List(Box::new(Type::Any)),
+                    Type::List(Box::new(Type::Any)),
+                ],
+                return_type: Box::new(Type::List(Box::new(Type::Any))),
+            },
+        );
+        self.define_function(
+            "setsymmetricdifference".to_string(),
+            Type::Function {
+                params: vec![
+                    Type::List(Box::new(Type::Any)),
+                    Type::List(Box::new(Type::Any)),
+                ],
+                return_type: Box::new(Type::List(Box::new(Type::Any))),
+            },
+        );
+
+        // Type introspection
+        self.define_function(
+            "typeof".to_string(),
+            Type::Function {
+                params: vec![Type::Any],
+                return_type: Box::new(Type::String),
+            },
+        );
+
+        // Boolean aggregation
+        self.define_function(
+            "alltrue".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::Any))],
+                return_type: Box::new(Type::Bool),
+            },
+        );
+        self.define_function(
+            "anytrue".to_string(),
+            Type::Function {
+                params: vec![Type::List(Box::new(Type::Any))],
+                return_type: Box::new(Type::Bool),
+            },
+        );
     }
 }
 
