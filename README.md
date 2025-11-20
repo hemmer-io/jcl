@@ -6,34 +6,89 @@ A modern, safe, and flexible general-purpose configuration language with powerfu
 
 JCL is a general-purpose configuration language designed to be human-readable, type-safe, and powerful. It provides a rich standard library of functions for data manipulation, encoding/decoding (YAML, JSON, Base64), templating, string operations, and more. Built in Rust for performance and safety, JCL can be embedded in other tools (like Hemmer for IaC) or used standalone for configuration management.
 
-## Installation
-
-### Via Cargo (Rust)
-
-```bash
-cargo install jcl
-```
-
-### Via Binary Download
-
-Download pre-built binaries from the [releases page](https://github.com/hemmer-io/jcl/releases).
-
-### From Source
-
-```bash
-git clone https://github.com/hemmer-io/jcl.git
-cd jcl
-cargo build --release
-```
-
 ## Quick Start
 
+💡 **Recommended**: Use JCL as a **library** for best performance (50-100x faster than CLI).
+
+### Python
+
 ```bash
+pip install jcl-lang
+```
+
+```python
+import jcl
+
+# Load and evaluate a JCL file (~0.05ms)
+config = jcl.eval_file("config.jcl")
+print(config["app_name"])
+
+# Parse from string
+result = jcl.eval('x = 42\ny = "hello"')
+print(result)  # {'x': 42, 'y': 'hello'}
+
+# Format JCL code
+formatted = jcl.format('x=42')  # Returns: 'x = 42'
+
+# Lint for issues
+issues = jcl.lint(source_code)
+```
+
+### Node.js
+
+```bash
+npm install @hemmer-io/jcl
+```
+
+```javascript
+const jcl = require('@hemmer-io/jcl');
+
+// Load and evaluate a JCL file (~0.05ms)
+const config = jcl.evalFile('config.jcl');
+console.log(config.app_name);
+
+// Parse from string
+const result = jcl.eval('x = 42\ny = "hello"');
+console.log(result);  // {x: 42, y: 'hello'}
+
+// Format and lint
+const formatted = jcl.format('x=42');
+const issues = jcl.lint(sourceCode);
+```
+
+### Ruby
+
+```bash
+gem install jcl
+```
+
+```ruby
+require 'jcl'
+
+# Load and evaluate a JCL file (~0.05ms)
+config = JCL.eval_file('config.jcl')
+puts config['app_name']
+
+# Parse from string
+result = JCL.eval('x = 42\ny = "hello"')
+puts result  # {'x' => 42, 'y' => 'hello'}
+
+# Format and lint
+formatted = JCL.format('x=42')
+issues = JCL.lint(source_code)
+```
+
+### CLI (for standalone scripts)
+
+```bash
+# Install
+cargo install jcl
+
+# Evaluate a JCL file (~5ms with subprocess overhead)
+jcl eval config.jcl
+
 # Run the interactive REPL
 jcl repl
-
-# Evaluate a JCL file
-jcl eval config.jcl
 
 # Format JCL files
 jcl-fmt config.jcl
@@ -43,6 +98,31 @@ jcl-validate --schema schema.jcl config.jcl
 
 # Migrate from other formats
 jcl-migrate config.json --from json
+```
+
+## Installation
+
+### Library Bindings (Recommended)
+
+- **Python**: `pip install jcl-lang` - [Docs](https://hemmer-io.github.io/jcl/bindings/python)
+- **Node.js**: `npm install @hemmer-io/jcl` - [Docs](https://hemmer-io.github.io/jcl/bindings/nodejs)
+- **Ruby**: `gem install jcl` - [Docs](https://hemmer-io.github.io/jcl/bindings/ruby)
+- **Go**: cgo bindings for Go projects - [Docs](https://hemmer-io.github.io/jcl/bindings/go)
+- **Java**: JNI bindings for Java applications - [Docs](https://hemmer-io.github.io/jcl/bindings/java)
+
+### CLI Tool
+
+```bash
+# Via Cargo (Rust)
+cargo install jcl
+
+# Via Binary Download
+# Download from: https://github.com/hemmer-io/jcl/releases
+
+# From Source
+git clone https://github.com/hemmer-io/jcl.git
+cd jcl
+cargo build --release
 ```
 
 ## Documentation
@@ -145,15 +225,20 @@ joined_regions = join(sorted_regions, ", ")
 - **Watcher** (`jcl-watch`): Auto-format on file changes
 - **Benchmarking** (`jcl-bench`): Performance measurement tools
 
-### Multi-Language Support
-- **Rust**: `cargo install jcl` - Native implementation
-- **Python**: `pip install jcl-lang` - PyO3 bindings
-- **Node.js**: `npm install @hemmer-io/jcl` - Neon bindings
-- **Ruby**: `gem install jcl` - Magnus bindings
-- **Go**: cgo bindings for Go projects
-- **Java**: JNI bindings for Java applications
-- **WebAssembly**: Browser and serverless support
+### Performance Characteristics
+
+| Approach | Typical Latency | Use Case |
+|----------|----------------|----------|
+| **Library (Python/Node/Ruby)** | ~0.05ms | ✅ Production apps, web servers, CI/CD |
+| **CLI** | ~5ms | ⚠️ Standalone scripts, one-off tasks |
+
+**Performance tip**: The CLI includes subprocess overhead (~5ms). For applications that load config frequently, use library bindings for 50-100x better performance.
+
+### Additional Bindings
+
+- **WebAssembly**: Browser and serverless support - [Playground](https://hemmer-io.github.io/jcl/guides/playground)
 - **C FFI**: Embed in any language with C interop
+- **Rust**: Native `cargo install jcl` for maximum performance
 
 ### Editor Support
 - **VSCode**: Full syntax highlighting and LSP integration
