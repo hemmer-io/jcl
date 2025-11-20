@@ -7,24 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-01-19
+
 ### Added
-- Advanced static type inference system with expression-level checking
-- LSP: Position-aware diagnostics with precise line/column information
-- GitHub Actions CI/CD workflows for testing, linting, and multi-platform builds
-- Automated release workflow with pre-built binaries
-- CONTRIBUTING.md with contribution guidelines
-- CODE_OF_CONDUCT.md with community standards
-- SECURITY.md with security policy and reporting
-- TODO.md tracking remaining work
-- 13 new test cases for advanced type inference (117 total tests)
+- **Performance Benchmarks**: Comprehensive suite demonstrating 50-100x speedup for library bindings (#50, #78)
+- **Test Build Workflow**: Automated package build testing without publishing (#66, #72)
+- **Pre-commit Hooks**: Automated code quality checks (#53, #54)
+- **Dependabot**: Intelligent dependency grouping and auto-merge (#55, #56)
+- **Enhanced AST Caching**: Increased capacity, metrics, CLI stats command (#51, #61)
+- **Lazy Variables (Phase 2)**: On-demand evaluation with cycle detection (#5, #43)
+- **List Comprehension Optimization (Phase 3A)**: Index-based early termination (#44, #47)
+- **Parallel Parsing**: Multi-core file parsing with Rayon (#6, #36)
+- **Multi-file Validation**: Directory and glob pattern support (#37, #38)
+- **CODEOWNERS**: Repository maintainer definitions (#48, #52)
 
 ### Changed
-- Type system now performs static analysis before evaluation
-- Type errors include precise source location spans
-- Improved type compatibility checking for arithmetic operations
-- Enhanced function type checking with parameter validation
+- **Documentation**: Restructured to promote library bindings (#49, #73)
+- **WASM Playground**: Fixed deployment (#69, #70, #71)
+- **CI/CD**: Workflows run only on PR creation (#39, #41)
+- **Examples**: Fixed invalid JCL syntax (#40, #42)
 
-## [1.0.0] - 2025-11-18
+### Fixed
+- **Dependabot Auto-merge**: Use PAT token for approvals (#67, #68)
+- **Test Build Workflow**: Fixed cache action and gem install (#74-#77)
+- **.gitignore**: Added bindings build artifact patterns (#78)
+- **PyO3 0.27.1**: Updated Python bindings API (#58, #62)
+- **Magnus 0.8.2**: Fixed Ruby deprecation warnings (#58, #63)
+
+### Dependencies
+- Multiple Dependabot updates including PyO3, Magnus, criterion, and GitHub Actions
+
+## [1.0.0] - 2025-01-18
 
 ### Added
 

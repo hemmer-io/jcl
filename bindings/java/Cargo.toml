@@ -1,6 +1,6 @@
 [package]
 name = "jcl-java"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["Hemmer IO <info@hemmer.io>"]
 description = "Java (JNI) bindings for JCL (Jack-of-All Configuration Language)"
@@ -12,6 +12,6 @@ crate-type = ["cdylib"]
 name = "jcl_java"
 
 [dependencies]
-jcl = { path = "../..", version = "1.0.0" }
+jcl = { path = "../..", version = "1.1.0" }
 jni = "0.21"
 serde_json = "1.0"
