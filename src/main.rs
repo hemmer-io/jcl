@@ -548,7 +548,11 @@ fn main() -> Result<()> {
                     // Display metrics
                     let total = metrics.total_requests();
                     if total > 0 {
-                        println!("{:20} {:.1}%", "Hit rate:".bold().green(), metrics.hit_rate() * 100.0);
+                        println!(
+                            "{:20} {:.1}%",
+                            "Hit rate:".bold().green(),
+                            metrics.hit_rate() * 100.0
+                        );
                         println!("{:20} {}", "Hits:".bold(), metrics.hits);
                         println!("{:20} {}", "Misses:".bold(), metrics.misses);
                         println!("{:20} {}", "Evictions:".bold(), metrics.evictions);
@@ -580,7 +584,10 @@ fn main() -> Result<()> {
                     } else {
                         println!("{}", "No cache requests yet".dimmed());
                         println!();
-                        println!("{}", "💡 The cache tracks requests as you parse files".dimmed());
+                        println!(
+                            "{}",
+                            "💡 The cache tracks requests as you parse files".dimmed()
+                        );
                     }
 
                     println!();
@@ -588,7 +595,7 @@ fn main() -> Result<()> {
                     if let Ok(size) = std::env::var("JCL_CACHE_SIZE") {
                         println!("{:20} {}", "JCL_CACHE_SIZE:".bold(), size);
                     } else {
-                        println!("{:20} {} (default)", "JCL_CACHE_SIZE:".bold().dimmed(), "1000");
+                        println!("{:20} 1000 (default)", "JCL_CACHE_SIZE:".bold().dimmed());
                     }
                 }
 
