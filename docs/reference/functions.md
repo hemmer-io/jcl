@@ -149,12 +149,21 @@ Add indentation to each line of a string.
 
 ```jcl
 # Indent all lines by 2 spaces
-indent("line1\nline2\nline3", 2)
-# "  line1\n  line2\n  line3"
+text = "line1
+line2
+line3"
+indent(text, 2)
+# Result:
+# "  line1
+#   line2
+#   line3"
 
 # Don't indent the first line
-indent("line1\nline2\nline3", 2, false)
-# "line1\n  line2\n  line3"
+indent(text, 2, false)
+# Result:
+# "line1
+#   line2
+#   line3"
 ```
 
 **Parameters:**
@@ -167,9 +176,15 @@ indent("line1\nline2\nline3", 2, false)
 Remove trailing newlines from a string.
 
 ```jcl
-chomp("hello\n")  # "hello"
-chomp("hello\n\n\n")  # "hello"
-chomp("hello")  # "hello"
+chomp("hello
+")  # "hello"
+
+chomp("hello
+
+
+")  # "hello"
+
+chomp("hello")  # "hello" (no change if no trailing newlines)
 ```
 
 ### strrev
