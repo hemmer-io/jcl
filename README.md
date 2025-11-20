@@ -200,6 +200,12 @@ merged_tags = merge(env_prod.tags, (environment = "prod", managed_by = "jcl"))
 formatted_regions = [upper(r) for r in regions]
 sorted_regions = sort(formatted_regions)
 joined_regions = join(sorted_regions, ", ")
+
+# Range syntax for generating sequences
+numbers = [0..10]            # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+evens = [0..10:2]            # [0, 2, 4, 6, 8, 10]
+countdown = [10..1:-1]       # [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+squares = [x * x for x in [1..10]]  # [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
 ```
 
 ## Features
@@ -207,6 +213,7 @@ joined_regions = join(sorted_regions, ", ")
 ### Core Language
 - **Type System**: Advanced static type inference with expression-level checking
 - **Collections**: Lists `[]` and maps `()` with comprehensive manipulation functions
+- **Range Syntax**: Generate sequences with `[0..10]`, `[0..<5]`, `[0..10:2]` for inclusive, exclusive, and stepped ranges
 - **String Interpolation**: `"Hello, ${name}!"` syntax for dynamic strings
 - **Null Safety**: `?.` optional chaining and `??` null coalescing operators
 - **Functions**: Lambda expressions (`x => x * 2`) and named functions (`fn double(x) = x * 2`)
