@@ -138,6 +138,16 @@ pub enum Expression {
         span: Option<SourceSpan>,
     },
 
+    /// Range expression: `[start..end]`, `[start..end:step]`, `[start..<end]`
+    /// Generates a sequence of values from start to end
+    Range {
+        start: Box<Expression>,
+        end: Box<Expression>,
+        step: Option<Box<Expression>>,
+        inclusive: bool, // true for `..`, false for `..<`
+        span: Option<SourceSpan>,
+    },
+
     /// Function call: `func(args)`
     FunctionCall {
         name: String,
@@ -256,6 +266,7 @@ impl Expression {
             Expression::OptionalChain { span, .. } => span.as_ref(),
             Expression::Index { span, .. } => span.as_ref(),
             Expression::Slice { span, .. } => span.as_ref(),
+            Expression::Range { span, .. } => span.as_ref(),
             Expression::FunctionCall { span, .. } => span.as_ref(),
             Expression::MethodCall { span, .. } => span.as_ref(),
             Expression::BinaryOp { span, .. } => span.as_ref(),

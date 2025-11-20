@@ -95,7 +95,7 @@ escape_sequence = @{
 
 operator_token = {
     // Multi-character operators (order by length, longest first)
-    "=>" | "?." | "??" | "==" | "!=" | "<=" | ">="
+    "=>" | "?." | "??" | "==" | "!=" | "<=" | ">=" | "..<" | ".."
   | "+" | "-" | "*" | "/" | "%" | "<" | ">" | "=" | "!" | "|" | "?" | ":"
 }
 

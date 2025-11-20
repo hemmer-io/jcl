@@ -87,6 +87,8 @@ pub enum TokenKind {
     QuestionQuestion, // ??
     Colon,            // :
     Arrow,            // =>
+    DotDot,           // ..
+    DotDotLess,       // ..<
 
     // Punctuation
     LeftParen,    // (
@@ -227,6 +229,8 @@ impl<'a> Lexer<'a> {
                     "!=" => TokenKind::NotEqual,
                     "<=" => TokenKind::LessEqual,
                     ">=" => TokenKind::GreaterEqual,
+                    "..<" => TokenKind::DotDotLess,
+                    ".." => TokenKind::DotDot,
                     "+" => TokenKind::Plus,
                     "-" => TokenKind::Minus,
                     "*" => TokenKind::Star,

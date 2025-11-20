@@ -655,6 +655,61 @@ impl TypeChecker {
                 }
             }
 
+            Expression::Range {
+                start,
+                end,
+                step,
+                span,
+                ..
+            } => {
+                // Type check start and end - they should be Int or Float
+                let start_type = self.infer_expression(start)?;
+                let end_type = self.infer_expression(end)?;
+
+                // Check if start and end are compatible numeric types
+                let is_int_range = self.is_compatible(&start_type, &Type::Int)
+                    && self.is_compatible(&end_type, &Type::Int);
+                let is_float_range = self.is_compatible(&start_type, &Type::Float)
+                    && self.is_compatible(&end_type, &Type::Float);
+
+                if !is_int_range && !is_float_range {
+                    return Err(TypeError::new(
+                        format!(
+                            "Range requires start and end to be both Int or both Float, got start: {:?}, end: {:?}",
+                            start_type, end_type
+                        ),
+                        span.clone(),
+                    ));
+                }
+
+                // Type check optional step parameter
+                if let Some(st) = step {
+                    let step_type = self.infer_expression(st)?;
+                    if is_int_range && !self.is_compatible(&step_type, &Type::Int) {
+                        return Err(TypeError::new(
+                            format!("Range step must be Int for Int range, got {:?}", step_type),
+                            span.clone(),
+                        ));
+                    }
+                    if is_float_range && !self.is_compatible(&step_type, &Type::Float) {
+                        return Err(TypeError::new(
+                            format!(
+                                "Range step must be Float for Float range, got {:?}",
+                                step_type
+                            ),
+                            span.clone(),
+                        ));
+                    }
+                }
+
+                // Range returns List<Int> or List<Float>
+                if is_int_range {
+                    Ok(Type::List(Box::new(Type::Int)))
+                } else {
+                    Ok(Type::List(Box::new(Type::Float)))
+                }
+            }
+
             // Default to Any for unimplemented expressions
             _ => Ok(Type::Any),
         }

@@ -150,6 +150,41 @@ empty = []
 empty: list<int> = []
 ```
 
+### Range Syntax
+
+Generate sequences of numbers using range syntax:
+
+```
+# Inclusive range (includes both start and end)
+numbers = [0..5]         # [0, 1, 2, 3, 4, 5]
+decade = [2020..2030]    # [2020, 2021, 2022, ..., 2030]
+
+# Exclusive range (excludes end)
+indices = [0..<5]        # [0, 1, 2, 3, 4]
+
+# Range with step (custom increment)
+evens = [0..10:2]        # [0, 2, 4, 6, 8, 10]
+odds = [1..10:2]         # [1, 3, 5, 7, 9]
+
+# Descending range (negative step)
+countdown = [10..0:-1]   # [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+reverse = [5..1:-1]      # [5, 4, 3, 2, 1]
+
+# Float ranges
+decimals = [0.0..2.0:0.5]  # [0.0, 0.5, 1.0, 1.5, 2.0]
+
+# Use in list comprehensions
+squares = [x * x for x in [1..10]]  # [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
+```
+
+**Range syntax details:**
+- `[start..end]` - Inclusive range (includes `end`)
+- `[start..<end]` - Exclusive range (excludes `end`)
+- `[start..end:step]` - Range with custom step
+- Step defaults to `1` for ascending, `-1` for descending
+- Supports both integer and float ranges
+- Range expressions return `list<int>` or `list<float>`
+
 ### Maps
 
 Use parentheses `()` for maps:
