@@ -61,6 +61,10 @@ defaults:
     values:
       layout: "page"
 
+# Include WASM files for playground
+include:
+  - guides/pkg
+
 # Exclude from processing
 exclude:
   - Gemfile

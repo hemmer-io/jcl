@@ -37,6 +37,22 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM module
+        run: wasm-pack build --target web --out-dir pkg
+
+      - name: Copy WASM files to docs
+        run: |
+          mkdir -p docs/guides/pkg
+          cp -r pkg/* docs/guides/pkg/
+
       - name: Build with Jekyll
         working-directory: docs
         run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
