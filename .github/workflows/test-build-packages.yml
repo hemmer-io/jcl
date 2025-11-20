@@ -1,0 +1,158 @@
+name: Test Build Packages
+
+# This workflow tests building packages for all supported registries
+# WITHOUT publishing them. Use this to validate that dependency updates
+# and code changes don't break our ability to release.
+
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    # Run weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  test-cargo-build:
+    name: Test Cargo (Rust) Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release --all-features
+
+      - name: Test package creation
+        run: cargo package --allow-dirty
+
+      - name: Verify package metadata
+        run: cargo package --list
+
+  test-python-build:
+    name: Test PyPI (Python) Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine maturin
+
+      - name: Build Python package
+        working-directory: bindings/python
+        run: |
+          maturin build --release
+
+      - name: Verify package with twine
+        working-directory: bindings/python
+        run: |
+          twine check target/wheels/*.whl
+
+  test-ruby-build:
+    name: Test RubyGems (Ruby) Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install rake
+        run: gem install rake
+
+      - name: Build gem
+        working-directory: bindings/ruby
+        run: |
+          gem build jcl.gemspec
+
+      - name: Verify gem installation (dry-run)
+        working-directory: bindings/ruby
+        run: |
+          gem install --local jcl-*.gem --dry-run
+
+      - name: List gem contents
+        working-directory: bindings/ruby
+        run: |
+          gem specification jcl-*.gem
+
+  test-npm-build:
+    name: Test npm (Node.js) Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '18'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: bindings/nodejs
+        run: npm install
+
+      - name: Build package
+        working-directory: bindings/nodejs
+        run: npm run build
+
+      - name: Test pack (dry-run)
+        working-directory: bindings/nodejs
+        run: npm pack --dry-run
+
+  summary:
+    name: Build Test Summary
+    needs: [test-cargo-build, test-python-build, test-ruby-build, test-npm-build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check build results
+        run: |
+          echo "📦 Package Build Test Results"
+          echo "=============================="
+          echo "Cargo:  ${{ needs.test-cargo-build.result }}"
+          echo "PyPI:   ${{ needs.test-python-build.result }}"
+          echo "RubyGems: ${{ needs.test-ruby-build.result }}"
+          echo "npm:    ${{ needs.test-npm-build.result }}"
+          echo ""
+
+          if [ "${{ needs.test-cargo-build.result }}" != "success" ] || \
+             [ "${{ needs.test-python-build.result }}" != "success" ] || \
+             [ "${{ needs.test-ruby-build.result }}" != "success" ] || \
+             [ "${{ needs.test-npm-build.result }}" != "success" ]; then
+            echo "❌ One or more package builds failed"
+            exit 1
+          else
+            echo "✅ All package builds successful"
+          fi
