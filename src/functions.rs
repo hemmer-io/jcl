@@ -38,6 +38,10 @@ impl FunctionRegistry {
         registry.register("format", fn_format);
         registry.register("substr", fn_substr);
         registry.register("strlen", fn_strlen);
+        registry.register("indent", fn_indent);
+        registry.register("chomp", fn_chomp);
+        registry.register("strrev", fn_strrev);
+        registry.register("title", fn_title);
 
         // Encoding functions
         registry.register("base64encode", fn_base64encode);
@@ -119,6 +123,19 @@ impl FunctionRegistry {
         registry.register("zipmap", fn_zipmap);
         registry.register("coalesce", fn_coalesce);
         registry.register("try", fn_try);
+
+        // Set operations
+        registry.register("setunion", fn_setunion);
+        registry.register("setintersection", fn_setintersection);
+        registry.register("setdifference", fn_setdifference);
+        registry.register("setsymmetricdifference", fn_setsymmetricdifference);
+
+        // Type introspection
+        registry.register("typeof", fn_typeof);
+
+        // Boolean aggregation
+        registry.register("alltrue", fn_alltrue);
+        registry.register("anytrue", fn_anytrue);
 
         // Matrix/Cartesian product functions
         registry.register("cartesian", fn_cartesian);
@@ -387,6 +404,87 @@ fn fn_strlen(args: &[Value]) -> Result<Value> {
     require_args(args, 1, "strlen")?;
     let s = as_string(&args[0])?;
     Ok(Value::Int(s.len() as i64))
+}
+
+fn fn_indent(args: &[Value]) -> Result<Value> {
+    let (s, num_spaces, indent_first) = match args.len() {
+        2 => (as_string(&args[0])?, as_int(&args[1])?, true),
+        3 => {
+            let s = as_string(&args[0])?;
+            let n = as_int(&args[1])?;
+            let first = match &args[2] {
+                Value::Bool(b) => *b,
+                _ => return Err(anyhow!("indent() third argument must be bool")),
+            };
+            (s, n, first)
+        }
+        _ => return Err(anyhow!("indent() requires 2 or 3 arguments")),
+    };
+
+    if num_spaces < 0 {
+        return Err(anyhow!("indent() spaces must be non-negative"));
+    }
+
+    let indent_str = " ".repeat(num_spaces as usize);
+    let lines: Vec<&str> = s.lines().collect();
+
+    if lines.is_empty() {
+        return Ok(Value::String(String::new()));
+    }
+
+    let result = if indent_first {
+        // Indent all lines including first
+        lines
+            .iter()
+            .map(|line| format!("{}{}", indent_str, line))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        // Don't indent first line
+        let first_line = lines[0].to_string();
+        let rest: Vec<String> = lines[1..]
+            .iter()
+            .map(|line| format!("{}{}", indent_str, line))
+            .collect();
+
+        if rest.is_empty() {
+            first_line
+        } else {
+            format!("{}\n{}", first_line, rest.join("\n"))
+        }
+    };
+
+    Ok(Value::String(result))
+}
+
+fn fn_chomp(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "chomp")?;
+    let s = as_string(&args[0])?;
+    Ok(Value::String(s.trim_end_matches('\n').to_string()))
+}
+
+fn fn_strrev(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "strrev")?;
+    let s = as_string(&args[0])?;
+    Ok(Value::String(s.chars().rev().collect()))
+}
+
+fn fn_title(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "title")?;
+    let s = as_string(&args[0])?;
+
+    let result: Vec<String> = s
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            }
+        })
+        .collect();
+
+    Ok(Value::String(result.join(" ")))
 }
 
 // =============================================================================
@@ -968,6 +1066,169 @@ fn fn_try(args: &[Value]) -> Result<Value> {
 }
 
 // =============================================================================
+// SET OPERATIONS
+// =============================================================================
+
+fn fn_setunion(args: &[Value]) -> Result<Value> {
+    require_args_min(args, 1, "setunion")?;
+
+    use std::collections::HashSet;
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+
+    for arg in args {
+        let list = as_list(arg)?;
+        for item in list {
+            // Use debug format for hashing (simple but effective for basic types)
+            let key = format!("{:?}", item);
+            if seen.insert(key) {
+                result.push(item.clone());
+            }
+        }
+    }
+
+    Ok(Value::List(result))
+}
+
+fn fn_setintersection(args: &[Value]) -> Result<Value> {
+    require_args_min(args, 2, "setintersection")?;
+
+    use std::collections::HashSet;
+
+    // Start with first set
+    let first_list = as_list(&args[0])?;
+    let mut result_set: HashSet<String> = first_list.iter().map(|v| format!("{:?}", v)).collect();
+
+    // Intersect with each subsequent set
+    for arg in &args[1..] {
+        let list = as_list(arg)?;
+        let current_set: HashSet<String> = list.iter().map(|v| format!("{:?}", v)).collect();
+
+        result_set.retain(|item| current_set.contains(item));
+    }
+
+    // Convert back to values (keep original order from first list)
+    let result: Vec<Value> = first_list
+        .iter()
+        .filter(|v| result_set.contains(&format!("{:?}", v)))
+        .cloned()
+        .collect();
+
+    Ok(Value::List(result))
+}
+
+fn fn_setdifference(args: &[Value]) -> Result<Value> {
+    require_args(args, 2, "setdifference")?;
+
+    use std::collections::HashSet;
+
+    let first_list = as_list(&args[0])?;
+    let second_list = as_list(&args[1])?;
+
+    let second_set: HashSet<String> = second_list.iter().map(|v| format!("{:?}", v)).collect();
+
+    let result: Vec<Value> = first_list
+        .iter()
+        .filter(|v| !second_set.contains(&format!("{:?}", v)))
+        .cloned()
+        .collect();
+
+    Ok(Value::List(result))
+}
+
+fn fn_setsymmetricdifference(args: &[Value]) -> Result<Value> {
+    require_args(args, 2, "setsymmetricdifference")?;
+
+    use std::collections::HashSet;
+
+    let first_list = as_list(&args[0])?;
+    let second_list = as_list(&args[1])?;
+
+    let first_set: HashSet<String> = first_list.iter().map(|v| format!("{:?}", v)).collect();
+
+    let second_set: HashSet<String> = second_list.iter().map(|v| format!("{:?}", v)).collect();
+
+    // Elements in first but not in second
+    let mut result: Vec<Value> = first_list
+        .iter()
+        .filter(|v| !second_set.contains(&format!("{:?}", v)))
+        .cloned()
+        .collect();
+
+    // Elements in second but not in first
+    result.extend(
+        second_list
+            .iter()
+            .filter(|v| !first_set.contains(&format!("{:?}", v)))
+            .cloned(),
+    );
+
+    Ok(Value::List(result))
+}
+
+// =============================================================================
+// TYPE INTROSPECTION
+// =============================================================================
+
+fn fn_typeof(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "typeof")?;
+
+    let type_name = match &args[0] {
+        Value::String(_) => "string",
+        Value::Int(_) => "int",
+        Value::Float(_) => "float",
+        Value::Bool(_) => "bool",
+        Value::Null => "null",
+        Value::List(_) => "list",
+        Value::Map(_) => "map",
+        Value::Function { .. } => "function",
+    };
+
+    Ok(Value::String(type_name.to_string()))
+}
+
+// =============================================================================
+// BOOLEAN AGGREGATION
+// =============================================================================
+
+fn fn_alltrue(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "alltrue")?;
+    let list = as_list(&args[0])?;
+
+    for item in list {
+        match item {
+            Value::Bool(false) | Value::Null => return Ok(Value::Bool(false)),
+            Value::Int(0) => return Ok(Value::Bool(false)),
+            Value::Float(f) if *f == 0.0 => return Ok(Value::Bool(false)),
+            Value::String(s) if s.is_empty() => return Ok(Value::Bool(false)),
+            Value::List(l) if l.is_empty() => return Ok(Value::Bool(false)),
+            _ => continue,
+        }
+    }
+
+    Ok(Value::Bool(true))
+}
+
+fn fn_anytrue(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "anytrue")?;
+    let list = as_list(&args[0])?;
+
+    for item in list {
+        match item {
+            Value::Bool(true) => return Ok(Value::Bool(true)),
+            Value::Int(i) if *i != 0 => return Ok(Value::Bool(true)),
+            Value::Float(f) if *f != 0.0 => return Ok(Value::Bool(true)),
+            Value::String(s) if !s.is_empty() => return Ok(Value::Bool(true)),
+            Value::List(l) if !l.is_empty() => return Ok(Value::Bool(true)),
+            Value::Map(m) if !m.is_empty() => return Ok(Value::Bool(true)),
+            _ => continue,
+        }
+    }
+
+    Ok(Value::Bool(false))
+}
+
+// =============================================================================
 // MATRIX / CARTESIAN PRODUCT FUNCTIONS
 // =============================================================================
 
@@ -1351,5 +1612,275 @@ mod tests {
 
         // Cleanup
         std::fs::remove_file(&temp_file).ok();
+    }
+
+    // ====================
+    // Set Operations Tests
+    // ====================
+
+    #[test]
+    fn test_setunion() {
+        let a = Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]);
+        let b = Value::List(vec![Value::Int(3), Value::Int(4), Value::Int(5)]);
+
+        let result = fn_setunion(&[a, b]).unwrap();
+
+        if let Value::List(items) = result {
+            assert_eq!(items.len(), 5);
+            // Should have [1, 2, 3, 4, 5] (duplicates removed)
+        } else {
+            panic!("Expected list result");
+        }
+    }
+
+    #[test]
+    fn test_setintersection() {
+        let a = Value::List(vec![
+            Value::Int(1),
+            Value::Int(2),
+            Value::Int(3),
+            Value::Int(4),
+        ]);
+        let b = Value::List(vec![
+            Value::Int(3),
+            Value::Int(4),
+            Value::Int(5),
+            Value::Int(6),
+        ]);
+
+        let result = fn_setintersection(&[a, b]).unwrap();
+
+        if let Value::List(items) = result {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0], Value::Int(3));
+            assert_eq!(items[1], Value::Int(4));
+        } else {
+            panic!("Expected list result");
+        }
+    }
+
+    #[test]
+    fn test_setdifference() {
+        let a = Value::List(vec![
+            Value::Int(1),
+            Value::Int(2),
+            Value::Int(3),
+            Value::Int(4),
+        ]);
+        let b = Value::List(vec![Value::Int(3), Value::Int(4), Value::Int(5)]);
+
+        let result = fn_setdifference(&[a, b]).unwrap();
+
+        if let Value::List(items) = result {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0], Value::Int(1));
+            assert_eq!(items[1], Value::Int(2));
+        } else {
+            panic!("Expected list result");
+        }
+    }
+
+    #[test]
+    fn test_setsymmetricdifference() {
+        let a = Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)]);
+        let b = Value::List(vec![Value::Int(2), Value::Int(3), Value::Int(4)]);
+
+        let result = fn_setsymmetricdifference(&[a, b]).unwrap();
+
+        if let Value::List(items) = result {
+            assert_eq!(items.len(), 2);
+            // Should have [1, 4] (elements in one but not both)
+            assert_eq!(items[0], Value::Int(1));
+            assert_eq!(items[1], Value::Int(4));
+        } else {
+            panic!("Expected list result");
+        }
+    }
+
+    // ====================
+    // Type Introspection Tests
+    // ====================
+
+    #[test]
+    fn test_typeof() {
+        assert_eq!(
+            fn_typeof(&[Value::String("hello".to_string())]).unwrap(),
+            Value::String("string".to_string())
+        );
+        assert_eq!(
+            fn_typeof(&[Value::Int(42)]).unwrap(),
+            Value::String("int".to_string())
+        );
+        assert_eq!(
+            fn_typeof(&[Value::Float(std::f64::consts::PI)]).unwrap(),
+            Value::String("float".to_string())
+        );
+        assert_eq!(
+            fn_typeof(&[Value::Bool(true)]).unwrap(),
+            Value::String("bool".to_string())
+        );
+        assert_eq!(
+            fn_typeof(&[Value::Null]).unwrap(),
+            Value::String("null".to_string())
+        );
+        assert_eq!(
+            fn_typeof(&[Value::List(vec![])]).unwrap(),
+            Value::String("list".to_string())
+        );
+        assert_eq!(
+            fn_typeof(&[Value::Map(std::collections::HashMap::new())]).unwrap(),
+            Value::String("map".to_string())
+        );
+    }
+
+    // ====================
+    // Boolean Aggregation Tests
+    // ====================
+
+    #[test]
+    fn test_alltrue_all_true() {
+        let list = Value::List(vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]);
+        assert_eq!(fn_alltrue(&[list]).unwrap(), Value::Bool(true));
+    }
+
+    #[test]
+    fn test_alltrue_has_false() {
+        let list = Value::List(vec![
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+        ]);
+        assert_eq!(fn_alltrue(&[list]).unwrap(), Value::Bool(false));
+    }
+
+    #[test]
+    fn test_alltrue_truthy_values() {
+        let list = Value::List(vec![
+            Value::Int(1),
+            Value::String("hello".to_string()),
+            Value::Bool(true),
+        ]);
+        assert_eq!(fn_alltrue(&[list]).unwrap(), Value::Bool(true));
+    }
+
+    #[test]
+    fn test_alltrue_has_zero() {
+        let list = Value::List(vec![Value::Int(1), Value::Int(0), Value::Int(2)]);
+        assert_eq!(fn_alltrue(&[list]).unwrap(), Value::Bool(false));
+    }
+
+    #[test]
+    fn test_anytrue_has_true() {
+        let list = Value::List(vec![
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(false),
+        ]);
+        assert_eq!(fn_anytrue(&[list]).unwrap(), Value::Bool(true));
+    }
+
+    #[test]
+    fn test_anytrue_all_false() {
+        let list = Value::List(vec![
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+        ]);
+        assert_eq!(fn_anytrue(&[list]).unwrap(), Value::Bool(false));
+    }
+
+    #[test]
+    fn test_anytrue_has_truthy() {
+        let list = Value::List(vec![
+            Value::Int(0),
+            Value::String("".to_string()),
+            Value::Int(42),
+        ]);
+        assert_eq!(fn_anytrue(&[list]).unwrap(), Value::Bool(true));
+    }
+
+    // ====================
+    // String Functions Tests
+    // ====================
+
+    #[test]
+    fn test_indent_basic() {
+        let text = "line1\nline2\nline3";
+        let result = fn_indent(&[Value::String(text.to_string()), Value::Int(2)]).unwrap();
+        assert_eq!(
+            result,
+            Value::String("  line1\n  line2\n  line3".to_string())
+        );
+    }
+
+    #[test]
+    fn test_indent_skip_first() {
+        let text = "line1\nline2\nline3";
+        let result = fn_indent(&[
+            Value::String(text.to_string()),
+            Value::Int(2),
+            Value::Bool(false),
+        ])
+        .unwrap();
+        assert_eq!(result, Value::String("line1\n  line2\n  line3".to_string()));
+    }
+
+    #[test]
+    fn test_indent_empty_string() {
+        let result = fn_indent(&[Value::String("".to_string()), Value::Int(2)]).unwrap();
+        assert_eq!(result, Value::String("".to_string()));
+    }
+
+    #[test]
+    fn test_chomp_single_newline() {
+        let result = fn_chomp(&[Value::String("hello\n".to_string())]).unwrap();
+        assert_eq!(result, Value::String("hello".to_string()));
+    }
+
+    #[test]
+    fn test_chomp_multiple_newlines() {
+        let result = fn_chomp(&[Value::String("hello\n\n\n".to_string())]).unwrap();
+        assert_eq!(result, Value::String("hello".to_string()));
+    }
+
+    #[test]
+    fn test_chomp_no_newline() {
+        let result = fn_chomp(&[Value::String("hello".to_string())]).unwrap();
+        assert_eq!(result, Value::String("hello".to_string()));
+    }
+
+    #[test]
+    fn test_strrev() {
+        let result = fn_strrev(&[Value::String("hello".to_string())]).unwrap();
+        assert_eq!(result, Value::String("olleh".to_string()));
+    }
+
+    #[test]
+    fn test_strrev_empty() {
+        let result = fn_strrev(&[Value::String("".to_string())]).unwrap();
+        assert_eq!(result, Value::String("".to_string()));
+    }
+
+    #[test]
+    fn test_title() {
+        let result = fn_title(&[Value::String("hello world".to_string())]).unwrap();
+        assert_eq!(result, Value::String("Hello World".to_string()));
+    }
+
+    #[test]
+    fn test_title_already_capitalized() {
+        let result = fn_title(&[Value::String("Hello World".to_string())]).unwrap();
+        assert_eq!(result, Value::String("Hello World".to_string()));
+    }
+
+    #[test]
+    fn test_title_multiple_spaces() {
+        let result = fn_title(&[Value::String("hello   world   test".to_string())]).unwrap();
+        assert_eq!(result, Value::String("Hello World Test".to_string()));
     }
 }
