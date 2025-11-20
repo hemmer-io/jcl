@@ -95,7 +95,7 @@ neon = { version = "1.0", default-features = false, features = ["napi-6"], optio
 jni = { version = "0.21", optional = true }
 
 # Ruby bindings
-magnus = { version = "0.6", optional = true }
+magnus = { version = "0.8", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 uuid = { version = "1.6", features = ["v4", "serde", "js"], optional = true }
