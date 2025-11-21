@@ -344,6 +344,61 @@ config = """
 """
 ```
 
+### Heredoc Strings
+
+Heredoc syntax (borrowed from Bash/Ruby/HCL) provides a cleaner way to embed multi-line content:
+
+```
+# Basic heredoc - preserves all whitespace
+script = <<EOF
+#!/bin/bash
+echo "Hello, World"
+./run.sh
+EOF
+
+# Heredoc with string interpolation
+greeting = <<MSG
+Hello, ${name}!
+Welcome to ${app_name}.
+MSG
+
+# Heredoc with indentation stripping (<<-)
+# Strips common leading whitespace from all lines
+dockerfile = <<-DOCKERFILE
+    FROM ubuntu:22.04
+    RUN apt-get update
+    RUN apt-get install -y nginx
+    COPY . /app
+    CMD ["nginx", "-g", "daemon off;"]
+DOCKERFILE
+
+# Multiple heredocs in one file
+sql_query = <<SQL
+SELECT *
+FROM users
+WHERE active = true
+SQL
+
+config_yaml = <<YAML
+server:
+  host: localhost
+  port: 8080
+YAML
+```
+
+**Heredoc Features:**
+- `<<DELIMITER` - Preserves all whitespace exactly as written
+- `<<-DELIMITER` - Strips common leading indentation from all lines
+- Delimiter can be any alphanumeric identifier (e.g., `EOF`, `SQL`, `YAML`, `CONFIG`)
+- Supports string interpolation with `${...}`
+- Closing delimiter must be on its own line
+
+**When to use heredocs:**
+- Embedding scripts (bash, SQL, YAML, etc.)
+- Multi-line configuration that needs clean indentation
+- Any content where the triple-quote syntax feels cluttered
+- Infrastructure-as-code scenarios (see Hemmer integration)
+
 ---
 
 ## Operators

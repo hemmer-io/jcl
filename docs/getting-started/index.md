@@ -128,6 +128,37 @@ port = 8080
 url = "http://localhost:${port}"
 ```
 
+### Multi-line Strings (Heredocs)
+
+Heredoc syntax is ideal for embedding scripts, SQL, YAML, or any multi-line content:
+
+```jcl
+# Basic heredoc
+startup_script = <<BASH
+#!/bin/bash
+echo "Starting application..."
+./app --port 8080
+BASH
+
+# Heredoc with variable interpolation
+db_name = "myapp"
+init_sql = <<SQL
+CREATE DATABASE ${db_name};
+USE ${db_name};
+CREATE TABLE users (id INT, name VARCHAR(100));
+SQL
+
+# Heredoc with indentation stripping (<<-)
+# Automatically removes common leading whitespace
+nginx_config = <<-CONF
+    server {
+        listen 80;
+        server_name example.com;
+        root /var/www/html;
+    }
+CONF
+```
+
 ### Comments
 
 ```jcl
