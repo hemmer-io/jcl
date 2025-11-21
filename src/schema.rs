@@ -260,7 +260,7 @@ pub struct ValidationError {
 impl ValidationError {
     /// Create a new validation error
     pub fn new(path: String, error_type: ErrorType, message: String) -> Self {
-        let field = path.split('.').last().unwrap_or(&path).to_string();
+        let field = path.split('.').next_back().unwrap_or(&path).to_string();
         Self {
             path,
             field,
@@ -283,7 +283,7 @@ impl ValidationError {
 
     /// Create a type mismatch error
     pub fn type_mismatch(path: String, expected: &str, found: &str) -> Self {
-        let field = path.split('.').last().unwrap_or(&path).to_string();
+        let field = path.split('.').next_back().unwrap_or(&path).to_string();
         Self {
             path: path.clone(),
             field,
@@ -295,7 +295,7 @@ impl ValidationError {
 
     /// Create a constraint violation error
     pub fn constraint_violation(path: String, message: String) -> Self {
-        let field = path.split('.').last().unwrap_or(&path).to_string();
+        let field = path.split('.').next_back().unwrap_or(&path).to_string();
         Self {
             path,
             field,
@@ -324,7 +324,7 @@ impl ValidationError {
 
     /// Set the path for this error
     pub fn with_path(mut self, path: String) -> Self {
-        self.field = path.split('.').last().unwrap_or(&path).to_string();
+        self.field = path.split('.').next_back().unwrap_or(&path).to_string();
         self.path = path;
         self
     }
