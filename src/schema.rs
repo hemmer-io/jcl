@@ -164,8 +164,56 @@ pub enum TypeDef {
     /// Any type (no validation)
     Any,
 
-    /// Union of multiple types
+    /// Union of multiple types (try each type until one matches)
     Union { types: Vec<TypeDef> },
+
+    /// Discriminated union (tagged union) - uses a discriminator field to determine the type
+    ///
+    /// # Example
+    ///
+    /// ```jcl
+    /// // Storage configuration with discriminated union
+    /// storage = (
+    ///     type = "s3",      // discriminator field
+    ///     bucket = "my-bucket",
+    ///     region = "us-west-2"
+    /// )
+    ///
+    /// // OR
+    ///
+    /// storage = (
+    ///     type = "local",   // discriminator field
+    ///     path = "/var/data"
+    /// )
+    /// ```
+    ///
+    /// The discriminator field determines which variant schema to validate against.
+    DiscriminatedUnion {
+        /// Field name to use as discriminator (e.g., "type", "kind")
+        discriminator: String,
+        /// Map from discriminator value to schema
+        /// Example: {"s3" -> S3Schema, "local" -> LocalSchema}
+        variants: HashMap<String, Box<TypeDef>>,
+    },
+
+    /// Recursive type reference (for self-referential types like trees)
+    ///
+    /// # Example
+    ///
+    /// ```jcl
+    /// // Tree node that can contain child nodes
+    /// node = (
+    ///     value = 42,
+    ///     children = [
+    ///         (value = 10, children = []),
+    ///         (value = 20, children = [])
+    ///     ]
+    /// )
+    /// ```
+    Ref {
+        /// Name of the type being referenced (must be defined elsewhere)
+        name: String,
+    },
 }
 
 /// Property definition for map types
@@ -1162,6 +1210,105 @@ impl Validator {
                     ));
                 }
             }
+
+            TypeDef::DiscriminatedUnion {
+                discriminator,
+                variants,
+            } => {
+                // Discriminated unions require a map with a discriminator field
+                match value {
+                    Value::Map(map) => {
+                        // Check if discriminator field exists
+                        match map.get(discriminator) {
+                            Some(Value::String(discriminator_value)) => {
+                                // Find the matching variant
+                                match variants.get(discriminator_value) {
+                                    Some(variant_type) => {
+                                        // Validate against the variant's schema
+                                        self.validate_value(value, variant_type, path, errors);
+                                    }
+                                    None => {
+                                        let valid_variants: Vec<&str> =
+                                            variants.keys().map(|s| s.as_str()).collect();
+                                        errors.push(
+                                            ValidationError::constraint_violation(
+                                                path.to_string(),
+                                                format!(
+                                                    "Unknown variant '{}' for discriminator '{}'. Valid variants: [{}]",
+                                                    discriminator_value,
+                                                    discriminator,
+                                                    valid_variants.join(", ")
+                                                ),
+                                            )
+                                            .with_suggestion(format!(
+                                                "Use one of: {}",
+                                                valid_variants.join(", ")
+                                            )),
+                                        );
+                                    }
+                                }
+                            }
+                            Some(_) => {
+                                errors.push(
+                                    ValidationError::type_mismatch(
+                                        format!("{}.{}", path, discriminator),
+                                        "string",
+                                        "non-string",
+                                    )
+                                    .with_suggestion(format!(
+                                        "Discriminator field '{}' must be a string",
+                                        discriminator
+                                    )),
+                                );
+                            }
+                            None => {
+                                errors.push(
+                                    ValidationError::required(
+                                        path.to_string(),
+                                        discriminator.clone(),
+                                    )
+                                    .with_suggestion(format!(
+                                        "Add discriminator field: {} = \"variant_name\"",
+                                        discriminator
+                                    )),
+                                );
+                            }
+                        }
+                    }
+                    _ => {
+                        let found = match value {
+                            Value::String(_) => "string",
+                            Value::Int(_) => "integer",
+                            Value::Float(_) => "float",
+                            Value::Bool(_) => "boolean",
+                            Value::List(_) => "list",
+                            Value::Null => "null",
+                            _ => "unknown",
+                        };
+                        errors.push(
+                            ValidationError::type_mismatch(path.to_string(), "map", found)
+                                .with_suggestion(
+                                    "Discriminated unions require a map with a discriminator field"
+                                        .to_string(),
+                                ),
+                        );
+                    }
+                }
+            }
+
+            TypeDef::Ref { name } => {
+                // Recursive type references need to be resolved from a type registry
+                // For now, we'll add a placeholder error indicating the feature needs type registry support
+                errors.push(
+                    ValidationError::custom(format!(
+                        "Recursive type reference '{}' at path '{}' requires type registry (not yet implemented)",
+                        name, path
+                    ))
+                    .with_suggestion(
+                        "Type registry support will be added in a future update".to_string(),
+                    ),
+                );
+            }
         }
     }
 }
@@ -1871,5 +2018,483 @@ mod tests {
         };
         let errors = validator.validate_module(&module).unwrap();
         assert_eq!(errors.len(), 0);
+    }
+
+    // ========== Phase 3: Complex Types Tests ==========
+
+    #[test]
+    fn test_discriminated_union_valid() {
+        // Create schema for storage configuration with discriminated union
+        let mut s3_props = HashMap::new();
+        s3_props.insert(
+            "type".to_string(),
+            Property {
+                type_def: TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: Some(vec!["s3".to_string()]),
+                },
+                description: None,
+                default: None,
+            },
+        );
+        s3_props.insert(
+            "bucket".to_string(),
+            Property {
+                type_def: TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                },
+                description: None,
+                default: None,
+            },
+        );
+        s3_props.insert(
+            "region".to_string(),
+            Property {
+                type_def: TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                },
+                description: None,
+                default: None,
+            },
+        );
+
+        let mut local_props = HashMap::new();
+        local_props.insert(
+            "type".to_string(),
+            Property {
+                type_def: TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: Some(vec!["local".to_string()]),
+                },
+                description: None,
+                default: None,
+            },
+        );
+        local_props.insert(
+            "path".to_string(),
+            Property {
+                type_def: TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                },
+                description: None,
+                default: None,
+            },
+        );
+
+        let mut variants = HashMap::new();
+        variants.insert(
+            "s3".to_string(),
+            Box::new(TypeDef::Map {
+                properties: s3_props,
+                required: vec![
+                    "type".to_string(),
+                    "bucket".to_string(),
+                    "region".to_string(),
+                ],
+                additional_properties: false,
+            }),
+        );
+        variants.insert(
+            "local".to_string(),
+            Box::new(TypeDef::Map {
+                properties: local_props,
+                required: vec!["type".to_string(), "path".to_string()],
+                additional_properties: false,
+            }),
+        );
+
+        // Schema with a "storage" field that is a discriminated union
+        let mut root_props = HashMap::new();
+        root_props.insert(
+            "storage".to_string(),
+            Property {
+                type_def: TypeDef::DiscriminatedUnion {
+                    discriminator: "type".to_string(),
+                    variants,
+                },
+                description: None,
+                default: None,
+            },
+        );
+
+        let schema = Schema {
+            version: "1.0".to_string(),
+            title: None,
+            description: None,
+            type_def: TypeDef::Map {
+                properties: root_props,
+                required: vec!["storage".to_string()],
+                additional_properties: false,
+            },
+        };
+
+        let validator = Validator::new(schema);
+
+        // Valid S3 configuration
+        let mut storage_map = HashMap::new();
+        storage_map.insert("type".to_string(), Value::String("s3".to_string()));
+        storage_map.insert("bucket".to_string(), Value::String("my-bucket".to_string()));
+        storage_map.insert("region".to_string(), Value::String("us-west-2".to_string()));
+
+        let module = Module {
+            statements: vec![Statement::Assignment {
+                name: "storage".to_string(),
+                value: Expression::Literal {
+                    value: Value::Map(storage_map),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+
+        let errors = validator.validate_module(&module).unwrap();
+        if !errors.is_empty() {
+            eprintln!("Errors in test_discriminated_union_valid:");
+            for (i, err) in errors.iter().enumerate() {
+                eprintln!("  {}: {:?}", i, err);
+            }
+        }
+        assert_eq!(errors.len(), 0);
+    }
+
+    #[test]
+    fn test_discriminated_union_unknown_variant() {
+        let mut variants = HashMap::new();
+        variants.insert(
+            "s3".to_string(),
+            Box::new(TypeDef::Map {
+                properties: HashMap::new(),
+                required: vec![],
+                additional_properties: true,
+            }),
+        );
+        variants.insert(
+            "local".to_string(),
+            Box::new(TypeDef::Map {
+                properties: HashMap::new(),
+                required: vec![],
+                additional_properties: true,
+            }),
+        );
+
+        // Schema with a "storage" field that is a discriminated union
+        let mut root_props = HashMap::new();
+        root_props.insert(
+            "storage".to_string(),
+            Property {
+                type_def: TypeDef::DiscriminatedUnion {
+                    discriminator: "type".to_string(),
+                    variants,
+                },
+                description: None,
+                default: None,
+            },
+        );
+
+        let schema = Schema {
+            version: "1.0".to_string(),
+            title: None,
+            description: None,
+            type_def: TypeDef::Map {
+                properties: root_props,
+                required: vec![],
+                additional_properties: false,
+            },
+        };
+
+        let validator = Validator::new(schema);
+
+        // Invalid variant
+        let mut storage_map = HashMap::new();
+        storage_map.insert("type".to_string(), Value::String("azure".to_string()));
+
+        let module = Module {
+            statements: vec![Statement::Assignment {
+                name: "storage".to_string(),
+                value: Expression::Literal {
+                    value: Value::Map(storage_map),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+
+        let errors = validator.validate_module(&module).unwrap();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].message.contains("Unknown variant 'azure'"));
+        assert!(errors[0].message.contains("Valid variants"));
+        assert!(errors[0].suggestion.is_some());
+    }
+
+    #[test]
+    fn test_discriminated_union_missing_discriminator() {
+        let mut variants = HashMap::new();
+        variants.insert(
+            "s3".to_string(),
+            Box::new(TypeDef::Map {
+                properties: HashMap::new(),
+                required: vec![],
+                additional_properties: true,
+            }),
+        );
+
+        // Schema with a "storage" field that is a discriminated union
+        let mut root_props = HashMap::new();
+        root_props.insert(
+            "storage".to_string(),
+            Property {
+                type_def: TypeDef::DiscriminatedUnion {
+                    discriminator: "type".to_string(),
+                    variants,
+                },
+                description: None,
+                default: None,
+            },
+        );
+
+        let schema = Schema {
+            version: "1.0".to_string(),
+            title: None,
+            description: None,
+            type_def: TypeDef::Map {
+                properties: root_props,
+                required: vec![],
+                additional_properties: false,
+            },
+        };
+
+        let validator = Validator::new(schema);
+
+        // Missing discriminator field
+        let storage_map = HashMap::new();
+
+        let module = Module {
+            statements: vec![Statement::Assignment {
+                name: "storage".to_string(),
+                value: Expression::Literal {
+                    value: Value::Map(storage_map),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+
+        let errors = validator.validate_module(&module).unwrap();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].error_type, ErrorType::Required);
+        assert!(errors[0].message.contains("type"));
+        assert!(errors[0].suggestion.is_some());
+    }
+
+    #[test]
+    fn test_discriminated_union_non_map_value() {
+        let mut variants = HashMap::new();
+        variants.insert(
+            "s3".to_string(),
+            Box::new(TypeDef::Map {
+                properties: HashMap::new(),
+                required: vec![],
+                additional_properties: true,
+            }),
+        );
+
+        // Schema with a "storage" field that is a discriminated union
+        let mut root_props = HashMap::new();
+        root_props.insert(
+            "storage".to_string(),
+            Property {
+                type_def: TypeDef::DiscriminatedUnion {
+                    discriminator: "type".to_string(),
+                    variants,
+                },
+                description: None,
+                default: None,
+            },
+        );
+
+        let schema = Schema {
+            version: "1.0".to_string(),
+            title: None,
+            description: None,
+            type_def: TypeDef::Map {
+                properties: root_props,
+                required: vec![],
+                additional_properties: false,
+            },
+        };
+
+        let validator = Validator::new(schema);
+
+        // Non-map value
+        let module = Module {
+            statements: vec![Statement::Assignment {
+                name: "storage".to_string(),
+                value: Expression::Literal {
+                    value: Value::String("invalid".to_string()),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+
+        let errors = validator.validate_module(&module).unwrap();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].error_type, ErrorType::TypeMismatch);
+        assert!(errors[0].message.contains("map"));
+    }
+
+    #[test]
+    fn test_recursive_type_reference() {
+        // Test that Ref type returns appropriate error message
+        let schema = Schema {
+            version: "1.0".to_string(),
+            title: None,
+            description: None,
+            type_def: TypeDef::Ref {
+                name: "TreeNode".to_string(),
+            },
+        };
+
+        let validator = Validator::new(schema);
+
+        let module = Module {
+            statements: vec![Statement::Assignment {
+                name: "node".to_string(),
+                value: Expression::Literal {
+                    value: Value::Int(42),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+
+        let errors = validator.validate_module(&module).unwrap();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].message.contains("Recursive type reference"));
+        assert!(errors[0].message.contains("TreeNode"));
+        assert!(errors[0].suggestion.is_some());
+    }
+
+    #[test]
+    fn test_simple_union_type() {
+        // Test existing union type functionality
+        let mut root_props = HashMap::new();
+        root_props.insert(
+            "value".to_string(),
+            Property {
+                type_def: TypeDef::Union {
+                    types: vec![
+                        TypeDef::String {
+                            min_length: None,
+                            max_length: None,
+                            pattern: None,
+                            enum_values: None,
+                        },
+                        TypeDef::Number {
+                            minimum: None,
+                            maximum: None,
+                            integer_only: false,
+                        },
+                    ],
+                },
+                description: None,
+                default: None,
+            },
+        );
+
+        let schema = Schema {
+            version: "1.0".to_string(),
+            title: None,
+            description: None,
+            type_def: TypeDef::Map {
+                properties: root_props,
+                required: vec![],
+                additional_properties: false,
+            },
+        };
+
+        let validator = Validator::new(schema);
+
+        // String value (valid)
+        let module1 = Module {
+            statements: vec![Statement::Assignment {
+                name: "value".to_string(),
+                value: Expression::Literal {
+                    value: Value::String("hello".to_string()),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+        let errors = validator.validate_module(&module1).unwrap();
+        assert_eq!(errors.len(), 0);
+
+        // Number value (valid)
+        let module2 = Module {
+            statements: vec![Statement::Assignment {
+                name: "value".to_string(),
+                value: Expression::Literal {
+                    value: Value::Int(42),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+        let errors = validator.validate_module(&module2).unwrap();
+        assert_eq!(errors.len(), 0);
+
+        // Boolean value (invalid)
+        let module3 = Module {
+            statements: vec![Statement::Assignment {
+                name: "value".to_string(),
+                value: Expression::Literal {
+                    value: Value::Bool(true),
+                    span: None,
+                },
+                type_annotation: None,
+                mutable: false,
+                doc_comments: Some(vec![]),
+                span: None,
+            }],
+        };
+        let errors = validator.validate_module(&module3).unwrap();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0]
+            .message
+            .contains("Value does not match any type in union"));
     }
 }
