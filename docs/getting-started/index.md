@@ -185,6 +185,11 @@ evens = [x for x in numbers if x % 2 == 0]
 users = [(name = "Alice"), (name = "Bob")]
 names = [user.name for user in users]
 # Result: ["Alice", "Bob"]
+
+# Extract attributes with splat operator (shorthand)
+users = [(name = "Alice", age = 30), (name = "Bob", age = 25)]
+names = users[*].name  # ["Alice", "Bob"]
+ages = users[*].age    # [30, 25]
 ```
 
 ### Type Annotations

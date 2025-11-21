@@ -261,6 +261,9 @@ impl SymbolTable {
             Expression::Spread { expr, .. } => {
                 self.process_expression(expr);
             }
+            Expression::Splat { object, .. } => {
+                self.process_expression(object);
+            }
             Expression::BinaryOp { left, right, .. } => {
                 self.process_expression(left);
                 self.process_expression(right);

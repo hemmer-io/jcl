@@ -615,8 +615,20 @@ impl TokenParser {
                     span: self.span_from(start_pos),
                 };
             } else if self.check(&TokenKind::LeftBracket) {
-                // Index or slice access
+                // Index, slice, or splat access
                 self.advance();
+
+                // Check for splat operator [*]
+                if self.check(&TokenKind::Star) {
+                    self.advance(); // consume *
+                    self.expect(&TokenKind::RightBracket)?;
+
+                    expr = Expression::Splat {
+                        object: Box::new(expr),
+                        span: self.span_from(start_pos),
+                    };
+                    continue; // Continue postfix parsing for chained access
+                }
 
                 // Check if this is a slice (starts with colon or has colon after first expr)
                 let mut slice_start = None;

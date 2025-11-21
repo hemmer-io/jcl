@@ -254,6 +254,12 @@ pub enum Expression {
         expr: Box<Expression>,
         span: Option<SourceSpan>,
     },
+
+    /// Splat operator: `list[*]` for extracting attributes from all elements
+    Splat {
+        object: Box<Expression>,
+        span: Option<SourceSpan>,
+    },
 }
 
 impl Expression {
@@ -282,6 +288,7 @@ impl Expression {
             Expression::List { span, .. } => span.as_ref(),
             Expression::Map { span, .. } => span.as_ref(),
             Expression::Spread { span, .. } => span.as_ref(),
+            Expression::Splat { span, .. } => span.as_ref(),
         }
     }
 }

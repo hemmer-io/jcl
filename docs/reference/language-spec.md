@@ -628,6 +628,73 @@ coordinates = [[[x, y] for y in [0, 1, 2]] for x in [0, 1, 2]]
 - **Multiple `for` in one comprehension** → flattened: `[expr for x in A for y in B]`
 - **Nested comprehensions** → nested structure: `[[expr for y in B] for x in A]`
 
+#### Splat Operator
+
+Extract attributes from all elements in a list using the splat operator `[*]`:
+
+```jcl
+users = [
+  (name = "Alice", age = 30),
+  (name = "Bob", age = 25),
+  (name = "Carol", age = 35)
+]
+
+# Extract a single field from all elements
+names = users[*].name
+# Result: ["Alice", "Bob", "Carol"]
+
+ages = users[*].age
+# Result: [30, 25, 35]
+```
+
+##### Nested Access
+
+Chain member access after splat to access nested fields:
+
+```jcl
+orders = [
+  (id = 1, customer = (name = "Alice", email = "alice@example.com")),
+  (id = 2, customer = (name = "Bob", email = "bob@example.com"))
+]
+
+# Chain member access after splat
+emails = orders[*].customer.email
+# Result: ["alice@example.com", "bob@example.com"]
+
+names = orders[*].customer.name
+# Result: ["Alice", "Bob"]
+```
+
+##### Comparison with List Comprehensions
+
+The splat operator is syntactic sugar for simple attribute extraction:
+
+```jcl
+# These are equivalent:
+names_splat = users[*].name
+names_comp = [u.name for u in users]
+
+# Splat is more concise for simple field access
+ages_splat = users[*].age
+ages_comp = [u.age for u in users]
+
+# List comprehensions are more flexible for complex transformations
+upper_names = [upper(u.name) for u in users]  # Splat can't do this
+filtered = [u.name for u in users if u.age > 25]  # Splat can't filter
+```
+
+**When to use splat vs list comprehensions:**
+- **Use splat** (`[*]`) for simple attribute extraction
+- **Use list comprehensions** for transformations, filtering, or complex logic
+
+**Splat operator details:**
+- `list[*].field` - Extract `field` from each element in `list`
+- Requires a list (type error otherwise)
+- Returns a list of the extracted values
+- Works with chained member access: `list[*].a.b.c`
+- Returns `list<T>` where `T` is the field type
+- Empty list returns empty list: `[][*].field` → `[]`
+
 #### List Slicing
 
 Lists support Python-style slicing with `[start:end:step]` syntax:

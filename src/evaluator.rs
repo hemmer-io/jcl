@@ -1,8 +1,8 @@
 //! Evaluator for JCL - resolves variables, functions, and expressions
 
 use crate::ast::{
-    BinaryOperator, Expression, Module, Pattern, Statement, StringPart, UnaryOperator, Value,
-    WhenArm,
+    BinaryOperator, Expression, Module, Pattern, SourceSpan, Statement, StringPart, UnaryOperator,
+    Value, WhenArm,
 };
 use crate::functions;
 use anyhow::{anyhow, Result};
@@ -176,7 +176,18 @@ impl Evaluator {
                 Ok(Value::Map(map))
             }
 
-            Expression::MemberAccess { object, field, .. } => {
+            Expression::MemberAccess {
+                object,
+                field,
+                span,
+            } => {
+                // Check if the object expression contains a Splat
+                if self.contains_splat(object) {
+                    // Evaluate with splat semantics
+                    return self.evaluate_splat_access(object, field, span);
+                }
+
+                // Normal member access
                 let obj_value = self.evaluate_expression(object)?;
                 match obj_value {
                     Value::Map(map) => map
@@ -621,6 +632,88 @@ impl Evaluator {
             Expression::Spread { .. } => {
                 Err(anyhow!("Spread operator can only be used in collections"))
             }
+
+            Expression::Splat { object, .. } => {
+                let obj_value = self.evaluate_expression(object)?;
+
+                // Validate that splat is applied to a list
+                match obj_value {
+                    Value::List(_) => {
+                        // Return the list as-is
+                        // The actual splatting happens in MemberAccess evaluation
+                        Ok(obj_value)
+                    }
+                    _ => Err(anyhow!("Splat operator [*] requires a list")),
+                }
+            }
+        }
+    }
+
+    /// Check if an expression contains a Splat operator
+    fn contains_splat(&self, expr: &Expression) -> bool {
+        match expr {
+            Expression::Splat { .. } => true,
+            Expression::MemberAccess { object, .. } => self.contains_splat(object),
+            Expression::Index { object, .. } => self.contains_splat(object),
+            _ => false,
+        }
+    }
+
+    /// Evaluate member access on a splat expression
+    fn evaluate_splat_access(
+        &self,
+        expr: &Expression,
+        field: &str,
+        _span: &Option<SourceSpan>,
+    ) -> Result<Value> {
+        match expr {
+            Expression::Splat { object, .. } => {
+                // Base case: evaluate object and map field access over it
+                let obj_value = self.evaluate_expression(object)?;
+                match obj_value {
+                    Value::List(items) => {
+                        let results: Result<Vec<Value>> = items
+                            .iter()
+                            .map(|item| self.get_field(item, field))
+                            .collect();
+                        Ok(Value::List(results?))
+                    }
+                    _ => Err(anyhow!("Splat requires a list")),
+                }
+            }
+            Expression::MemberAccess {
+                object,
+                field: inner_field,
+                ..
+            } => {
+                // Recursive case: evaluate inner access first, then apply field
+                let inner_list = self.evaluate_splat_access(object, inner_field, _span)?;
+                match inner_list {
+                    Value::List(items) => {
+                        let results: Result<Vec<Value>> = items
+                            .iter()
+                            .map(|item| self.get_field(item, field))
+                            .collect();
+                        Ok(Value::List(results?))
+                    }
+                    _ => Err(anyhow!("Expected list from splat")),
+                }
+            }
+            _ => {
+                // Shouldn't reach here if contains_splat is correct
+                Err(anyhow!("Invalid splat expression"))
+            }
+        }
+    }
+
+    /// Get a field from a value
+    fn get_field(&self, value: &Value, field: &str) -> Result<Value> {
+        match value {
+            Value::Map(map) => map
+                .get(field)
+                .cloned()
+                .ok_or_else(|| anyhow!("Field '{}' not found", field)),
+            _ => Err(anyhow!("Cannot access field on non-map value")),
         }
     }
 
@@ -3070,5 +3163,223 @@ mod tests {
                 Value::Float(2.0),
             ])
         );
+    }
+
+    #[test]
+    fn test_splat_basic() {
+        let evaluator = Evaluator::new();
+
+        // Create users list with maps
+        let users = Expression::List {
+            elements: vec![
+                Expression::Map {
+                    entries: vec![
+                        (
+                            "name".to_string(),
+                            Expression::Literal {
+                                value: Value::String("Alice".to_string()),
+                                span: None,
+                            },
+                        ),
+                        (
+                            "age".to_string(),
+                            Expression::Literal {
+                                value: Value::Int(30),
+                                span: None,
+                            },
+                        ),
+                    ],
+                    span: None,
+                },
+                Expression::Map {
+                    entries: vec![
+                        (
+                            "name".to_string(),
+                            Expression::Literal {
+                                value: Value::String("Bob".to_string()),
+                                span: None,
+                            },
+                        ),
+                        (
+                            "age".to_string(),
+                            Expression::Literal {
+                                value: Value::Int(25),
+                                span: None,
+                            },
+                        ),
+                    ],
+                    span: None,
+                },
+            ],
+            span: None,
+        };
+
+        // users[*].name
+        let expr = Expression::MemberAccess {
+            object: Box::new(Expression::Splat {
+                object: Box::new(users),
+                span: None,
+            }),
+            field: "name".to_string(),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::String("Alice".to_string()),
+                Value::String("Bob".to_string()),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_splat_nested_access() {
+        let evaluator = Evaluator::new();
+
+        // Create orders with nested customer data
+        let orders = Expression::List {
+            elements: vec![
+                Expression::Map {
+                    entries: vec![(
+                        "customer".to_string(),
+                        Expression::Map {
+                            entries: vec![(
+                                "email".to_string(),
+                                Expression::Literal {
+                                    value: Value::String("alice@example.com".to_string()),
+                                    span: None,
+                                },
+                            )],
+                            span: None,
+                        },
+                    )],
+                    span: None,
+                },
+                Expression::Map {
+                    entries: vec![(
+                        "customer".to_string(),
+                        Expression::Map {
+                            entries: vec![(
+                                "email".to_string(),
+                                Expression::Literal {
+                                    value: Value::String("bob@example.com".to_string()),
+                                    span: None,
+                                },
+                            )],
+                            span: None,
+                        },
+                    )],
+                    span: None,
+                },
+            ],
+            span: None,
+        };
+
+        // orders[*].customer.email
+        let expr = Expression::MemberAccess {
+            object: Box::new(Expression::MemberAccess {
+                object: Box::new(Expression::Splat {
+                    object: Box::new(orders),
+                    span: None,
+                }),
+                field: "customer".to_string(),
+                span: None,
+            }),
+            field: "email".to_string(),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(
+            result,
+            Value::List(vec![
+                Value::String("alice@example.com".to_string()),
+                Value::String("bob@example.com".to_string()),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_splat_empty_list() {
+        let evaluator = Evaluator::new();
+
+        // Empty list
+        let empty_list = Expression::List {
+            elements: vec![],
+            span: None,
+        };
+
+        // [][*].name should return []
+        let expr = Expression::MemberAccess {
+            object: Box::new(Expression::Splat {
+                object: Box::new(empty_list),
+                span: None,
+            }),
+            field: "name".to_string(),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr).unwrap();
+        assert_eq!(result, Value::List(vec![]));
+    }
+
+    #[test]
+    fn test_splat_on_non_list() {
+        let evaluator = Evaluator::new();
+
+        // Try to splat on an integer (should error)
+        let expr = Expression::Splat {
+            object: Box::new(Expression::Literal {
+                value: Value::Int(42),
+                span: None,
+            }),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Splat operator [*] requires a list"));
+    }
+
+    #[test]
+    fn test_splat_missing_field() {
+        let evaluator = Evaluator::new();
+
+        // Create list with maps that don't have the requested field
+        let users = Expression::List {
+            elements: vec![Expression::Map {
+                entries: vec![(
+                    "name".to_string(),
+                    Expression::Literal {
+                        value: Value::String("Alice".to_string()),
+                        span: None,
+                    },
+                )],
+                span: None,
+            }],
+            span: None,
+        };
+
+        // users[*].missing should error
+        let expr = Expression::MemberAccess {
+            object: Box::new(Expression::Splat {
+                object: Box::new(users),
+                span: None,
+            }),
+            field: "missing".to_string(),
+            span: None,
+        };
+
+        let result = evaluator.evaluate_expression(&expr);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Field 'missing' not found"));
     }
 }
