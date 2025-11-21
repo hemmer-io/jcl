@@ -743,6 +743,11 @@ impl TokenParser {
             return self.parse_interpolated_string();
         }
 
+        // Check for heredoc strings
+        if let TokenKind::String(StringValue::Heredoc { .. }) = &self.current().kind {
+            return self.parse_heredoc_string();
+        }
+
         // Literals
         let literal_span = self.current_span();
         if let Some(value) = self.parse_literal()? {
@@ -1192,6 +1197,40 @@ impl TokenParser {
             })
         } else {
             Err(anyhow!("Expected interpolated string"))
+        }
+    }
+
+    /// Parse a heredoc string (identical logic to interpolated strings)
+    fn parse_heredoc_string(&mut self) -> Result<Expression> {
+        let span = self.current_span();
+
+        if let TokenKind::String(StringValue::Heredoc { parts, .. }) = &self.current().kind {
+            let mut result_parts = Vec::new();
+
+            for part in parts {
+                match part {
+                    crate::lexer::StringPart::Literal(s) => {
+                        result_parts.push(StringPart::Literal(s.clone()));
+                    }
+                    crate::lexer::StringPart::Interpolation(expr_str) => {
+                        // Parse the interpolated expression
+                        // We need to tokenize and parse the expression text
+                        let mut lexer = crate::lexer::Lexer::new(expr_str);
+                        let tokens = lexer.tokenize()?;
+                        let mut parser = TokenParser::new(tokens);
+                        let expr = parser.parse_expression()?;
+                        result_parts.push(StringPart::Interpolation(Box::new(expr)));
+                    }
+                }
+            }
+
+            self.advance();
+            Ok(Expression::InterpolatedString {
+                parts: result_parts,
+                span,
+            })
+        } else {
+            Err(anyhow!("Expected heredoc string"))
         }
     }
 
