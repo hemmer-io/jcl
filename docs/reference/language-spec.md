@@ -810,61 +810,169 @@ indexed = {i: item for i, item in enumerate(items)}
 
 ## Imports
 
-JCL supports importing values from other JCL files:
+JCL supports two import patterns for modularity and code reuse: **path-based imports** (load entire files) and **selective imports** (choose specific items).
 
-### Basic Import
+### Path-Based Imports
 
-```
+Import an entire file with all its bindings available directly or via a namespace.
+
+#### Import All Bindings
+
+```jcl
 # common.jcl
-common_tags = (
-  managed_by = "jcl"
-  team = "platform"
-)
-
-default_config = (
-  timeout = 30
-  retries = 3
-)
+common_tags = (managed_by = "jcl", team = "platform")
+default_config = (timeout = 30, retries = 3)
 ```
 
-```
+```jcl
 # main.jcl
-import (common_tags, default_config) from "./common.jcl"
+import "./common.jcl"
 
-# Use imported values
+# All bindings available directly
 my_tags = merge(common_tags, (app = "myapp"))
 my_config = merge(default_config, (timeout = 60))
 ```
 
-### Import All
+#### Import with Namespace Alias
 
+```jcl
+# main.jcl
+import "./common.jcl" as common
+
+# Access via namespace
+my_tags = merge(common.common_tags, (app = "myapp"))
+my_config = merge(common.default_config, (timeout = 60))
 ```
-import * from "./common.jcl"
 
-# Access with namespace
-tags = common.common_tags
-config = common.default_config
+### Selective Imports
+
+Import only specific items from a file.
+
+#### Select Specific Items
+
+```jcl
+# Import only what you need
+import (common_tags, default_config) from "./common.jcl"
+
+# Use imported values
+my_tags = merge(common_tags, (app = "myapp"))
 ```
 
-### Import with Alias
+#### Select with Per-Item Aliases
 
-```
+```jcl
+# Rename items during import
 import (common_tags as tags, default_config as config) from "./common.jcl"
 
 # Use aliases
 my_tags = merge(tags, (app = "myapp"))
+my_config = merge(config, (timeout = 60))
 ```
 
-### Relative and Absolute Paths
+#### Wildcard Import
 
+```jcl
+# Import everything directly (equivalent to no alias)
+import * from "./common.jcl"
+
+# All bindings available
+tags = common_tags
+config = default_config
 ```
+
+### Path Resolution
+
+Imports are resolved **relative to the importing file**, not the current working directory.
+
+```jcl
 # Relative to current file
-import values from "./config.jcl"
-import values from "../shared/common.jcl"
+import "./config.jcl"                    # Same directory
+import "../shared/common.jcl"            # Parent directory
+import "../../base/settings.jcl"         # Two levels up
 
 # Absolute path
-import values from "/etc/jcl/common.jcl"
+import "/etc/jcl/global-config.jcl"
 ```
+
+**Example Directory Structure:**
+```
+project/
+├── main.jcl                    # import "./config/database.jcl"
+├── config/
+│   ├── database.jcl           # import "../shared/utils.jcl"
+│   └── server.jcl
+└── shared/
+    └── utils.jcl
+```
+
+### Nested Imports
+
+Imported files can themselves import other files. JCL automatically tracks the import chain and detects circular dependencies.
+
+```jcl
+# base.jcl
+app_name = "MyApp"
+version = "1.0.0"
+```
+
+```jcl
+# config.jcl
+import (app_name, version) from "./base.jcl"
+environment = "production"
+full_name = "${app_name} v${version}"
+```
+
+```jcl
+# main.jcl
+import "./config.jcl" as config
+
+# Can access nested imports
+result = "${config.full_name} (${config.environment})"
+# Output: "MyApp v1.0.0 (production)"
+```
+
+### Import Best Practices
+
+1. **Use selective imports** for clarity:
+   ```jcl
+   # Good: Clear what's being used
+   import (database, server) from "./config.jcl"
+
+   # Less clear: Everything imported
+   import * from "./config.jcl"
+   ```
+
+2. **Use namespace aliases** for large modules:
+   ```jcl
+   # Good: Clear namespace
+   import "./aws-resources.jcl" as aws
+   instance = aws.ec2_instance
+
+   # Can be confusing: Many variables at top level
+   import "./aws-resources.jcl"
+   ```
+
+3. **Organize related configuration**:
+   ```
+   config/
+   ├── database.jcl       # Database settings
+   ├── server.jcl         # Server settings
+   ├── network.jcl        # Network settings
+   └── main.jcl           # Imports and combines
+   ```
+
+4. **Avoid circular imports**: JCL detects and prevents circular dependencies
+   ```jcl
+   # a.jcl
+   import "./b.jcl"  # ✗ Error: Circular import
+
+   # b.jcl
+   import "./a.jcl"  # These create a cycle
+   ```
+
+### Import Caching
+
+JCL caches imported modules for performance. If a file is imported multiple times, it's only parsed and evaluated once.
 
 ---
 

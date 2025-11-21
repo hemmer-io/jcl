@@ -461,6 +461,73 @@ log_level = if features.debug then "debug" else "info"
 log_format = "json"
 ```
 
+## Working with Multiple Files
+
+JCL supports importing configurations from other files for better organization and reusability.
+
+### Basic Imports
+
+```jcl
+# database.jcl
+database = (
+    host = "localhost",
+    port = 5432,
+    name = "myapp_db"
+)
+
+connection_string = "postgres://${database.host}:${database.port}/${database.name}"
+```
+
+```jcl
+# main.jcl
+import "./database.jcl" as db
+
+# Use imported configuration
+app_config = (
+    name = "myapp",
+    db_url = db.connection_string
+)
+```
+
+### Selective Imports
+
+Import only what you need:
+
+```jcl
+# main.jcl
+import (database, connection_string) from "./database.jcl"
+
+# Use directly
+app_config = (name = "myapp", db_url = connection_string)
+```
+
+### Organizing Configuration
+
+**Recommended structure:**
+```
+config/
+├── database.jcl       # Database settings
+├── server.jcl         # Server configuration
+├── features.jcl       # Feature flags
+└── main.jcl           # Main config that imports others
+```
+
+**main.jcl:**
+```jcl
+import "./database.jcl" as db
+import "./server.jcl" as srv
+import "./features.jcl" as feat
+
+# Combine configurations
+config = (
+    database = db.database,
+    server = srv.server,
+    features = feat.features
+)
+```
+
+[Learn more about imports →](../reference/language-spec/#imports)
+
 ## Next Steps
 
 - [Language Specification](../reference/language-spec/) - Complete syntax reference

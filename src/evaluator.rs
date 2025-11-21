@@ -16,6 +16,44 @@ pub struct EvaluatedModule {
     pub bindings: HashMap<String, Value>,
 }
 
+/// Import trace entry for debugging
+#[derive(Debug, Clone)]
+pub struct ImportTrace {
+    pub importer: Option<PathBuf>,
+    pub imported: PathBuf,
+    pub kind: String,
+    pub cached: bool,
+    pub duration_ms: u128,
+}
+
+/// Import performance metrics
+#[derive(Debug, Clone)]
+pub struct ImportMetrics {
+    pub total_imports: usize,
+    pub cache_hits: usize,
+    pub total_time_ms: u128,
+    pub traces: Vec<ImportTrace>,
+}
+
+impl ImportMetrics {
+    pub fn new() -> Self {
+        Self {
+            total_imports: 0,
+            cache_hits: 0,
+            total_time_ms: 0,
+            traces: Vec::new(),
+        }
+    }
+
+    pub fn cache_hit_rate(&self) -> f64 {
+        if self.total_imports == 0 {
+            0.0
+        } else {
+            (self.cache_hits as f64 / self.total_imports as f64) * 100.0
+        }
+    }
+}
+
 /// Evaluator context
 pub struct Evaluator {
     pub variables: HashMap<String, Value>,
@@ -32,6 +70,10 @@ pub struct Evaluator {
     importing: RefCell<HashSet<PathBuf>>,
     /// Cache of already-imported modules to avoid re-evaluation
     import_cache: RefCell<HashMap<PathBuf, HashMap<String, Value>>>,
+    /// Import tracing enabled (for debugging)
+    pub trace_imports: bool,
+    /// Import metrics collection
+    import_metrics: RefCell<ImportMetrics>,
 }
 
 impl Evaluator {
@@ -46,6 +88,8 @@ impl Evaluator {
             current_file: RefCell::new(None),
             importing: RefCell::new(HashSet::new()),
             import_cache: RefCell::new(HashMap::new()),
+            trace_imports: false,
+            import_metrics: RefCell::new(ImportMetrics::new()),
         };
         evaluator.register_builtins();
         evaluator
@@ -54,6 +98,86 @@ impl Evaluator {
     /// Set the current file being evaluated (for relative imports)
     pub fn set_current_file<P: AsRef<Path>>(&self, path: P) {
         *self.current_file.borrow_mut() = Some(path.as_ref().to_path_buf());
+    }
+
+    /// Enable import tracing for debugging
+    pub fn enable_import_tracing(&mut self) {
+        self.trace_imports = true;
+    }
+
+    /// Get import metrics
+    pub fn get_import_metrics(&self) -> ImportMetrics {
+        self.import_metrics.borrow().clone()
+    }
+
+    /// Print import trace (for debugging)
+    pub fn print_import_trace(&self) {
+        let metrics = self.import_metrics.borrow();
+        if metrics.traces.is_empty() {
+            println!("No imports traced.");
+            return;
+        }
+
+        println!("\n=== Import Trace ===");
+        println!(
+            "Total imports: {} ({} cached, {:.1}% cache hit rate)",
+            metrics.total_imports,
+            metrics.cache_hits,
+            metrics.cache_hit_rate()
+        );
+        println!("Total time: {}ms\n", metrics.total_time_ms);
+
+        for (i, trace) in metrics.traces.iter().enumerate() {
+            let importer_str = trace
+                .importer
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "<root>".to_string());
+
+            let status = if trace.cached { "[CACHED]" } else { "[LOADED]" };
+
+            println!("  {}. {} {}ms", i + 1, status, trace.duration_ms);
+            println!("     From: {}", importer_str);
+            println!("     Import: {}", trace.imported.display());
+            println!("     Kind: {}", trace.kind);
+            println!();
+        }
+    }
+
+    /// Generate import graph in DOT format for visualization
+    pub fn generate_import_graph(&self) -> String {
+        let metrics = self.import_metrics.borrow();
+        let mut dot = String::from("digraph imports {\n");
+        dot.push_str("  rankdir=LR;\n");
+        dot.push_str("  node [shape=box, style=rounded];\n\n");
+
+        let mut nodes = HashSet::new();
+        for trace in &metrics.traces {
+            let imported = trace.imported.display().to_string();
+            nodes.insert(imported.clone());
+
+            if let Some(importer) = &trace.importer {
+                let importer_str = importer.display().to_string();
+                nodes.insert(importer_str.clone());
+
+                let style = if trace.cached {
+                    " [style=dashed, color=gray]"
+                } else {
+                    ""
+                };
+
+                dot.push_str(&format!(
+                    "  \"{}\" -> \"{}\"{};\n",
+                    importer_str, imported, style
+                ));
+            } else {
+                // Root import
+                dot.push_str(&format!("  \"<root>\" -> \"{}\";\n", imported));
+            }
+        }
+
+        dot.push_str("}\n");
+        dot
     }
 
     /// Evaluate a module
@@ -1011,6 +1135,8 @@ impl Evaluator {
             current_file: RefCell::new(self.current_file.borrow().clone()),
             importing: RefCell::new(HashSet::new()),
             import_cache: RefCell::new(self.import_cache.borrow().clone()),
+            trace_imports: self.trace_imports,
+            import_metrics: RefCell::new(self.import_metrics.borrow().clone()),
         };
         new_eval.variables.insert(var_name.to_string(), value);
         new_eval
@@ -1357,6 +1483,10 @@ impl Evaluator {
 
     /// Evaluate an import statement
     fn evaluate_import(&mut self, path: &str, kind: &ImportKind) -> Result<()> {
+        use std::time::Instant;
+
+        let start = Instant::now();
+
         // Resolve the import path relative to the current file
         let resolved_path = self.resolve_import_path(path)?;
 
@@ -1370,6 +1500,27 @@ impl Evaluator {
 
         // Check if we've already imported this module (use cache)
         let cached_bindings = self.import_cache.borrow().get(&resolved_path).cloned();
+
+        let is_cached = cached_bindings.is_some();
+
+        // Trace import if enabled
+        if self.trace_imports {
+            let kind_str = match kind {
+                ImportKind::Full { alias: Some(a) } => format!("Full (as {})", a),
+                ImportKind::Full { alias: None } => "Full".to_string(),
+                ImportKind::Selective { items } => {
+                    format!("Selective ({} items)", items.len())
+                }
+                ImportKind::Wildcard => "Wildcard".to_string(),
+            };
+
+            println!(
+                "[IMPORT] {} from {}{}",
+                kind_str,
+                resolved_path.display(),
+                if is_cached { " [CACHED]" } else { "" }
+            );
+        }
 
         let imported_bindings = if let Some(cached) = cached_bindings {
             cached
@@ -1413,6 +1564,32 @@ impl Evaluator {
 
             evaluated.bindings
         };
+
+        // Record metrics
+        let duration = start.elapsed().as_millis();
+        let mut metrics = self.import_metrics.borrow_mut();
+        metrics.total_imports += 1;
+        if is_cached {
+            metrics.cache_hits += 1;
+        }
+        metrics.total_time_ms += duration;
+
+        let kind_str = match kind {
+            ImportKind::Full { alias: Some(a) } => format!("import \"{}\" as {}", path, a),
+            ImportKind::Full { alias: None } => format!("import \"{}\"", path),
+            ImportKind::Selective { items } => {
+                format!("import ({}) from \"{}\"", items.len(), path)
+            }
+            ImportKind::Wildcard => format!("import * from \"{}\"", path),
+        };
+
+        metrics.traces.push(ImportTrace {
+            importer: self.current_file.borrow().clone(),
+            imported: resolved_path.clone(),
+            kind: kind_str,
+            cached: is_cached,
+            duration_ms: duration,
+        });
 
         // Add imported bindings to the current scope based on import kind
         match kind {
