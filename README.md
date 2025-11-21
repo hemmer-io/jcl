@@ -206,6 +206,13 @@ numbers = [0..10]            # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 evens = [0..10:2]            # [0, 2, 4, 6, 8, 10]
 countdown = [10..1:-1]       # [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 squares = [x * x for x in [1..10]]  # [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
+
+# Heredoc strings for embedding scripts/configs
+startup_script = <<BASH
+#!/bin/bash
+echo "Starting ${env_prod.vars.app_name}..."
+./run.sh --port 8080
+BASH
 ```
 
 ## Features
@@ -216,6 +223,7 @@ squares = [x * x for x in [1..10]]  # [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
 - **Range Syntax**: Generate sequences with `[0..10]`, `[0..<5]`, `[0..10:2]` for inclusive, exclusive, and stepped ranges
 - **Splat Operator**: Extract attributes with `users[*].name` as shorthand for comprehensions
 - **String Interpolation**: `"Hello, ${name}!"` syntax for dynamic strings
+- **Heredoc Strings**: Clean multi-line syntax (`<<EOF`) with indentation stripping (`<<-EOF`) for embedding scripts, SQL, YAML, etc.
 - **Null Safety**: `?.` optional chaining and `??` null coalescing operators
 - **Functions**: Lambda expressions (`x => x * 2`) and named functions (`fn double(x) = x * 2`)
 - **Control Flow**: Ternary operators, if/then/else, when expressions

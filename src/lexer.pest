@@ -52,7 +52,7 @@ number_token = @{
 }
 
 string_token = {
-    multiline_string_token | simple_string_token | interpolated_string_token
+    heredoc_token | multiline_string_token | simple_string_token | interpolated_string_token
 }
 
 simple_string_token = @{
@@ -87,6 +87,16 @@ interpolated_content = @{
 
 escape_sequence = @{
     "\\" ~ ("n" | "t" | "r" | "\"" | "\\" | "$")
+}
+
+// ============================================================================
+// HEREDOC STRINGS
+// ============================================================================
+// Note: Heredoc parsing is handled specially in lexer.rs because it requires
+// context-sensitive delimiter matching. The grammar just recognizes the start.
+
+heredoc_token = @{
+    "<<" ~ "-"? ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*
 }
 
 // ============================================================================

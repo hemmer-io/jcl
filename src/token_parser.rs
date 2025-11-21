@@ -1236,6 +1236,10 @@ impl TokenParser {
                         // Return None to signal this needs special handling
                         Ok(None)
                     }
+                    StringValue::Heredoc { .. } => {
+                        // Heredocs need special handling like interpolated strings
+                        Ok(None)
+                    }
                 }
             }
             _ => Ok(None),
