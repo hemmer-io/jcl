@@ -2,8 +2,8 @@
 
 title: JCL
 description: Jack-of-All Configuration Language - A powerful, flexible configuration language
-baseurl: "/jcl"
-url: "https://hemmer-io.github.io"
+baseurl: ""
+url: "https://jcl.hemmer.io"
 
 # Build settings
 markdown: kramdown

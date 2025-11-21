@@ -104,11 +104,11 @@ jcl-migrate config.json --from json
 
 ### Library Bindings (Recommended)
 
-- **Python**: `pip install jcl-lang` - [Docs](https://hemmer-io.github.io/jcl/bindings/python)
-- **Node.js**: `npm install @hemmer-io/jcl` - [Docs](https://hemmer-io.github.io/jcl/bindings/nodejs)
-- **Ruby**: `gem install jcl` - [Docs](https://hemmer-io.github.io/jcl/bindings/ruby)
-- **Go**: cgo bindings for Go projects - [Docs](https://hemmer-io.github.io/jcl/bindings/go)
-- **Java**: JNI bindings for Java applications - [Docs](https://hemmer-io.github.io/jcl/bindings/java)
+- **Python**: `pip install jcl-lang` - [Docs](https://jcl.hemmer.io/bindings/python)
+- **Node.js**: `npm install @hemmer-io/jcl` - [Docs](https://jcl.hemmer.io/bindings/nodejs)
+- **Ruby**: `gem install jcl` - [Docs](https://jcl.hemmer.io/bindings/ruby)
+- **Go**: cgo bindings for Go projects - [Docs](https://jcl.hemmer.io/bindings/go)
+- **Java**: JNI bindings for Java applications - [Docs](https://jcl.hemmer.io/bindings/java)
 
 ### CLI Tool
 
@@ -127,11 +127,11 @@ cargo build --release
 
 ## Documentation
 
-- **[Getting Started Guide](https://hemmer-io.github.io/jcl/getting-started/)** - Learn JCL basics
-- **[Language Specification](https://hemmer-io.github.io/jcl/reference/language-spec)** - Complete syntax reference
-- **[Built-in Functions](https://hemmer-io.github.io/jcl/reference/functions)** - 70+ functions documented
-- **[CLI Tools](https://hemmer-io.github.io/jcl/reference/cli-tools)** - Command-line utilities
-- **[Comparison Guide](https://hemmer-io.github.io/jcl/guides/comparison)** - JCL vs other formats
+- **[Getting Started Guide](https://jcl.hemmer.io/getting-started/)** - Learn JCL basics
+- **[Language Specification](https://jcl.hemmer.io/reference/language-spec)** - Complete syntax reference
+- **[Built-in Functions](https://jcl.hemmer.io/reference/functions)** - 70+ functions documented
+- **[CLI Tools](https://jcl.hemmer.io/reference/cli-tools)** - Command-line utilities
+- **[Comparison Guide](https://jcl.hemmer.io/guides/comparison)** - JCL vs other formats
 
 ## Key Features
 
@@ -252,7 +252,7 @@ BASH
 
 ### Additional Bindings
 
-- **WebAssembly**: Browser and serverless support - [Playground](https://hemmer-io.github.io/jcl/guides/playground)
+- **WebAssembly**: Browser and serverless support - [Playground](https://jcl.hemmer.io/guides/playground)
 - **C FFI**: Embed in any language with C interop
 - **Rust**: Native `cargo install jcl` for maximum performance
 
@@ -343,7 +343,7 @@ at your option.
 
 ## Community
 
-- **Documentation**: [https://hemmer-io.github.io/jcl/](https://hemmer-io.github.io/jcl/)
+- **Documentation**: [https://jcl.hemmer.io/](https://jcl.hemmer.io/)
 - **Repository**: [https://github.com/hemmer-io/jcl](https://github.com/hemmer-io/jcl)
 - **Issues**: [https://github.com/hemmer-io/jcl/issues](https://github.com/hemmer-io/jcl/issues)
 

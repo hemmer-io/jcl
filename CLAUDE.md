@@ -950,7 +950,7 @@ JCL used to be infrastructure-focused but is now **general-purpose**. The follow
 - Ready for publication
 
 **Resources**:
-- Full docs: https://turner-hemmer.github.io/jcl/
+- Full docs: https://jcl.hemmer.io/
 - Language spec: `docs/reference/language-spec.md`
 - Function reference: `docs/reference/functions.md`
 - Contributing: `CONTRIBUTING.md`
