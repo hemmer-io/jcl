@@ -559,6 +559,7 @@ pub struct SchemaBuilder {
     additional_properties: bool,
     field_metadata: HashMap<String, FieldMetadata>,
     mutually_exclusive_groups: Vec<Vec<String>>,
+    version: Option<String>,
 }
 
 impl SchemaBuilder {
@@ -572,7 +573,49 @@ impl SchemaBuilder {
             additional_properties: false,
             field_metadata: HashMap::new(),
             mutually_exclusive_groups: Vec::new(),
+            version: None,
         }
+    }
+
+    /// Create a SchemaBuilder from an existing Schema (for re-building/modifying)
+    pub fn from_schema(schema: Schema) -> Self {
+        let mut builder = Self {
+            title: schema.title,
+            description: schema.description,
+            properties: HashMap::new(),
+            required: Vec::new(),
+            additional_properties: false,
+            field_metadata: HashMap::new(),
+            mutually_exclusive_groups: Vec::new(),
+            version: Some(schema.version),
+        };
+
+        // Extract properties from the schema's type_def if it's a Map
+        if let TypeDef::Map {
+            properties,
+            required,
+            additional_properties,
+        } = schema.type_def
+        {
+            // Convert Properties back to PropertyBuilders
+            for (name, prop) in properties {
+                builder.properties.insert(
+                    name,
+                    PropertyBuilder {
+                        type_def: prop.type_def,
+                        description: prop.description,
+                        default: prop.default,
+                        validator_names: Vec::new(),
+                        requires: Vec::new(),
+                        requires_absence_of: Vec::new(),
+                    },
+                );
+            }
+            builder.required = required;
+            builder.additional_properties = additional_properties;
+        }
+
+        builder
     }
 
     /// Set the schema description
@@ -684,10 +727,300 @@ impl SchemaBuilder {
         &self.mutually_exclusive_groups
     }
 
+    // ========== Phase 4: Schema Composition Methods ==========
+
+    /// Set schema version (Phase 4)
+    ///
+    /// Version string for tracking schema changes and compatibility.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jcl::schema::SchemaBuilder;
+    ///
+    /// let schema = SchemaBuilder::new("aws_instance")
+    ///     .version("2.0.0")
+    ///     .build();
+    /// ```
+    pub fn version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Extend this schema with fields from another schema (Phase 4)
+    ///
+    /// Schema inheritance allows reusing common field definitions. Fields from the
+    /// parent schema are merged into this schema. If a field exists in both schemas,
+    /// the child schema's definition takes precedence.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jcl::schema::{SchemaBuilder, TypeDef};
+    ///
+    /// // Base schema with common fields
+    /// let base = SchemaBuilder::new("base_resource")
+    ///     .required_field("id", TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: None,
+    ///         enum_values: None,
+    ///     })
+    ///     .required_field("name", TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: None,
+    ///         enum_values: None,
+    ///     });
+    ///
+    /// // Child schema extends base
+    /// let instance_schema = SchemaBuilder::new("aws_instance")
+    ///     .extends(base)
+    ///     .required_field("ami", TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: None,
+    ///         enum_values: None,
+    ///     })
+    ///     .build();
+    /// ```
+    pub fn extends(mut self, parent: SchemaBuilder) -> Self {
+        // Merge properties from parent (child overrides parent)
+        for (name, prop) in parent.properties {
+            self.properties.entry(name.clone()).or_insert(prop);
+        }
+
+        // Merge required fields
+        for req in parent.required {
+            if !self.required.contains(&req) {
+                self.required.push(req);
+            }
+        }
+
+        // Merge field metadata
+        for (name, metadata) in parent.field_metadata {
+            self.field_metadata.entry(name).or_insert(metadata);
+        }
+
+        // Merge mutually exclusive groups
+        self.mutually_exclusive_groups
+            .extend(parent.mutually_exclusive_groups);
+
+        // Inherit additional_properties setting if not explicitly set
+        if !self.additional_properties && parent.additional_properties {
+            self.additional_properties = true;
+        }
+
+        self
+    }
+
+    /// Merge multiple schemas into this one (Phase 4)
+    ///
+    /// Schema composition allows combining multiple schemas. All fields from
+    /// all schemas are merged. If a field exists in multiple schemas, the
+    /// last one wins.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jcl::schema::{SchemaBuilder, TypeDef};
+    ///
+    /// let network_fields = SchemaBuilder::new("network")
+    ///     .optional_field("vpc_id", TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: None,
+    ///         enum_values: None,
+    ///     })
+    ///     .optional_field("subnet_id", TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: None,
+    ///         enum_values: None,
+    ///     });
+    ///
+    /// let tags_fields = SchemaBuilder::new("tags")
+    ///     .optional_field("tags", TypeDef::Map {
+    ///         properties: std::collections::HashMap::new(),
+    ///         required: vec![],
+    ///         additional_properties: true,
+    ///     });
+    ///
+    /// let combined = SchemaBuilder::new("aws_instance")
+    ///     .merge(vec![network_fields, tags_fields])
+    ///     .build();
+    /// ```
+    pub fn merge(mut self, others: Vec<SchemaBuilder>) -> Self {
+        for other in others {
+            // Merge all properties (last wins)
+            self.properties.extend(other.properties);
+
+            // Merge required fields (no duplicates)
+            for req in other.required {
+                if !self.required.contains(&req) {
+                    self.required.push(req);
+                }
+            }
+
+            // Merge field metadata
+            self.field_metadata.extend(other.field_metadata);
+
+            // Merge mutually exclusive groups
+            self.mutually_exclusive_groups
+                .extend(other.mutually_exclusive_groups);
+        }
+
+        self
+    }
+
+    /// Generate documentation for this schema (Phase 4)
+    ///
+    /// Returns a markdown-formatted documentation string describing the schema,
+    /// its fields, types, constraints, and validation rules.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jcl::schema::{SchemaBuilder, PropertyBuilder, TypeDef};
+    ///
+    /// let schema = SchemaBuilder::new("aws_instance")
+    ///     .description("AWS EC2 instance configuration")
+    ///     .version("1.0.0")
+    ///     .required_field("ami", TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: Some("^ami-[0-9a-f]{17}$".to_string()),
+    ///         enum_values: None,
+    ///     })
+    ///     .required_field("instance_type", TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: None,
+    ///         enum_values: Some(vec!["t2.micro".to_string(), "t3.micro".to_string()]),
+    ///     });
+    ///
+    /// let docs = schema.generate_docs();
+    /// println!("{}", docs);
+    /// ```
+    pub fn generate_docs(&self) -> String {
+        let mut doc = String::new();
+
+        // Title and version
+        if let Some(title) = &self.title {
+            doc.push_str(&format!("# {}\n\n", title));
+        }
+
+        if let Some(version) = &self.version {
+            doc.push_str(&format!("**Version**: {}\n\n", version));
+        }
+
+        // Description
+        if let Some(desc) = &self.description {
+            doc.push_str(&format!("{}\n\n", desc));
+        }
+
+        // Fields
+        doc.push_str("## Fields\n\n");
+
+        // Collect all field names sorted
+        let mut field_names: Vec<_> = self.properties.keys().collect();
+        field_names.sort();
+
+        for field_name in field_names {
+            let prop = &self.properties[field_name];
+            let is_required = self.required.contains(field_name);
+
+            doc.push_str(&format!(
+                "### `{}`{}\n\n",
+                field_name,
+                if is_required { " (required)" } else { "" }
+            ));
+
+            // Type information
+            doc.push_str(&format!(
+                "**Type**: {}\n\n",
+                Self::type_to_string(&prop.type_def)
+            ));
+
+            // Description if available
+            if let Some(desc) = &prop.description {
+                doc.push_str(&format!("{}\n\n", desc));
+            }
+
+            // Validation rules
+            if let Some(metadata) = self.field_metadata.get(field_name) {
+                if !metadata.validator_names.is_empty() {
+                    doc.push_str(&format!(
+                        "**Validators**: {}\n\n",
+                        metadata.validator_names.join(", ")
+                    ));
+                }
+
+                if !metadata.requires.is_empty() {
+                    doc.push_str(&format!(
+                        "**Requires**: {}\n\n",
+                        metadata.requires.join(", ")
+                    ));
+                }
+
+                if !metadata.requires_absence_of.is_empty() {
+                    doc.push_str(&format!(
+                        "**Mutually exclusive with**: {}\n\n",
+                        metadata.requires_absence_of.join(", ")
+                    ));
+                }
+            }
+        }
+
+        // Mutually exclusive groups
+        if !self.mutually_exclusive_groups.is_empty() {
+            doc.push_str("## Mutually Exclusive Groups\n\n");
+            for group in &self.mutually_exclusive_groups {
+                doc.push_str(&format!("- Only one of: {}\n", group.join(", ")));
+            }
+            doc.push('\n');
+        }
+
+        doc
+    }
+
+    /// Helper to convert TypeDef to string for documentation
+    fn type_to_string(type_def: &TypeDef) -> String {
+        match type_def {
+            TypeDef::String { enum_values, .. } => {
+                if let Some(values) = enum_values {
+                    format!("String (one of: {})", values.join(", "))
+                } else {
+                    "String".to_string()
+                }
+            }
+            TypeDef::Number { integer_only, .. } => {
+                if *integer_only {
+                    "Integer".to_string()
+                } else {
+                    "Number".to_string()
+                }
+            }
+            TypeDef::Boolean => "Boolean".to_string(),
+            TypeDef::Null => "Null".to_string(),
+            TypeDef::List { .. } => "List".to_string(),
+            TypeDef::Map { .. } => "Map".to_string(),
+            TypeDef::Any => "Any".to_string(),
+            TypeDef::Union { types } => {
+                let type_strs: Vec<String> = types.iter().map(Self::type_to_string).collect();
+                format!("Union ({})", type_strs.join(" | "))
+            }
+            TypeDef::DiscriminatedUnion { discriminator, .. } => {
+                format!("Discriminated Union (discriminator: {})", discriminator)
+            }
+            TypeDef::Ref { name } => format!("Reference to {}", name),
+        }
+    }
+
     /// Build the Schema
     pub fn build(self) -> Schema {
         Schema {
-            version: "1.0".to_string(),
+            version: self.version.unwrap_or_else(|| "1.0".to_string()),
             title: self.title,
             description: self.description,
             type_def: TypeDef::Map {
@@ -2529,5 +2862,419 @@ mod tests {
         assert!(errors[0]
             .message
             .contains("Value does not match any type in union"));
+    }
+
+    // ============================================================================
+    // Phase 4: Schema Composition Tests
+    // ============================================================================
+
+    #[test]
+    fn test_schema_versioning() {
+        let schema = SchemaBuilder::new("User")
+            .version("1.2.3")
+            .description("User schema with version")
+            .field(
+                "name",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                }),
+            )
+            .mark_required("name")
+            .build();
+
+        assert_eq!(schema.version, "1.2.3");
+        assert_eq!(schema.title, Some("User".to_string()));
+    }
+
+    #[test]
+    fn test_schema_inheritance_basic() {
+        // Parent schema
+        let parent = SchemaBuilder::new("BaseEntity")
+            .description("Base entity with common fields")
+            .field(
+                "id",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                })
+                .description("Unique identifier"),
+            )
+            .field(
+                "created_at",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                })
+                .description("Creation timestamp"),
+            )
+            .mark_required("id");
+
+        // Child schema extends parent
+        let child = SchemaBuilder::new("User")
+            .description("User entity")
+            .extends(parent)
+            .field(
+                "email",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                })
+                .description("User email"),
+            )
+            .mark_required("email")
+            .build();
+
+        // Should have all three properties
+        if let TypeDef::Map {
+            properties,
+            required,
+            ..
+        } = child.type_def
+        {
+            assert_eq!(properties.len(), 3);
+            assert!(properties.contains_key("id"));
+            assert!(properties.contains_key("created_at"));
+            assert!(properties.contains_key("email"));
+
+            // Should have both required fields
+            assert_eq!(required.len(), 2);
+            assert!(required.contains(&"id".to_string()));
+            assert!(required.contains(&"email".to_string()));
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_schema_inheritance_override() {
+        // Parent schema
+        let parent = SchemaBuilder::new("BaseEntity").field(
+            "status",
+            PropertyBuilder::new(TypeDef::String {
+                min_length: None,
+                max_length: None,
+                pattern: None,
+                enum_values: Some(vec!["active".to_string(), "inactive".to_string()]),
+            })
+            .description("Parent status"),
+        );
+
+        // Child overrides parent's status field
+        let child = SchemaBuilder::new("User")
+            .extends(parent)
+            .field(
+                "status",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: Some(vec![
+                        "active".to_string(),
+                        "inactive".to_string(),
+                        "suspended".to_string(),
+                    ]),
+                })
+                .description("User status with more options"),
+            )
+            .build();
+
+        // Check that child's property overwrote parent's
+        if let TypeDef::Map { properties, .. } = child.type_def {
+            let status_prop = properties.get("status").unwrap();
+            if let TypeDef::String { enum_values, .. } = &status_prop.type_def {
+                assert_eq!(enum_values.as_ref().unwrap().len(), 3);
+                assert!(enum_values
+                    .as_ref()
+                    .unwrap()
+                    .contains(&"suspended".to_string()));
+            } else {
+                panic!("Expected String type");
+            }
+            assert_eq!(
+                status_prop.description,
+                Some("User status with more options".to_string())
+            );
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_schema_merging_multiple() {
+        let schema1 = SchemaBuilder::new("Schema1").field(
+            "field1",
+            PropertyBuilder::new(TypeDef::String {
+                min_length: None,
+                max_length: None,
+                pattern: None,
+                enum_values: None,
+            }),
+        );
+
+        let schema2 = SchemaBuilder::new("Schema2").field(
+            "field2",
+            PropertyBuilder::new(TypeDef::Number {
+                minimum: None,
+                maximum: None,
+                integer_only: false,
+            }),
+        );
+
+        let schema3 =
+            SchemaBuilder::new("Schema3").field("field3", PropertyBuilder::new(TypeDef::Boolean));
+
+        // Merge all three schemas
+        let merged = SchemaBuilder::new("Merged")
+            .merge(vec![schema1, schema2, schema3])
+            .build();
+
+        // Should have all three properties
+        if let TypeDef::Map { properties, .. } = merged.type_def {
+            assert_eq!(properties.len(), 3);
+            assert!(properties.contains_key("field1"));
+            assert!(properties.contains_key("field2"));
+            assert!(properties.contains_key("field3"));
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_schema_merging_with_required() {
+        let schema1 = SchemaBuilder::new("Schema1")
+            .field(
+                "field1",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                }),
+            )
+            .mark_required("field1");
+
+        let schema2 = SchemaBuilder::new("Schema2")
+            .field(
+                "field2",
+                PropertyBuilder::new(TypeDef::Number {
+                    minimum: None,
+                    maximum: None,
+                    integer_only: false,
+                }),
+            )
+            .mark_required("field2");
+
+        // Merge schemas
+        let merged = SchemaBuilder::new("Merged")
+            .merge(vec![schema1, schema2])
+            .build();
+
+        // Should have both required fields
+        if let TypeDef::Map { required, .. } = merged.type_def {
+            assert_eq!(required.len(), 2);
+            assert!(required.contains(&"field1".to_string()));
+            assert!(required.contains(&"field2".to_string()));
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_schema_merging_override() {
+        // First schema defines field with one constraint
+        let schema1 = SchemaBuilder::new("Schema1").field(
+            "value",
+            PropertyBuilder::new(TypeDef::Number {
+                minimum: Some(0.0),
+                maximum: Some(100.0),
+                integer_only: false,
+            })
+            .description("Original description"),
+        );
+
+        // Second schema redefines the same field (should override)
+        let schema2 = SchemaBuilder::new("Schema2").field(
+            "value",
+            PropertyBuilder::new(TypeDef::Number {
+                minimum: Some(0.0),
+                maximum: Some(1000.0),
+                integer_only: true,
+            })
+            .description("Updated description"),
+        );
+
+        // Merge - schema2 should win
+        let merged = SchemaBuilder::new("Merged")
+            .merge(vec![schema1, schema2])
+            .build();
+
+        if let TypeDef::Map { properties, .. } = merged.type_def {
+            let value_prop = properties.get("value").unwrap();
+            if let TypeDef::Number {
+                maximum,
+                integer_only,
+                ..
+            } = &value_prop.type_def
+            {
+                assert_eq!(*maximum, Some(1000.0));
+                assert!(*integer_only);
+            } else {
+                panic!("Expected Number type");
+            }
+            assert_eq!(
+                value_prop.description,
+                Some("Updated description".to_string())
+            );
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_documentation_generation_basic() {
+        let schema = SchemaBuilder::new("User")
+            .version("1.0.0")
+            .description("User account schema")
+            .field(
+                "username",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: Some(3),
+                    max_length: Some(20),
+                    pattern: None,
+                    enum_values: None,
+                })
+                .description("Unique username for the account"),
+            )
+            .field(
+                "age",
+                PropertyBuilder::new(TypeDef::Number {
+                    minimum: Some(0.0),
+                    maximum: Some(150.0),
+                    integer_only: true,
+                })
+                .description("User's age in years"),
+            )
+            .mark_required("username")
+            .build();
+
+        let docs = SchemaBuilder::from_schema(schema).generate_docs();
+
+        // Check that documentation contains expected content
+        assert!(docs.contains("# User"));
+        assert!(docs.contains("**Version**: 1.0.0"));
+        assert!(docs.contains("User account schema"));
+        assert!(docs.contains("## Fields"));
+        assert!(docs.contains("### `username` (required)"));
+        assert!(docs.contains("Unique username for the account"));
+        assert!(docs.contains("### `age`"));
+        assert!(docs.contains("User's age in years"));
+    }
+
+    #[test]
+    fn test_documentation_generation_with_validators() {
+        let schema_builder = SchemaBuilder::new("Contact")
+            .description("Contact information")
+            .field(
+                "email",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                })
+                .description("Email address")
+                .with_validator("email_validator"),
+            )
+            .field(
+                "phone",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                })
+                .description("Phone number")
+                .with_validator("phone_validator")
+                .requires("email"),
+            );
+
+        let docs = schema_builder.generate_docs();
+
+        // Check that validators are documented
+        assert!(docs.contains("**Validators**: email_validator"));
+        assert!(docs.contains("**Validators**: phone_validator"));
+        assert!(docs.contains("**Requires**: email"));
+    }
+
+    #[test]
+    fn test_documentation_generation_with_mutual_exclusion() {
+        let schema_builder = SchemaBuilder::new("Payment")
+            .description("Payment method")
+            .field(
+                "credit_card",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                }),
+            )
+            .field(
+                "bank_account",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                }),
+            )
+            .mutually_exclusive(vec!["credit_card".to_string(), "bank_account".to_string()]);
+
+        let docs = schema_builder.generate_docs();
+
+        // Check that mutual exclusion is documented
+        assert!(docs.contains("## Mutually Exclusive Groups"));
+        assert!(docs.contains("Only one of: credit_card, bank_account"));
+    }
+
+    #[test]
+    fn test_schema_builder_from_schema() {
+        // Create a schema using the builder
+        let original = SchemaBuilder::new("Test")
+            .version("1.0.0")
+            .description("Test schema")
+            .field(
+                "field",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                }),
+            )
+            .mark_required("field")
+            .build();
+
+        // Convert back to builder
+        let builder = SchemaBuilder::from_schema(original.clone());
+
+        // Build again and compare
+        let rebuilt = builder.build();
+
+        assert_eq!(rebuilt.version, original.version);
+        assert_eq!(rebuilt.title, original.title);
+        assert_eq!(rebuilt.description, original.description);
+
+        // Note: We can't directly compare type_defs due to the complexity,
+        // but we verified the builder pattern works
     }
 }
