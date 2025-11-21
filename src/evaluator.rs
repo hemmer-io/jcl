@@ -1,13 +1,14 @@
 //! Evaluator for JCL - resolves variables, functions, and expressions
 
 use crate::ast::{
-    BinaryOperator, Expression, Module, Pattern, SourceSpan, Statement, StringPart, UnaryOperator,
-    Value, WhenArm,
+    BinaryOperator, Expression, ImportKind, Module, Pattern, SourceSpan, Statement, StringPart,
+    UnaryOperator, Value, WhenArm,
 };
 use crate::functions;
 use anyhow::{anyhow, Result};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 /// Evaluated module with all expressions resolved
 #[derive(Debug)]
@@ -25,6 +26,12 @@ pub struct Evaluator {
     lazy_type_annotations: RefCell<HashMap<String, crate::ast::Type>>,
     /// Variables currently being evaluated (for cycle detection) - uses RefCell for interior mutability
     evaluating: RefCell<HashSet<String>>,
+    /// Current file being evaluated (for relative import resolution)
+    current_file: RefCell<Option<PathBuf>>,
+    /// Files currently being imported (for circular dependency detection)
+    importing: RefCell<HashSet<PathBuf>>,
+    /// Cache of already-imported modules to avoid re-evaluation
+    import_cache: RefCell<HashMap<PathBuf, HashMap<String, Value>>>,
 }
 
 impl Evaluator {
@@ -36,9 +43,17 @@ impl Evaluator {
             lazy_vars: RefCell::new(HashMap::new()),
             lazy_type_annotations: RefCell::new(HashMap::new()),
             evaluating: RefCell::new(HashSet::new()),
+            current_file: RefCell::new(None),
+            importing: RefCell::new(HashSet::new()),
+            import_cache: RefCell::new(HashMap::new()),
         };
         evaluator.register_builtins();
         evaluator
+    }
+
+    /// Set the current file being evaluated (for relative imports)
+    pub fn set_current_file<P: AsRef<Path>>(&self, path: P) {
+        *self.current_file.borrow_mut() = Some(path.as_ref().to_path_buf());
     }
 
     /// Evaluate a module
@@ -104,9 +119,9 @@ impl Evaluator {
                     // For loops generate multiple statements - not yet implemented
                     return Err(anyhow!("For loops are not yet implemented in evaluator"));
                 }
-                Statement::Import { .. } => {
-                    // Imports are not yet implemented
-                    return Err(anyhow!("Imports are not yet implemented"));
+                Statement::Import { path, kind, .. } => {
+                    // Evaluate the import
+                    self.evaluate_import(&path, &kind)?;
                 }
                 Statement::Expression { expr, .. } => {
                     // Expression statements - evaluate but don't bind
@@ -993,6 +1008,9 @@ impl Evaluator {
             lazy_vars: RefCell::new(self.lazy_vars.borrow().clone()),
             lazy_type_annotations: RefCell::new(self.lazy_type_annotations.borrow().clone()),
             evaluating: RefCell::new(HashSet::new()),
+            current_file: RefCell::new(self.current_file.borrow().clone()),
+            importing: RefCell::new(HashSet::new()),
+            import_cache: RefCell::new(self.import_cache.borrow().clone()),
         };
         new_eval.variables.insert(var_name.to_string(), value);
         new_eval
@@ -1335,6 +1353,137 @@ impl Evaluator {
         }
 
         Ok(value)
+    }
+
+    /// Evaluate an import statement
+    fn evaluate_import(&mut self, path: &str, kind: &ImportKind) -> Result<()> {
+        // Resolve the import path relative to the current file
+        let resolved_path = self.resolve_import_path(path)?;
+
+        // Check for circular imports
+        if self.importing.borrow().contains(&resolved_path) {
+            return Err(anyhow!(
+                "Circular import detected: {}",
+                resolved_path.display()
+            ));
+        }
+
+        // Check if we've already imported this module (use cache)
+        let cached_bindings = self.import_cache.borrow().get(&resolved_path).cloned();
+
+        let imported_bindings = if let Some(cached) = cached_bindings {
+            cached
+        } else {
+            // Mark as currently importing
+            self.importing.borrow_mut().insert(resolved_path.clone());
+
+            // Save the current file
+            let previous_file = self.current_file.borrow().clone();
+
+            // Set the current file to the import path for nested imports
+            self.set_current_file(&resolved_path);
+
+            // Parse and evaluate the imported module
+            let imported_module = crate::parse_file(&resolved_path).map_err(|e| {
+                anyhow!(
+                    "Failed to parse imported file '{}': {}",
+                    resolved_path.display(),
+                    e
+                )
+            })?;
+
+            let evaluated = self.evaluate(imported_module).map_err(|e| {
+                anyhow!(
+                    "Failed to evaluate imported file '{}': {}",
+                    resolved_path.display(),
+                    e
+                )
+            })?;
+
+            // Restore the previous file
+            *self.current_file.borrow_mut() = previous_file;
+
+            // Remove from importing set
+            self.importing.borrow_mut().remove(&resolved_path);
+
+            // Cache the result
+            self.import_cache
+                .borrow_mut()
+                .insert(resolved_path.clone(), evaluated.bindings.clone());
+
+            evaluated.bindings
+        };
+
+        // Add imported bindings to the current scope based on import kind
+        match kind {
+            ImportKind::Full { alias } => {
+                if let Some(alias_name) = alias {
+                    // Create a namespace map with all imports
+                    let namespace_map: HashMap<String, Value> =
+                        imported_bindings.into_iter().collect();
+                    self.variables
+                        .insert(alias_name.clone(), Value::Map(namespace_map));
+                } else {
+                    // Import all bindings directly into current scope
+                    for (name, value) in imported_bindings {
+                        self.variables.insert(name, value);
+                    }
+                }
+            }
+            ImportKind::Selective { items } => {
+                for item in items {
+                    let imported_value = imported_bindings.get(&item.name).ok_or_else(|| {
+                        anyhow!(
+                            "Item '{}' not found in imported module '{}'",
+                            item.name,
+                            path
+                        )
+                    })?;
+
+                    let local_name = item.alias.as_ref().unwrap_or(&item.name);
+                    self.variables
+                        .insert(local_name.clone(), imported_value.clone());
+                }
+            }
+            ImportKind::Wildcard => {
+                // Import all bindings directly into current scope
+                for (name, value) in imported_bindings {
+                    self.variables.insert(name, value);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Resolve an import path relative to the current file
+    fn resolve_import_path(&self, path: &str) -> Result<PathBuf> {
+        let import_path = Path::new(path);
+
+        // If it's an absolute path, use it directly
+        if import_path.is_absolute() {
+            return Ok(import_path.to_path_buf());
+        }
+
+        // Otherwise, resolve relative to the current file
+        if let Some(current) = self.current_file.borrow().as_ref() {
+            let base_dir = current
+                .parent()
+                .ok_or_else(|| anyhow!("Current file has no parent directory"))?;
+            let resolved = base_dir.join(import_path);
+
+            // Canonicalize to resolve ".." and "." components
+            resolved.canonicalize().or_else(|_| {
+                // If canonicalize fails (file might not exist yet), just return the joined path
+                Ok(resolved)
+            })
+        } else {
+            // No current file, try to resolve from current working directory
+            let cwd = std::env::current_dir()?;
+            let resolved = cwd.join(import_path);
+
+            resolved.canonicalize().or_else(|_| Ok(resolved))
+        }
     }
 
     /// Register built-in functions
