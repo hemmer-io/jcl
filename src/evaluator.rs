@@ -27,7 +27,7 @@ pub struct ImportTrace {
 }
 
 /// Import performance metrics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ImportMetrics {
     pub total_imports: usize,
     pub cache_hits: usize,
@@ -36,15 +36,6 @@ pub struct ImportMetrics {
 }
 
 impl ImportMetrics {
-    pub fn new() -> Self {
-        Self {
-            total_imports: 0,
-            cache_hits: 0,
-            total_time_ms: 0,
-            traces: Vec::new(),
-        }
-    }
-
     pub fn cache_hit_rate(&self) -> f64 {
         if self.total_imports == 0 {
             0.0
@@ -89,7 +80,7 @@ impl Evaluator {
             importing: RefCell::new(HashSet::new()),
             import_cache: RefCell::new(HashMap::new()),
             trace_imports: false,
-            import_metrics: RefCell::new(ImportMetrics::new()),
+            import_metrics: RefCell::new(ImportMetrics::default()),
         };
         evaluator.register_builtins();
         evaluator
