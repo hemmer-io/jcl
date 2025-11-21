@@ -507,6 +507,12 @@ impl TypeChecker {
                 field,
                 span,
             } => {
+                // Check if object contains splat
+                if self.contains_splat(object) {
+                    return self.infer_splat_access(object, field, span);
+                }
+
+                // Normal member access type inference
                 let obj_type = self.infer_expression(object)?;
                 match obj_type {
                     Type::Map(_, value_type) => Ok(*value_type),
@@ -710,8 +716,88 @@ impl TypeChecker {
                 }
             }
 
+            Expression::Splat { object, span } => {
+                let obj_type = self.infer_expression(object)?;
+
+                match obj_type {
+                    Type::List(elem_type) => {
+                        // Splat on List<T> returns List<T>
+                        // The actual field extraction happens in member access
+                        Ok(Type::List(elem_type))
+                    }
+                    _ => Err(TypeError::new(
+                        format!("Splat operator requires a list, got {:?}", obj_type),
+                        span.clone(),
+                    )),
+                }
+            }
+
             // Default to Any for unimplemented expressions
             _ => Ok(Type::Any),
+        }
+    }
+
+    /// Check if an expression contains a Splat operator
+    fn contains_splat(&self, expr: &Expression) -> bool {
+        match expr {
+            Expression::Splat { .. } => true,
+            Expression::MemberAccess { object, .. } => self.contains_splat(object),
+            _ => false,
+        }
+    }
+
+    /// Infer type for splat member access
+    fn infer_splat_access(
+        &self,
+        expr: &Expression,
+        _field: &str,
+        span: &Option<SourceSpan>,
+    ) -> Result<Type, TypeError> {
+        match expr {
+            Expression::Splat { object, .. } => {
+                let obj_type = self.infer_expression(object)?;
+                match obj_type {
+                    Type::List(elem_type) => {
+                        // Extract field type from element type
+                        match *elem_type {
+                            Type::Map(_, value_type) => Ok(Type::List(value_type)),
+                            _ => Err(TypeError::new(
+                                "Cannot access field on non-map list elements".to_string(),
+                                span.clone(),
+                            )),
+                        }
+                    }
+                    _ => Err(TypeError::new(
+                        "Splat requires a list".to_string(),
+                        span.clone(),
+                    )),
+                }
+            }
+            Expression::MemberAccess {
+                object,
+                field: _inner_field,
+                ..
+            } => {
+                // Recursive case: infer inner access type
+                let inner_type = self.infer_splat_access(object, _inner_field, span)?;
+                match inner_type {
+                    Type::List(elem_type) => match *elem_type {
+                        Type::Map(_, value_type) => Ok(Type::List(value_type)),
+                        _ => Err(TypeError::new(
+                            "Cannot access field on non-map list elements".to_string(),
+                            span.clone(),
+                        )),
+                    },
+                    _ => Err(TypeError::new(
+                        "Expected list from splat".to_string(),
+                        span.clone(),
+                    )),
+                }
+            }
+            _ => Err(TypeError::new(
+                "Invalid splat expression".to_string(),
+                span.clone(),
+            )),
         }
     }
 

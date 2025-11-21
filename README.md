@@ -214,6 +214,7 @@ squares = [x * x for x in [1..10]]  # [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
 - **Type System**: Advanced static type inference with expression-level checking
 - **Collections**: Lists `[]` and maps `()` with comprehensive manipulation functions
 - **Range Syntax**: Generate sequences with `[0..10]`, `[0..<5]`, `[0..10:2]` for inclusive, exclusive, and stepped ranges
+- **Splat Operator**: Extract attributes with `users[*].name` as shorthand for comprehensions
 - **String Interpolation**: `"Hello, ${name}!"` syntax for dynamic strings
 - **Null Safety**: `?.` optional chaining and `??` null coalescing operators
 - **Functions**: Lambda expressions (`x => x * 2`) and named functions (`fn double(x) = x * 2`)
