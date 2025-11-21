@@ -36,6 +36,24 @@ pub struct Module {
     pub statements: Vec<Statement>,
 }
 
+/// Import kind - distinguishes between path-based and selective imports
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ImportKind {
+    /// Import entire file: `import "path"` or `import "path" as alias`
+    Full { alias: Option<String> },
+    /// Import specific items: `import (item1, item2) from "path"`
+    Selective { items: Vec<ImportItem> },
+    /// Import everything: `import * from "path"`
+    Wildcard,
+}
+
+/// Individual import item with optional alias
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportItem {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
 /// Top-level statement
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement {
@@ -59,11 +77,12 @@ pub enum Statement {
         span: Option<SourceSpan>,
     },
 
-    /// Import statement: `import (items) from "path"`
+    /// Import statement: supports both patterns:
+    /// - Path-based: `import "path" as alias` or `import "path"`
+    /// - Selective: `import (items) from "path"` or `import * from "path"`
     Import {
-        items: Vec<String>,
         path: String,
-        wildcard: bool, // true for `import * from "path"`
+        kind: ImportKind,
         doc_comments: Option<Vec<String>>,
         span: Option<SourceSpan>,
     },
