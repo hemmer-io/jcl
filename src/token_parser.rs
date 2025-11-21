@@ -5,8 +5,8 @@
 //! handles keyword/identifier distinction.
 
 use crate::ast::{
-    BinaryOperator, Expression, Module, Parameter, Pattern, SourceSpan, Statement, StringPart,
-    Type, UnaryOperator, Value, WhenArm,
+    BinaryOperator, Expression, ImportItem, Module, Parameter, Pattern, SourceSpan, Statement,
+    StringPart, Type, UnaryOperator, Value, WhenArm,
 };
 use crate::lexer::{StringValue, Token, TokenKind};
 use anyhow::{anyhow, Result};
@@ -95,47 +95,101 @@ impl TokenParser {
     }
 
     /// Parse an import statement
+    /// Supports two patterns:
+    /// 1. Path-based: `import "path"` or `import "path" as alias`
+    /// 2. Selective: `import (items) from "path"` or `import * from "path"`
     fn parse_import(&mut self) -> Result<Statement> {
-        let start = self.mark_position();
+        use crate::ast::ImportKind;
 
+        let start = self.mark_position();
         self.expect(&TokenKind::Import)?;
 
+        // Check if this is a path-based import (starts with string)
+        if self.check_string() {
+            // Pattern 1: import "path" [as alias]
+            let path = self.parse_string_literal()?;
+            let alias = if self.check(&TokenKind::As) {
+                self.advance();
+                Some(self.parse_identifier()?)
+            } else {
+                None
+            };
+
+            return Ok(Statement::Import {
+                path,
+                kind: ImportKind::Full { alias },
+                doc_comments: None,
+                span: self.span_from(start),
+            });
+        }
+
+        // Pattern 2: Selective import (existing syntax)
         let items = self.parse_import_items()?;
-
         self.expect(&TokenKind::From)?;
-
         let path = self.parse_string_literal()?;
 
-        let wildcard = items.len() == 1 && items[0] == "*";
+        let kind = if items.len() == 1 && items[0].name == "*" {
+            ImportKind::Wildcard
+        } else {
+            ImportKind::Selective { items }
+        };
 
         Ok(Statement::Import {
-            items,
             path,
-            wildcard,
+            kind,
             doc_comments: None,
             span: self.span_from(start),
         })
     }
 
-    /// Parse import items
-    fn parse_import_items(&mut self) -> Result<Vec<String>> {
+    /// Parse import items with optional aliases
+    fn parse_import_items(&mut self) -> Result<Vec<ImportItem>> {
+        use crate::ast::ImportItem;
+
         if self.check(&TokenKind::Star) {
             self.advance();
-            return Ok(vec!["*".to_string()]);
+            return Ok(vec![ImportItem {
+                name: "*".to_string(),
+                alias: None,
+            }]);
         }
 
         if self.check(&TokenKind::LeftParen) {
             self.advance();
-            let mut items = vec![self.parse_identifier()?];
+            let mut items = vec![self.parse_import_item()?];
             while self.check(&TokenKind::Comma) {
                 self.advance();
-                items.push(self.parse_identifier()?);
+                items.push(self.parse_import_item()?);
             }
             self.expect(&TokenKind::RightParen)?;
             return Ok(items);
         }
 
-        Ok(vec![self.parse_identifier()?])
+        Ok(vec![self.parse_import_item()?])
+    }
+
+    /// Parse a single import item with optional alias
+    fn parse_import_item(&mut self) -> Result<ImportItem> {
+        use crate::ast::ImportItem;
+
+        let name = self.parse_identifier()?;
+        let alias = if self.check(&TokenKind::As) {
+            self.advance();
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        Ok(ImportItem { name, alias })
+    }
+
+    /// Check if current token is a string literal
+    fn check_string(&self) -> bool {
+        if self.position < self.tokens.len() {
+            matches!(self.tokens[self.position].kind, TokenKind::String(_))
+        } else {
+            false
+        }
     }
 
     /// Parse a function definition
@@ -1571,5 +1625,120 @@ evens = [x for x in numbers if x % 2 == 0]
             println!("Error: {:?}", e);
         }
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_import_path_based() {
+        let input = r#"import "./config.jcl""#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::Import { path, kind, .. } = &module.statements[0] {
+            assert_eq!(path, "./config.jcl");
+            assert!(matches!(kind, crate::ast::ImportKind::Full { alias: None }));
+        } else {
+            panic!("Expected import statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_import_path_based_with_alias() {
+        let input = r#"import "./config.jcl" as cfg"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::Import { path, kind, .. } = &module.statements[0] {
+            assert_eq!(path, "./config.jcl");
+            if let crate::ast::ImportKind::Full { alias } = kind {
+                assert_eq!(alias.as_ref().unwrap(), "cfg");
+            } else {
+                panic!("Expected Full import kind");
+            }
+        } else {
+            panic!("Expected import statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_import_selective() {
+        let input = r#"import (database, server) from "./config.jcl""#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::Import { path, kind, .. } = &module.statements[0] {
+            assert_eq!(path, "./config.jcl");
+            if let crate::ast::ImportKind::Selective { items } = kind {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0].name, "database");
+                assert_eq!(items[0].alias, None);
+                assert_eq!(items[1].name, "server");
+                assert_eq!(items[1].alias, None);
+            } else {
+                panic!("Expected Selective import kind");
+            }
+        } else {
+            panic!("Expected import statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_import_selective_with_aliases() {
+        let input = r#"import (database as db, server as srv) from "./config.jcl""#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::Import { path, kind, .. } = &module.statements[0] {
+            assert_eq!(path, "./config.jcl");
+            if let crate::ast::ImportKind::Selective { items } = kind {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0].name, "database");
+                assert_eq!(items[0].alias.as_ref().unwrap(), "db");
+                assert_eq!(items[1].name, "server");
+                assert_eq!(items[1].alias.as_ref().unwrap(), "srv");
+            } else {
+                panic!("Expected Selective import kind");
+            }
+        } else {
+            panic!("Expected import statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_import_wildcard() {
+        let input = r#"import * from "./config.jcl""#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::Import { path, kind, .. } = &module.statements[0] {
+            assert_eq!(path, "./config.jcl");
+            assert!(matches!(kind, crate::ast::ImportKind::Wildcard));
+        } else {
+            panic!("Expected import statement");
+        }
     }
 }

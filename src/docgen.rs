@@ -98,9 +98,34 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 });
             }
 
-            Statement::Import { items, path, .. } => {
-                doc.imports
-                    .push(format!("import {} from \"{}\"", items.join(", "), path));
+            Statement::Import { path, kind, .. } => {
+                use crate::ast::ImportKind;
+                let import_str = match kind {
+                    ImportKind::Full { alias: Some(alias) } => {
+                        format!("import \"{}\" as {}", path, alias)
+                    }
+                    ImportKind::Full { alias: None } => {
+                        format!("import \"{}\"", path)
+                    }
+                    ImportKind::Selective { items } => {
+                        let items_str = items
+                            .iter()
+                            .map(|item| {
+                                if let Some(alias) = &item.alias {
+                                    format!("{} as {}", item.name, alias)
+                                } else {
+                                    item.name.clone()
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("import ({}) from \"{}\"", items_str, path)
+                    }
+                    ImportKind::Wildcard => {
+                        format!("import * from \"{}\"", path)
+                    }
+                };
+                doc.imports.push(import_str);
             }
 
             _ => {}

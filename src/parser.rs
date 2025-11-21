@@ -204,21 +204,32 @@ fn parse_function_def(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Re
 }
 
 fn parse_import(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result<Statement> {
+    use crate::ast::{ImportItem, ImportKind};
+
     let mut items = Vec::new();
     let mut path = String::new();
     let mut wildcard = false;
+    let mut alias: Option<String> = None;
+    let mut has_items = false;
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::import_items => {
+                has_items = true;
                 for item in inner.into_inner() {
                     match item.as_rule() {
                         Rule::import_item => {
-                            let id = item
-                                .into_inner()
+                            let mut item_inner = item.into_inner();
+                            let name = item_inner
                                 .next()
-                                .ok_or_else(|| anyhow!("Missing import item"))?;
-                            items.push(id.as_str().to_string());
+                                .ok_or_else(|| anyhow!("Missing import item"))?
+                                .as_str()
+                                .to_string();
+                            let item_alias = item_inner.next().map(|a| a.as_str().to_string());
+                            items.push(ImportItem {
+                                name,
+                                alias: item_alias,
+                            });
                         }
                         _ if item.as_str() == "*" => {
                             wildcard = true;
@@ -230,14 +241,30 @@ fn parse_import(pair: Pair<Rule>, doc_comments: Option<Vec<String>>) -> Result<S
             Rule::string => {
                 path = parse_string_literal(inner)?;
             }
+            Rule::identifier => {
+                // This is the alias for path-based import
+                alias = Some(inner.as_str().to_string());
+            }
             _ => {}
         }
     }
 
+    // Determine the import kind based on what was parsed
+    let kind = if has_items {
+        // Selective or wildcard import
+        if wildcard {
+            ImportKind::Wildcard
+        } else {
+            ImportKind::Selective { items }
+        }
+    } else {
+        // Path-based import
+        ImportKind::Full { alias }
+    };
+
     Ok(Statement::Import {
-        items,
         path,
-        wildcard,
+        kind,
         doc_comments,
         span: None,
     })

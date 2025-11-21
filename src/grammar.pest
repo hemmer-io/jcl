@@ -30,7 +30,10 @@ stmtbody = {
 // ============================================================================
 
 import_stmt = {
-    "import" ~ import_items ~ "from" ~ string
+    // Path-based import: import "path" [as alias]
+    "import" ~ string ~ ("as" ~ identifier)?
+    // Selective import: import (items) from "path" or import * from "path"
+  | "import" ~ import_items ~ "from" ~ string
 }
 
 import_items = {

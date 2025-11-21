@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Enhanced Import System**: Complete multi-file module system with two import patterns (#94)
+  - **Path-based imports**: `import "./config.jcl"` or `import "./config.jcl" as alias`
+  - **Selective imports**: `import (item1, item2) from "./path.jcl"` with per-item aliasing
+  - **Wildcard imports**: `import * from "./path.jcl"`
+  - **Path resolution**: Relative to importing file (not cwd)
+  - **Circular dependency detection**: Automatic cycle prevention with clear error messages
+  - **Import caching**: Parse and evaluate each module only once for performance
+  - **Nested imports**: Full support for import chains with proper context tracking
+- **Import Debugging & Analysis Tools** (#94)
+  - **Import tracing**: Real-time logging of import activity (`enable_import_tracing()`)
+  - **Performance metrics**: Track cache hits, timing, and efficiency
+  - **Import graph visualization**: Generate DOT format graphs for GraphViz
+  - **Detailed trace reports**: Human-readable import chain analysis
+- **Import Documentation**: Comprehensive guides and examples in language spec and getting started
+
 ## [1.1.0] - 2025-01-19
 
 ### Added

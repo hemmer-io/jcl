@@ -161,19 +161,34 @@ impl SymbolTable {
 
                 self.process_expression(body);
             }
-            Statement::Import { items, span, .. } => {
-                for item in items {
-                    if item != "*" {
-                        let location =
-                            span.as_ref()
-                                .map(Location::from)
-                                .unwrap_or_else(|| Location {
-                                    line: 0,
-                                    column: 0,
-                                    offset: 0,
-                                    length: item.len(),
-                                });
-                        self.add_definition(item.clone(), SymbolKind::Import, location);
+            Statement::Import { kind, span, .. } => {
+                use crate::ast::ImportKind;
+                let location = span
+                    .as_ref()
+                    .map(Location::from)
+                    .unwrap_or_else(|| Location {
+                        line: 0,
+                        column: 0,
+                        offset: 0,
+                        length: 0,
+                    });
+
+                match kind {
+                    ImportKind::Full { alias: Some(alias) } => {
+                        // Register the alias as a definition
+                        self.add_definition(alias.clone(), SymbolKind::Import, location);
+                    }
+                    ImportKind::Full { alias: None } => {
+                        // No alias, so no symbol to track
+                    }
+                    ImportKind::Selective { items } => {
+                        for item in items {
+                            let name = item.alias.as_ref().unwrap_or(&item.name);
+                            self.add_definition(name.clone(), SymbolKind::Import, location.clone());
+                        }
+                    }
+                    ImportKind::Wildcard => {
+                        // Wildcard imports don't add specific symbols
                     }
                 }
             }
