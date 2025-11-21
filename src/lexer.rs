@@ -394,7 +394,7 @@ impl<'a> Lexer<'a> {
                 let mut depth = 1;
 
                 // Collect expression content, handling nested braces
-                while let Some(ch) = chars.next() {
+                for ch in chars.by_ref() {
                     if ch == '{' {
                         depth += 1;
                         expr.push(ch);
