@@ -82,6 +82,39 @@
 //!     }).requires_absence_of("local_path"))
 //!     .mutually_exclusive(vec!["local_path".to_string(), "remote_url".to_string()]);
 //! ```
+//!
+//! ## Type Handling and Coercion
+//!
+//! JCL's schema validation follows the language's design principle of **explicit types** with
+//! no surprising type coercions. This differs from YAML, JSON Schema, and some other formats.
+//!
+//! ### Number Type Flexibility
+//!
+//! The `TypeDef::Number` type accepts both integers and floats, providing natural numeric flexibility:
+//! ```rust
+//! use jcl::schema::{SchemaBuilder, PropertyBuilder, TypeDef};
+//!
+//! let schema = SchemaBuilder::new("config")
+//!     .field("value", PropertyBuilder::new(TypeDef::Number {
+//!         minimum: None,
+//!         maximum: None,
+//!         integer_only: false,
+//!     }));
+//!
+//! // Both integer and float values are accepted:
+//! // value = 42      ✅ Valid
+//! // value = 42.5    ✅ Valid
+//! ```
+//!
+//! ### No Implicit String Coercion
+//!
+//! Unlike some schema systems, JCL does **not** coerce strings to other types:
+//! - `"42"` (string) is NOT coerced to `42` (number)
+//! - `"true"` (string) is NOT coerced to `true` (boolean)
+//! - `"null"` (string) is NOT coerced to `null`
+//!
+//! This explicit approach prevents common configuration errors and aligns with JCL's
+//! philosophy of being predictable and safe.
 
 use crate::ast::{Module, Value};
 use crate::evaluator::Evaluator;
