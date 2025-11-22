@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Module System - Phase 1** (#95)
+  - **Module interfaces**: Declare module inputs and outputs with type contracts
+  - **Module instantiation**: `module.<type>.<instance> = (source = "...", inputs...)`
+  - **Module inputs access**: Special `module.inputs` variable within modules
+  - **Module outputs**: Define outputs with `module.outputs = (...)`
+  - **Input validation**: Required field checking, unknown field detection
+  - **Output validation**: Ensure all declared outputs are provided
+  - **Variable isolation**: Module evaluations don't pollute parent scope
+  - **Multiple instances**: Same module can be instantiated multiple times with different inputs
+  - **Nested access**: `module.<type>.<instance>.<output>` for accessing outputs
+  - Syntax:
+    ```jcl
+    # Module definition
+    module.interface = (
+        inputs = (name = (type = string, required = true)),
+        outputs = (result = (type = string))
+    )
+    module.outputs = (result = "Hello, ${module.inputs.name}!")
+
+    # Module usage
+    module.greeter.alice = (source = "./greeter.jcl", name = "Alice")
+    message = module.greeter.alice.result  # "Hello, Alice!"
+    ```
 - **Schema Generation from Examples** (#102)
   - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
   - Automatic type inference from values (String, Number, Boolean, List, Map)
