@@ -1966,7 +1966,7 @@ impl Default for GenerateOptions {
 ///
 /// ```
 /// use jcl::schema::{generate_from_examples, GenerateOptions};
-/// use jcl::parser::Parser;
+/// use jcl::parse_str;
 ///
 /// let example = r#"
 /// server = (
@@ -1975,7 +1975,7 @@ impl Default for GenerateOptions {
 /// )
 /// "#;
 ///
-/// let module = Parser::new(example).parse().unwrap();
+/// let module = parse_str(example).unwrap();
 /// let schema = generate_from_examples(&[module], GenerateOptions::default()).unwrap();
 /// ```
 pub fn generate_from_examples(
