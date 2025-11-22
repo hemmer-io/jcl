@@ -1524,7 +1524,11 @@ impl TokenParser {
         let mut arms = vec![self.parse_when_arm()?];
         while self.check(&TokenKind::Comma) {
             self.advance();
-            let closing_token = if use_braces { TokenKind::RightBrace } else { TokenKind::RightParen };
+            let closing_token = if use_braces {
+                TokenKind::RightBrace
+            } else {
+                TokenKind::RightParen
+            };
             if self.check(&closing_token) {
                 break; // Trailing comma
             }
@@ -2327,6 +2331,117 @@ module.server.web = (
             assert!(inputs.contains_key("host"));
         } else {
             panic!("Expected module instance statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_output_assignment() {
+        // Test fix for Issue #109-2: out.* assignments
+        let input = r#"
+app_name = "myapp"
+out.name = app_name
+out.version = "1.0"
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 3);
+
+        // Check that second statement is out.name assignment
+        if let Statement::Assignment { name, .. } = &module.statements[1] {
+            assert_eq!(name, "out.name");
+        } else {
+            panic!("Expected out.name assignment");
+        }
+    }
+
+    #[test]
+    fn test_parse_output_with_map() {
+        // Test fix for Issue #109-2: out.* assignments with map values
+        let input = r#"
+summary = (name = "app", version = "1.0")
+out.summary = summary
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_when_with_braces() {
+        // Test fix for Issue #109-1: when expressions with brace syntax
+        let input = r#"
+env = "prod"
+result = when env {
+  "prod" => "production",
+  "dev" => "development",
+  * => "unknown"
+}
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_when_with_map_values() {
+        // Test fix for Issue #109-1: when expressions with map values
+        let input = r#"
+env = "prod"
+config = when env {
+  "prod" => (type = "t3.large", replicas = 3),
+  "dev" => (type = "t3.small", replicas = 1),
+  * => (type = "t3.micro", replicas = 1)
+}
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_when_legacy_syntax() {
+        // Test backward compatibility: when with parens still works for member access
+        let input = r#"
+settings = (log_level: "info")
+status = when settings.log_level ("info" => "normal", * => "other")
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_nested_member_access_assignment() {
+        // Test deeper member access chains
+        let input = r#"
+config.database.host = "localhost"
+config.database.port = 5432
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let Statement::Assignment { name, .. } = &module.statements[0] {
+            assert_eq!(name, "config.database.host");
+        } else {
+            panic!("Expected config.database.host assignment");
         }
     }
 }
