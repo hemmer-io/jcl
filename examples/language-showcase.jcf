@@ -155,7 +155,23 @@ protocol = port == 443 ? "https" : "http"
 counter = 5
 result = if counter > 10 then "large" else "small"
 
-# Note: When expressions have parsing limitations in current version
+# When expression (pattern matching with new brace syntax)
+status = when settings.log_level {
+  "debug" => "verbose",
+  "info" => "normal",
+  "warn" => "quiet",
+  "error" => "silent",
+  * => "unknown"
+}
+
+# When expression with map values
+env = "prod"
+env_config = when env {
+  "prod" => (type = "t3.large", replicas = 3),
+  "staging" => (type = "t3.medium", replicas = 2),
+  "dev" => (type = "t3.small", replicas = 1),
+  * => (type = "t3.micro", replicas = 1)
+}
 
 ## ============================================================================
 ## LIST COMPREHENSIONS
@@ -216,9 +232,11 @@ out.config_toml = tomlencode(app_config)
 # ✅ ?. and ?? operators
 # ✅ Named functions
 # ✅ Try/catch with fallbacks
-# ✅ When expressions (single-line)
+# ✅ When expressions with {} (pattern matching)
+# ✅ When expressions with map values
 # ✅ If/then/else expressions
 # ✅ List comprehensions
 # ✅ Type annotations (optional)
 # ✅ Built-in functions (70+)
+# ✅ Output variables (out.*)
 # ✅ Comments
