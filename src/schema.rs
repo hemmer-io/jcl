@@ -1934,6 +1934,280 @@ impl Validator {
     }
 }
 
+// ========== Schema Generation from Examples ==========
+
+/// Options for schema generation
+#[derive(Debug, Clone)]
+pub struct GenerateOptions {
+    /// Infer specific types from values (vs. using Any)
+    pub infer_types: bool,
+    /// Infer constraints like min/max lengths, ranges
+    pub infer_constraints: bool,
+    /// Mark all fields as optional (permissive schema)
+    pub mark_all_optional: bool,
+}
+
+impl Default for GenerateOptions {
+    fn default() -> Self {
+        Self {
+            infer_types: true,
+            infer_constraints: true,
+            mark_all_optional: false,
+        }
+    }
+}
+
+/// Generate a schema from example JCL modules
+///
+/// Analyzes one or more JCL modules to infer a schema definition.
+/// The generated schema can be used as a starting point and refined manually.
+///
+/// # Examples
+///
+/// ```
+/// use jcl::schema::{generate_from_examples, GenerateOptions};
+/// use jcl::parse_str;
+///
+/// let example = r#"
+/// server = (
+///     host = "localhost",
+///     port = 8080
+/// )
+/// "#;
+///
+/// let module = parse_str(example).unwrap();
+/// let schema = generate_from_examples(&[module], GenerateOptions::default()).unwrap();
+/// ```
+pub fn generate_from_examples(
+    modules: &[crate::ast::Module],
+    options: GenerateOptions,
+) -> anyhow::Result<Schema> {
+    let mut builder = SchemaBuilder::new("Generated");
+    let mut field_occurrences: HashMap<String, usize> = HashMap::new();
+    let total_modules = modules.len();
+
+    // First pass: collect all fields and count occurrences
+    for module in modules {
+        for statement in &module.statements {
+            if let crate::ast::Statement::Assignment { name, value, .. } = statement {
+                *field_occurrences.entry(name.clone()).or_insert(0) += 1;
+
+                // If field already exists, we might need to merge types
+                if !builder.properties.contains_key(name) {
+                    let type_def = if options.infer_types {
+                        infer_type_from_value(value, &options)
+                    } else {
+                        TypeDef::Any
+                    };
+                    builder = builder.field(name.clone(), PropertyBuilder::new(type_def));
+                }
+            }
+        }
+    }
+
+    // Second pass: mark required fields (present in all examples)
+    if !options.mark_all_optional {
+        for (field_name, occurrences) in &field_occurrences {
+            if *occurrences == total_modules {
+                builder = builder.mark_required(field_name.clone());
+            }
+        }
+    }
+
+    Ok(builder.build())
+}
+
+/// Infer TypeDef from a JCL expression
+fn infer_type_from_value(value: &crate::ast::Expression, options: &GenerateOptions) -> TypeDef {
+    use crate::ast::Expression;
+
+    match value {
+        Expression::Literal { value: val, .. } => infer_type_from_literal(val, options),
+        Expression::List { elements, .. } => {
+            if elements.is_empty() {
+                TypeDef::List {
+                    items: Box::new(TypeDef::Any),
+                    min_items: if options.infer_constraints {
+                        Some(0)
+                    } else {
+                        None
+                    },
+                    max_items: None,
+                }
+            } else {
+                // Infer type from first element
+                let item_type = infer_type_from_value(&elements[0], options);
+                TypeDef::List {
+                    items: Box::new(item_type),
+                    min_items: if options.infer_constraints {
+                        Some(elements.len())
+                    } else {
+                        None
+                    },
+                    max_items: if options.infer_constraints {
+                        Some(elements.len())
+                    } else {
+                        None
+                    },
+                }
+            }
+        }
+        Expression::Map { entries, .. } => {
+            let mut properties = HashMap::new();
+            let mut required = Vec::new();
+
+            for (key_name, value_expr) in entries {
+                let prop_type = infer_type_from_value(value_expr, options);
+                properties.insert(
+                    key_name.clone(),
+                    Property {
+                        type_def: prop_type,
+                        description: None,
+                        default: None,
+                    },
+                );
+
+                if !options.mark_all_optional {
+                    required.push(key_name.clone());
+                }
+            }
+
+            TypeDef::Map {
+                properties,
+                required,
+                additional_properties: false,
+            }
+        }
+        _ => TypeDef::Any, // For other expression types, use Any
+    }
+}
+
+/// Infer TypeDef from a literal value
+fn infer_type_from_literal(value: &crate::ast::Value, options: &GenerateOptions) -> TypeDef {
+    use crate::ast::Value;
+
+    match value {
+        Value::String(s) => {
+            let mut pattern = None;
+
+            // Pattern detection for common formats
+            if options.infer_constraints {
+                // Email pattern
+                if s.contains('@') && s.contains('.') {
+                    pattern = Some(r"^[^@]+@[^@]+\.[^@]+$".to_string());
+                }
+                // URL pattern
+                else if s.starts_with("http://") || s.starts_with("https://") {
+                    pattern = Some(r"^https?://".to_string());
+                }
+                // File path pattern
+                else if s.starts_with('/') && s.contains('.') {
+                    pattern = Some(r"^/.*\..+$".to_string());
+                }
+            }
+
+            TypeDef::String {
+                min_length: if options.infer_constraints {
+                    Some(s.len())
+                } else {
+                    None
+                },
+                max_length: if options.infer_constraints {
+                    Some(s.len())
+                } else {
+                    None
+                },
+                pattern,
+                enum_values: None,
+            }
+        }
+        Value::Int(n) => TypeDef::Number {
+            minimum: if options.infer_constraints {
+                Some(*n as f64)
+            } else {
+                None
+            },
+            maximum: if options.infer_constraints {
+                Some(*n as f64)
+            } else {
+                None
+            },
+            integer_only: true,
+        },
+        Value::Float(f) => TypeDef::Number {
+            minimum: if options.infer_constraints {
+                Some(*f)
+            } else {
+                None
+            },
+            maximum: if options.infer_constraints {
+                Some(*f)
+            } else {
+                None
+            },
+            integer_only: false,
+        },
+        Value::Bool(_) => TypeDef::Boolean,
+        Value::Null => TypeDef::Null,
+        Value::List(items) => {
+            if items.is_empty() {
+                TypeDef::List {
+                    items: Box::new(TypeDef::Any),
+                    min_items: if options.infer_constraints {
+                        Some(0)
+                    } else {
+                        None
+                    },
+                    max_items: None,
+                }
+            } else {
+                // Infer type from first item
+                let item_type = infer_type_from_literal(&items[0], options);
+                TypeDef::List {
+                    items: Box::new(item_type),
+                    min_items: if options.infer_constraints {
+                        Some(items.len())
+                    } else {
+                        None
+                    },
+                    max_items: if options.infer_constraints {
+                        Some(items.len())
+                    } else {
+                        None
+                    },
+                }
+            }
+        }
+        Value::Map(entries) => {
+            let mut properties = HashMap::new();
+            let mut required = Vec::new();
+
+            for (key, val) in entries {
+                let prop_type = infer_type_from_literal(val, options);
+                properties.insert(
+                    key.clone(),
+                    Property {
+                        type_def: prop_type,
+                        description: None,
+                        default: None,
+                    },
+                );
+
+                if !options.infer_constraints {
+                    required.push(key.clone());
+                }
+            }
+
+            TypeDef::Map {
+                properties,
+                required,
+                additional_properties: false,
+            }
+        }
+        Value::Function { .. } => TypeDef::Any,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3846,5 +4120,234 @@ mod tests {
 
         // Any type should be an empty schema object (allows anything)
         assert!(json_schema.contains("\"value\""));
+    }
+
+    // ========== Schema Generation Tests ==========
+
+    #[test]
+    fn test_generate_from_simple_example() {
+        use crate::parse_str;
+
+        let example = r#"
+        name = "test"
+        port = 8080
+        enabled = true
+        "#;
+
+        let module = parse_str(example).unwrap();
+        let schema = generate_from_examples(&[module], GenerateOptions::default()).unwrap();
+
+        // Check that all fields are present
+        if let TypeDef::Map { properties, .. } = &schema.type_def {
+            assert!(properties.contains_key("name"));
+            assert!(properties.contains_key("port"));
+            assert!(properties.contains_key("enabled"));
+
+            // Check types
+            assert!(matches!(
+                properties.get("name").unwrap().type_def,
+                TypeDef::String { .. }
+            ));
+            assert!(matches!(
+                properties.get("port").unwrap().type_def,
+                TypeDef::Number {
+                    integer_only: true,
+                    ..
+                }
+            ));
+            assert!(matches!(
+                properties.get("enabled").unwrap().type_def,
+                TypeDef::Boolean
+            ));
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_generate_from_nested_map() {
+        use crate::parse_str;
+
+        let example = r#"
+        server = (
+            host = "localhost",
+            port = 8080
+        )
+        "#;
+
+        let module = parse_str(example).unwrap();
+        let schema = generate_from_examples(&[module], GenerateOptions::default()).unwrap();
+
+        // Check nested structure
+        if let TypeDef::Map { properties, .. } = &schema.type_def {
+            assert!(properties.contains_key("server"));
+
+            if let TypeDef::Map {
+                properties: nested_props,
+                ..
+            } = &properties.get("server").unwrap().type_def
+            {
+                assert!(nested_props.contains_key("host"));
+                assert!(nested_props.contains_key("port"));
+            } else {
+                panic!("Expected nested Map type");
+            }
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_generate_from_list() {
+        use crate::parse_str;
+
+        let example = r#"
+        tags = ["web", "production"]
+        numbers = [1, 2, 3]
+        "#;
+
+        let module = parse_str(example).unwrap();
+        let schema = generate_from_examples(&[module], GenerateOptions::default()).unwrap();
+
+        if let TypeDef::Map { properties, .. } = &schema.type_def {
+            // Check string list
+            if let TypeDef::List { items, .. } = &properties.get("tags").unwrap().type_def {
+                assert!(matches!(**items, TypeDef::String { .. }));
+            } else {
+                panic!("Expected List type for tags");
+            }
+
+            // Check number list
+            if let TypeDef::List { items, .. } = &properties.get("numbers").unwrap().type_def {
+                assert!(matches!(**items, TypeDef::Number { .. }));
+            } else {
+                panic!("Expected List type for numbers");
+            }
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_generate_required_fields() {
+        use crate::parse_str;
+
+        let example1 = r#"
+        name = "test1"
+        port = 8080
+        optional_field = "value1"
+        "#;
+
+        let example2 = r#"
+        name = "test2"
+        port = 9000
+        "#;
+
+        let module1 = parse_str(example1).unwrap();
+        let module2 = parse_str(example2).unwrap();
+
+        let schema =
+            generate_from_examples(&[module1, module2], GenerateOptions::default()).unwrap();
+
+        // Fields present in all examples should be required
+        if let TypeDef::Map { required, .. } = &schema.type_def {
+            assert!(required.contains(&"name".to_string()));
+            assert!(required.contains(&"port".to_string()));
+            // optional_field only in first example, so not required
+            assert!(!required.contains(&"optional_field".to_string()));
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_generate_with_all_optional() {
+        use crate::parse_str;
+
+        let example = r#"
+        name = "test"
+        port = 8080
+        "#;
+
+        let module = parse_str(example).unwrap();
+        let options = GenerateOptions {
+            infer_types: true,
+            infer_constraints: true,
+            mark_all_optional: true,
+        };
+        let schema = generate_from_examples(&[module], options).unwrap();
+
+        // No fields should be required
+        if let TypeDef::Map { required, .. } = &schema.type_def {
+            assert!(required.is_empty());
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_generate_without_type_inference() {
+        use crate::parse_str;
+
+        let example = r#"
+        name = "test"
+        port = 8080
+        "#;
+
+        let module = parse_str(example).unwrap();
+        let options = GenerateOptions {
+            infer_types: false,
+            infer_constraints: false,
+            mark_all_optional: false,
+        };
+        let schema = generate_from_examples(&[module], options).unwrap();
+
+        // All fields should be Any type when type inference is disabled
+        if let TypeDef::Map { properties, .. } = &schema.type_def {
+            assert!(matches!(
+                properties.get("name").unwrap().type_def,
+                TypeDef::Any
+            ));
+            assert!(matches!(
+                properties.get("port").unwrap().type_def,
+                TypeDef::Any
+            ));
+        } else {
+            panic!("Expected Map type");
+        }
+    }
+
+    #[test]
+    fn test_generate_with_pattern_detection() {
+        use crate::parse_str;
+
+        let example = r#"
+        email = "user@example.com"
+        url = "https://example.com"
+        file_path = "/etc/config.json"
+        "#;
+
+        let module = parse_str(example).unwrap();
+        let schema = generate_from_examples(&[module], GenerateOptions::default()).unwrap();
+
+        if let TypeDef::Map { properties, .. } = &schema.type_def {
+            // Email should have pattern
+            if let TypeDef::String { pattern, .. } = &properties.get("email").unwrap().type_def {
+                assert!(pattern.is_some());
+                assert!(pattern.as_ref().unwrap().contains("@"));
+            } else {
+                panic!("Expected String type for email");
+            }
+
+            // URL should have pattern
+            if let TypeDef::String { pattern, .. } = &properties.get("url").unwrap().type_def {
+                assert!(pattern.is_some());
+                assert!(pattern.as_ref().unwrap().contains("https?"));
+            } else {
+                panic!("Expected String type for url");
+            }
+        } else {
+            panic!("Expected Map type");
+        }
     }
 }
