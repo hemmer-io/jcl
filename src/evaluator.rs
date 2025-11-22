@@ -2231,8 +2231,11 @@ impl Evaluator {
 
     /// Resolve an import path relative to the current file
     fn resolve_import_path(&self, path: &str) -> Result<PathBuf> {
-        // Check if this is an external source (git, http, tarball)
-        if path.starts_with("git::") || path.starts_with("http://") || path.starts_with("https://")
+        // Check if this is an external source (registry, git, http, tarball)
+        if path.starts_with("registry::")
+            || path.starts_with("git::")
+            || path.starts_with("http://")
+            || path.starts_with("https://")
         {
             // Use module source resolver for external sources
             let base_dir = if let Some(current) = self.current_file.borrow().clone() {

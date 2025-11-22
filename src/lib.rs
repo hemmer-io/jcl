@@ -13,6 +13,7 @@ pub mod functions;
 pub mod lexer;
 pub mod linter;
 pub mod migration;
+pub mod module_registry;
 pub mod module_source;
 pub mod parser;
 pub mod schema;

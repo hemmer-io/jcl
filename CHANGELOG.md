@@ -138,6 +138,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - JSON format with resolved URLs and checksums
     - Tracks exact versions of external modules
     - Ensures consistent builds across environments
+- **Module System - Phase 5: Module Registry** (#95)
+  - **Registry protocol**: RESTful API for module discovery, publishing, and downloads
+    - GET `/api/v1/modules/search?q=<query>` - Search modules
+    - GET `/api/v1/modules/<name>` - Get module metadata
+    - GET `/api/v1/modules/<name>/versions/<version>` - Get specific version
+    - POST `/api/v1/modules/publish` - Publish module (requires auth)
+  - **Registry client**: Full-featured client for interacting with registries
+    ```rust
+    use jcl::module_registry::RegistryClient;
+
+    let client = RegistryClient::default_registry();
+    let results = client.search("aws", 10)?;
+    let module = client.get_module("aws-ec2")?;
+    ```
+  - **Registry module sources**: Use modules from registry with semantic versioning
+    ```jcl
+    module.compute.ec2 = (
+        source = "registry::aws-ec2@^1.0.0",
+        region = "us-east-1"
+    )
+
+    module.database.rds = (
+        source = "registry::aws-rds",  # Latest version
+        engine = "postgres"
+    )
+    ```
+  - **Semantic versioning**: Full semver support with version requirements
+    - Caret requirements: `^1.2.3` (compatible with 1.x.x)
+    - Tilde requirements: `~1.2.3` (compatible with 1.2.x)
+    - Exact requirements: `=1.2.3`
+    - Wildcard: `*` (latest version)
+    - Version resolution finds highest matching version
+  - **Module publishing workflow**: Publish modules to registry
+    - Module manifest (`jcl.json`) with name, version, dependencies
+    - Automatic tarball creation and checksum generation
+    - Authentication via bearer tokens
+    - Example: `client.publish("./my-module")`
+  - **Module discovery and search**: Find modules in registry
+    - Search by name, keywords, description
+    - Pagination support
+    - Download counts and popularity
+  - **Module manifests** (`jcl.json`):
+    ```json
+    {
+      "name": "aws-ec2",
+      "version": "1.2.3",
+      "description": "AWS EC2 instance configuration",
+      "author": "JCL Community",
+      "license": "MIT",
+      "repository": "https://github.com/jcl-modules/aws-ec2",
+      "keywords": ["aws", "ec2", "compute"],
+      "dependencies": {
+        "aws-base": "^2.0.0"
+      },
+      "main": "module.jcl"
+    }
+    ```
+  - **Dependency resolution**: Automatically download and resolve dependencies
+  - **Default registry**: `https://registry.jcl.io` (configurable)
+  - **Multi-registry support**: Configure multiple registries (public, private, company-internal)
 - **Schema Generation from Examples** (#102)
   - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
   - Automatic type inference from values (String, Number, Boolean, List, Map)

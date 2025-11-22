@@ -2,6 +2,7 @@
 //!
 //! This module provides functionality to resolve module sources from various locations:
 //! - Local file paths (./path/to/module.jcl)
+//! - Registry modules (registry::module-name@^1.0.0)
 //! - Git repositories (git::https://github.com/user/repo.git//path/to/module.jcl?ref=v1.0.0)
 //! - HTTP/HTTPS URLs (https://example.com/modules/module.jcl)
 //! - Tarballs (https://example.com/modules/module.tar.gz//module.jcl)
@@ -9,16 +10,25 @@
 //! It also handles caching of remote modules and version resolution.
 
 use anyhow::{anyhow, Context, Result};
+use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::module_registry::RegistryClient;
 
 /// Module source types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModuleSource {
     /// Local file path: ./path/to/module.jcl or /absolute/path/to/module.jcl
     Local { path: PathBuf },
+
+    /// Registry module: registry::module-name@^1.0.0
+    Registry {
+        name: String,
+        version_req: String, // Stored as string for serialization
+    },
 
     /// Git repository: git::https://github.com/user/repo.git//path/to/module.jcl?ref=v1.0.0
     Git {
@@ -41,6 +51,9 @@ pub struct ModuleSourceResolver {
 
     /// Module lock entries (for reproducible builds)
     lock_entries: HashMap<String, LockEntry>,
+
+    /// Registry client for resolving registry modules
+    registry_client: Option<RegistryClient>,
 }
 
 /// Entry in the lock file
@@ -72,11 +85,29 @@ impl ModuleSourceResolver {
         Self {
             cache_dir,
             lock_entries: HashMap::new(),
+            registry_client: Some(RegistryClient::default_registry()),
         }
     }
 
     /// Parse a module source string
     pub fn parse_source(source: &str) -> Result<ModuleSource> {
+        // Registry source: registry::module-name@^1.0.0 or registry::module-name
+        if source.starts_with("registry::") {
+            let source = source.strip_prefix("registry::").unwrap();
+
+            // Split by @ to separate name from version
+            let (name, version_req) = if let Some(idx) = source.find('@') {
+                let name = &source[..idx];
+                let version = &source[idx + 1..];
+                (name.to_string(), version.to_string())
+            } else {
+                // No version specified, use latest
+                (source.to_string(), "*".to_string())
+            };
+
+            return Ok(ModuleSource::Registry { name, version_req });
+        }
+
         // Git source: git::https://github.com/user/repo.git//path/to/module.jcl?ref=v1.0.0
         if source.starts_with("git::") {
             let source = source.strip_prefix("git::").unwrap();
@@ -177,6 +208,10 @@ impl ModuleSourceResolver {
                 Ok(resolved)
             }
 
+            ModuleSource::Registry { name, version_req } => {
+                self.resolve_registry(&name, &version_req)
+            }
+
             ModuleSource::Git {
                 url,
                 path,
@@ -187,6 +222,42 @@ impl ModuleSourceResolver {
 
             ModuleSource::Tarball { url, path } => self.resolve_tarball(&url, &path),
         }
+    }
+
+    /// Resolve a registry module source
+    fn resolve_registry(&mut self, name: &str, version_req_str: &str) -> Result<PathBuf> {
+        // Get registry client
+        let registry_client = self
+            .registry_client
+            .as_ref()
+            .ok_or_else(|| anyhow!("Registry client not initialized"))?;
+
+        // Parse version requirement
+        let version_req =
+            VersionReq::parse(version_req_str).context("Invalid version requirement")?;
+
+        // Resolve version
+        let version = registry_client.resolve_version(name, &version_req)?;
+
+        // Download module
+        let module_dir = registry_client.download(name, &version)?;
+
+        // Get manifest to find main file
+        let manifest_path = module_dir.join("jcl.json");
+        let manifest = crate::module_registry::ModuleManifest::load(&manifest_path)?;
+
+        // Return path to main module file
+        let main_path = module_dir.join(&manifest.main);
+
+        if !main_path.exists() {
+            return Err(anyhow!(
+                "Main module file '{}' not found in {}",
+                manifest.main,
+                name
+            ));
+        }
+
+        Ok(main_path)
     }
 
     /// Resolve a Git repository source
@@ -406,6 +477,32 @@ mod tests {
             parsed,
             ModuleSource::Local {
                 path: PathBuf::from("./path/to/module.jcl")
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_registry_source() {
+        let source = "registry::aws-ec2@^1.0.0";
+        let parsed = ModuleSourceResolver::parse_source(source).unwrap();
+        assert_eq!(
+            parsed,
+            ModuleSource::Registry {
+                name: "aws-ec2".to_string(),
+                version_req: "^1.0.0".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_registry_source_no_version() {
+        let source = "registry::aws-ec2";
+        let parsed = ModuleSourceResolver::parse_source(source).unwrap();
+        assert_eq!(
+            parsed,
+            ModuleSource::Registry {
+                name: "aws-ec2".to_string(),
+                version_req: "*".to_string(),
             }
         );
     }
