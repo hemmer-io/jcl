@@ -144,6 +144,261 @@ fn default_version() -> String {
     "1.0".to_string()
 }
 
+impl Schema {
+    /// Export schema to JSON Schema format (Draft 7)
+    ///
+    /// Converts the JCL schema to a JSON Schema Draft 7 compatible format,
+    /// which can be used with standard JSON Schema validators and tooling.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use jcl::schema::{SchemaBuilder, PropertyBuilder, TypeDef};
+    ///
+    /// let schema = SchemaBuilder::new("User")
+    ///     .version("1.0.0")
+    ///     .description("User account schema")
+    ///     .field("email", PropertyBuilder::new(TypeDef::String {
+    ///         min_length: None,
+    ///         max_length: None,
+    ///         pattern: Some("^[^@]+@[^@]+$".to_string()),
+    ///         enum_values: None,
+    ///     }))
+    ///     .mark_required("email")
+    ///     .build();
+    ///
+    /// let json_schema = schema.to_json_schema();
+    /// assert!(json_schema.contains("\"$schema\": \"http://json-schema.org/draft-07/schema#\""));
+    /// assert!(json_schema.contains("\"email\""));
+    /// ```
+    pub fn to_json_schema(&self) -> String {
+        let mut schema_obj = serde_json::json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "title": self.title.as_ref().unwrap_or(&"Schema".to_string()),
+            "type": "object"
+        });
+
+        if let Some(desc) = &self.description {
+            schema_obj["description"] = serde_json::json!(desc);
+        }
+
+        // Convert TypeDef to JSON Schema format
+        if let TypeDef::Map {
+            properties,
+            required,
+            additional_properties,
+        } = &self.type_def
+        {
+            let mut props = serde_json::Map::new();
+            for (name, prop) in properties {
+                props.insert(name.clone(), type_def_to_json_schema(&prop.type_def));
+            }
+            schema_obj["properties"] = serde_json::json!(props);
+
+            if !required.is_empty() {
+                schema_obj["required"] = serde_json::json!(required);
+            }
+
+            schema_obj["additionalProperties"] = serde_json::json!(additional_properties);
+        }
+
+        serde_json::to_string_pretty(&schema_obj).unwrap_or_default()
+    }
+
+    /// Export schema to OpenAPI 3.0 format
+    ///
+    /// Converts the JCL schema to an OpenAPI 3.0 schema object,
+    /// which can be embedded in OpenAPI specifications for API documentation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use jcl::schema::{SchemaBuilder, PropertyBuilder, TypeDef};
+    ///
+    /// let schema = SchemaBuilder::new("User")
+    ///     .description("User resource")
+    ///     .field("username", PropertyBuilder::new(TypeDef::String {
+    ///         min_length: Some(3),
+    ///         max_length: Some(20),
+    ///         pattern: None,
+    ///         enum_values: None,
+    ///     }))
+    ///     .build();
+    ///
+    /// let openapi_schema = schema.to_openapi();
+    /// assert!(openapi_schema.contains("\"type\": \"object\""));
+    /// assert!(openapi_schema.contains("\"username\""));
+    /// ```
+    pub fn to_openapi(&self) -> String {
+        let mut schema_obj = serde_json::json!({
+            "type": "object"
+        });
+
+        if let Some(title) = &self.title {
+            schema_obj["title"] = serde_json::json!(title);
+        }
+
+        if let Some(desc) = &self.description {
+            schema_obj["description"] = serde_json::json!(desc);
+        }
+
+        // Convert TypeDef to OpenAPI format (very similar to JSON Schema)
+        if let TypeDef::Map {
+            properties,
+            required,
+            additional_properties,
+        } = &self.type_def
+        {
+            let mut props = serde_json::Map::new();
+            for (name, prop) in properties {
+                let mut prop_obj = type_def_to_json_schema(&prop.type_def);
+
+                // Add description if available
+                if let Some(desc) = &prop.description {
+                    if let Some(obj) = prop_obj.as_object_mut() {
+                        obj.insert("description".to_string(), serde_json::json!(desc));
+                    }
+                }
+
+                props.insert(name.clone(), prop_obj);
+            }
+            schema_obj["properties"] = serde_json::json!(props);
+
+            if !required.is_empty() {
+                schema_obj["required"] = serde_json::json!(required);
+            }
+
+            schema_obj["additionalProperties"] = serde_json::json!(additional_properties);
+        }
+
+        serde_json::to_string_pretty(&schema_obj).unwrap_or_default()
+    }
+}
+
+/// Helper function to convert TypeDef to JSON Schema representation
+fn type_def_to_json_schema(type_def: &TypeDef) -> serde_json::Value {
+    match type_def {
+        TypeDef::String {
+            min_length,
+            max_length,
+            pattern,
+            enum_values,
+        } => {
+            let mut obj = serde_json::json!({"type": "string"});
+            if let Some(min) = min_length {
+                obj["minLength"] = serde_json::json!(min);
+            }
+            if let Some(max) = max_length {
+                obj["maxLength"] = serde_json::json!(max);
+            }
+            if let Some(pat) = pattern {
+                obj["pattern"] = serde_json::json!(pat);
+            }
+            if let Some(enums) = enum_values {
+                obj["enum"] = serde_json::json!(enums);
+            }
+            obj
+        }
+        TypeDef::Number {
+            minimum,
+            maximum,
+            integer_only,
+        } => {
+            let mut obj = if *integer_only {
+                serde_json::json!({"type": "integer"})
+            } else {
+                serde_json::json!({"type": "number"})
+            };
+            if let Some(min) = minimum {
+                obj["minimum"] = serde_json::json!(min);
+            }
+            if let Some(max) = maximum {
+                obj["maximum"] = serde_json::json!(max);
+            }
+            obj
+        }
+        TypeDef::Boolean => serde_json::json!({"type": "boolean"}),
+        TypeDef::Null => serde_json::json!({"type": "null"}),
+        TypeDef::List {
+            items,
+            min_items,
+            max_items,
+        } => {
+            let mut obj = serde_json::json!({
+                "type": "array",
+                "items": type_def_to_json_schema(items)
+            });
+            if let Some(min) = min_items {
+                obj["minItems"] = serde_json::json!(min);
+            }
+            if let Some(max) = max_items {
+                obj["maxItems"] = serde_json::json!(max);
+            }
+            obj
+        }
+        TypeDef::Map {
+            properties,
+            required,
+            additional_properties,
+        } => {
+            let mut props = serde_json::Map::new();
+            for (name, prop) in properties {
+                props.insert(name.clone(), type_def_to_json_schema(&prop.type_def));
+            }
+            let mut obj = serde_json::json!({
+                "type": "object",
+                "properties": props,
+                "additionalProperties": additional_properties
+            });
+            if !required.is_empty() {
+                obj["required"] = serde_json::json!(required);
+            }
+            obj
+        }
+        TypeDef::Union { types } => {
+            let schemas: Vec<serde_json::Value> =
+                types.iter().map(type_def_to_json_schema).collect();
+            serde_json::json!({"anyOf": schemas})
+        }
+        TypeDef::DiscriminatedUnion {
+            discriminator,
+            variants,
+        } => {
+            // JSON Schema doesn't have native discriminated unions,
+            // so we use oneOf with const discriminator
+            let schemas: Vec<serde_json::Value> = variants
+                .iter()
+                .map(|(variant_name, variant_type)| {
+                    let mut variant_schema = type_def_to_json_schema(variant_type);
+                    // Add discriminator constraint
+                    if let Some(obj) = variant_schema.as_object_mut() {
+                        if let Some(props) =
+                            obj.get_mut("properties").and_then(|p| p.as_object_mut())
+                        {
+                            props.insert(
+                                discriminator.clone(),
+                                serde_json::json!({"const": variant_name}),
+                            );
+                        }
+                    }
+                    variant_schema
+                })
+                .collect();
+            serde_json::json!({
+                "oneOf": schemas,
+                "discriminator": {
+                    "propertyName": discriminator
+                }
+            })
+        }
+        TypeDef::Ref { name } => {
+            // JSON Schema reference
+            serde_json::json!({"$ref": format!("#/definitions/{}", name)})
+        }
+        TypeDef::Any => serde_json::json!({}),
+    }
+}
+
 /// Type definition for schema validation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -3276,5 +3531,320 @@ mod tests {
 
         // Note: We can't directly compare type_defs due to the complexity,
         // but we verified the builder pattern works
+    }
+
+    // ============================================================================
+    // Phase 5: Schema Export Tests
+    // ============================================================================
+
+    #[test]
+    fn test_json_schema_export_basic() {
+        let schema = SchemaBuilder::new("User")
+            .version("1.0.0")
+            .description("User account schema")
+            .field(
+                "username",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: Some(3),
+                    max_length: Some(20),
+                    pattern: None,
+                    enum_values: None,
+                }),
+            )
+            .field(
+                "age",
+                PropertyBuilder::new(TypeDef::Number {
+                    minimum: Some(0.0),
+                    maximum: Some(150.0),
+                    integer_only: true,
+                }),
+            )
+            .mark_required("username")
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        // Check JSON Schema structure
+        assert!(json_schema.contains("\"$schema\": \"http://json-schema.org/draft-07/schema#\""));
+        assert!(json_schema.contains("\"title\": \"User\""));
+        assert!(json_schema.contains("\"description\": \"User account schema\""));
+        assert!(json_schema.contains("\"type\": \"object\""));
+        assert!(json_schema.contains("\"username\""));
+        assert!(json_schema.contains("\"age\""));
+        assert!(json_schema.contains("\"required\""));
+        assert!(json_schema.contains("\"minLength\": 3"));
+        assert!(json_schema.contains("\"maxLength\": 20"));
+        assert!(json_schema.contains("\"minimum\": 0"));
+        assert!(json_schema.contains("\"maximum\": 150"));
+        assert!(json_schema.contains("\"type\": \"integer\""));
+
+        // Verify it's valid JSON
+        let parsed: serde_json::Value = serde_json::from_str(&json_schema).unwrap();
+        assert_eq!(parsed["$schema"], "http://json-schema.org/draft-07/schema#");
+        assert_eq!(parsed["title"], "User");
+    }
+
+    #[test]
+    fn test_json_schema_export_with_constraints() {
+        let schema = SchemaBuilder::new("Email")
+            .field(
+                "address",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: Some("^[^@]+@[^@]+$".to_string()),
+                    enum_values: None,
+                }),
+            )
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        assert!(json_schema.contains("\"pattern\": \"^[^@]+@[^@]+$\""));
+    }
+
+    #[test]
+    fn test_json_schema_export_with_enums() {
+        let schema = SchemaBuilder::new("Config")
+            .field(
+                "environment",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: Some(vec![
+                        "development".to_string(),
+                        "staging".to_string(),
+                        "production".to_string(),
+                    ]),
+                }),
+            )
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        assert!(json_schema.contains("\"enum\""));
+        assert!(json_schema.contains("\"development\""));
+        assert!(json_schema.contains("\"staging\""));
+        assert!(json_schema.contains("\"production\""));
+    }
+
+    #[test]
+    fn test_json_schema_export_with_list() {
+        let schema = SchemaBuilder::new("Tags")
+            .field(
+                "tags",
+                PropertyBuilder::new(TypeDef::List {
+                    items: Box::new(TypeDef::String {
+                        min_length: None,
+                        max_length: None,
+                        pattern: None,
+                        enum_values: None,
+                    }),
+                    min_items: Some(1),
+                    max_items: Some(10),
+                }),
+            )
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        assert!(json_schema.contains("\"type\": \"array\""));
+        assert!(json_schema.contains("\"items\""));
+        assert!(json_schema.contains("\"minItems\": 1"));
+        assert!(json_schema.contains("\"maxItems\": 10"));
+    }
+
+    #[test]
+    fn test_json_schema_export_with_union() {
+        let schema = SchemaBuilder::new("Value")
+            .field(
+                "data",
+                PropertyBuilder::new(TypeDef::Union {
+                    types: vec![
+                        TypeDef::String {
+                            min_length: None,
+                            max_length: None,
+                            pattern: None,
+                            enum_values: None,
+                        },
+                        TypeDef::Number {
+                            minimum: None,
+                            maximum: None,
+                            integer_only: false,
+                        },
+                    ],
+                }),
+            )
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        assert!(json_schema.contains("\"anyOf\""));
+        assert!(json_schema.contains("\"type\": \"string\""));
+        assert!(json_schema.contains("\"type\": \"number\""));
+    }
+
+    #[test]
+    fn test_openapi_export_basic() {
+        let schema = SchemaBuilder::new("Product")
+            .description("Product resource")
+            .field(
+                "name",
+                PropertyBuilder::new(TypeDef::String {
+                    min_length: None,
+                    max_length: None,
+                    pattern: None,
+                    enum_values: None,
+                })
+                .description("Product name"),
+            )
+            .field(
+                "price",
+                PropertyBuilder::new(TypeDef::Number {
+                    minimum: Some(0.0),
+                    maximum: None,
+                    integer_only: false,
+                })
+                .description("Product price"),
+            )
+            .mark_required("name")
+            .mark_required("price")
+            .build();
+
+        let openapi_schema = schema.to_openapi();
+
+        // Check OpenAPI structure
+        assert!(openapi_schema.contains("\"title\": \"Product\""));
+        assert!(openapi_schema.contains("\"description\": \"Product resource\""));
+        assert!(openapi_schema.contains("\"type\": \"object\""));
+        assert!(openapi_schema.contains("\"name\""));
+        assert!(openapi_schema.contains("\"price\""));
+        assert!(openapi_schema.contains("\"required\""));
+        assert!(openapi_schema.contains("\"minimum\": 0"));
+
+        // Verify field descriptions are included
+        assert!(openapi_schema.contains("\"Product name\""));
+        assert!(openapi_schema.contains("\"Product price\""));
+
+        // Verify it's valid JSON
+        let parsed: serde_json::Value = serde_json::from_str(&openapi_schema).unwrap();
+        assert_eq!(parsed["title"], "Product");
+        assert_eq!(parsed["type"], "object");
+    }
+
+    #[test]
+    fn test_openapi_export_with_nested_objects() {
+        let schema = SchemaBuilder::new("Order")
+            .field(
+                "customer",
+                PropertyBuilder::new(TypeDef::Map {
+                    properties: {
+                        let mut props = HashMap::new();
+                        props.insert(
+                            "name".to_string(),
+                            Property {
+                                type_def: TypeDef::String {
+                                    min_length: None,
+                                    max_length: None,
+                                    pattern: None,
+                                    enum_values: None,
+                                },
+                                description: Some("Customer name".to_string()),
+                                default: None,
+                            },
+                        );
+                        props
+                    },
+                    required: vec!["name".to_string()],
+                    additional_properties: false,
+                }),
+            )
+            .build();
+
+        let openapi_schema = schema.to_openapi();
+
+        assert!(openapi_schema.contains("\"customer\""));
+        assert!(openapi_schema.contains("\"type\": \"object\""));
+        assert!(openapi_schema.contains("\"additionalProperties\": false"));
+
+        // Verify it's valid JSON
+        let parsed: serde_json::Value = serde_json::from_str(&openapi_schema).unwrap();
+        assert!(parsed["properties"]["customer"].is_object());
+    }
+
+    #[test]
+    fn test_json_schema_export_discriminated_union() {
+        let mut variants = HashMap::new();
+        variants.insert(
+            "local".to_string(),
+            Box::new(TypeDef::Map {
+                properties: {
+                    let mut props = HashMap::new();
+                    props.insert(
+                        "path".to_string(),
+                        Property {
+                            type_def: TypeDef::String {
+                                min_length: None,
+                                max_length: None,
+                                pattern: None,
+                                enum_values: None,
+                            },
+                            description: None,
+                            default: None,
+                        },
+                    );
+                    props
+                },
+                required: vec![],
+                additional_properties: false,
+            }),
+        );
+
+        let schema = SchemaBuilder::new("Storage")
+            .field(
+                "config",
+                PropertyBuilder::new(TypeDef::DiscriminatedUnion {
+                    discriminator: "type".to_string(),
+                    variants,
+                }),
+            )
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        // Should have oneOf with discriminator
+        assert!(json_schema.contains("\"oneOf\""));
+        assert!(json_schema.contains("\"discriminator\""));
+        assert!(json_schema.contains("\"propertyName\": \"type\""));
+        assert!(json_schema.contains("\"const\": \"local\""));
+    }
+
+    #[test]
+    fn test_json_schema_ref_type() {
+        let schema = SchemaBuilder::new("Container")
+            .field(
+                "reference",
+                PropertyBuilder::new(TypeDef::Ref {
+                    name: "ExternalType".to_string(),
+                }),
+            )
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        assert!(json_schema.contains("\"$ref\": \"#/definitions/ExternalType\""));
+    }
+
+    #[test]
+    fn test_json_schema_any_type() {
+        let schema = SchemaBuilder::new("Dynamic")
+            .field("value", PropertyBuilder::new(TypeDef::Any))
+            .build();
+
+        let json_schema = schema.to_json_schema();
+
+        // Any type should be an empty schema object (allows anything)
+        assert!(json_schema.contains("\"value\""));
     }
 }

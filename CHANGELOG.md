@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Import graph visualization**: Generate DOT format graphs for GraphViz
   - **Detailed trace reports**: Human-readable import chain analysis
 - **Import Documentation**: Comprehensive guides and examples in language spec and getting started
-- **Enhanced Schema Validation API - Phases 1-4** (#93)
+- **Enhanced Schema Validation API - Phases 1-5 (Complete)** (#93)
   - **Phase 1: Better Error Messages & Builder Pattern**
     - Rich error types with suggestions and precise source locations
     - Fluent `SchemaBuilder` and `PropertyBuilder` APIs
@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Schema composition via `merge()` for combining multiple schemas
     - Markdown documentation generation with `generate_docs()`
     - Round-trip support via `SchemaBuilder::from_schema()`
+  - **Phase 5: Schema Export**
+    - JSON Schema Draft 7 export via `to_json_schema()`
+    - OpenAPI 3.0 schema export via `to_openapi()`
+    - Full TypeDef coverage including unions, discriminated unions, refs
+    - Standard-compliant output for integration with external tools
 
 ## [1.1.0] - 2025-01-19
 
