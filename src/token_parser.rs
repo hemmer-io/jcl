@@ -91,12 +91,26 @@ impl TokenParser {
         }
 
         // Check for assignment (identifier followed by = or :)
+        // Also handles member access patterns like out.name = value
         if self.check_identifier() {
-            let next_pos = self.position + 1;
-            if next_pos < self.tokens.len() {
-                let next = &self.tokens[next_pos].kind;
-                if matches!(next, TokenKind::Equal | TokenKind::Colon) {
-                    return self.parse_assignment(false, doc_comments);
+            // Look ahead to find = or :, skipping over member access chains
+            let mut pos = self.position + 1;
+            while pos < self.tokens.len() {
+                match &self.tokens[pos].kind {
+                    TokenKind::Dot => {
+                        // Skip the dot and the following identifier
+                        pos += 1;
+                        if pos < self.tokens.len() && self.check_identifier_at(pos) {
+                            pos += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    TokenKind::Equal | TokenKind::Colon => {
+                        // Found assignment operator - this is an assignment
+                        return self.parse_assignment(false, doc_comments);
+                    }
+                    _ => break,
                 }
             }
         }
@@ -331,7 +345,7 @@ impl TokenParser {
 
         let name = self.parse_identifier()?;
 
-        // Check for module-specific patterns
+        // Check for module-specific patterns (handled specially)
         if name == "module" && self.check(&TokenKind::Dot) {
             self.advance(); // consume the dot
             let member = self.parse_identifier()?;
@@ -365,6 +379,15 @@ impl TokenParser {
             ));
         }
 
+        // Handle member access chains for non-module patterns (e.g., out.name, config.host)
+        let mut full_name = name.clone();
+        while self.check(&TokenKind::Dot) {
+            self.advance(); // consume the dot
+            let member = self.parse_identifier()?;
+            full_name.push('.');
+            full_name.push_str(&member);
+        }
+
         let type_annotation = if self.check(&TokenKind::Colon) {
             self.advance();
             Some(self.parse_type()?)
@@ -382,7 +405,7 @@ impl TokenParser {
         };
 
         Ok(Statement::Assignment {
-            name,
+            name: full_name,
             value,
             type_annotation,
             mutable,
@@ -1835,6 +1858,14 @@ impl TokenParser {
 
     fn check_identifier(&self) -> bool {
         matches!(self.current().kind, TokenKind::Identifier(_))
+    }
+
+    fn check_identifier_at(&self, pos: usize) -> bool {
+        if pos < self.tokens.len() {
+            matches!(self.tokens[pos].kind, TokenKind::Identifier(_))
+        } else {
+            false
+        }
     }
 
     fn current_identifier(&self) -> Option<TokenKind> {
