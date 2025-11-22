@@ -22,6 +22,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Import graph visualization**: Generate DOT format graphs for GraphViz
   - **Detailed trace reports**: Human-readable import chain analysis
 - **Import Documentation**: Comprehensive guides and examples in language spec and getting started
+- **Enhanced Schema Validation API - Phases 1-5 (Complete)** (#93)
+  - **Phase 1: Better Error Messages & Builder Pattern**
+    - Rich error types with suggestions and precise source locations
+    - Fluent `SchemaBuilder` and `PropertyBuilder` APIs
+    - Type-safe schema construction with minimal boilerplate
+  - **Phase 2: Custom Validators & Conditional Rules**
+    - Thread-safe custom validator functions (`ValidatorFn`)
+    - Field dependency tracking (`requires()`, `requires_absence_of()`)
+    - Mutually exclusive field groups
+  - **Phase 3: Complex Types**
+    - Discriminated unions (tagged unions) with variant validation
+    - Recursive type references via `TypeDef::Ref`
+    - Explicit type system (no surprising coercions per JCL design)
+  - **Phase 4: Schema Composition**
+    - Schema versioning with `version()` method
+    - Schema inheritance via `extends()` with property merging
+    - Schema composition via `merge()` for combining multiple schemas
+    - Markdown documentation generation with `generate_docs()`
+    - Round-trip support via `SchemaBuilder::from_schema()`
+  - **Phase 5: Schema Export**
+    - JSON Schema Draft 7 export via `to_json_schema()`
+    - OpenAPI 3.0 schema export via `to_openapi()`
+    - Full TypeDef coverage including unions, discriminated unions, refs
+    - Standard-compliant output for integration with external tools
 
 ## [1.1.0] - 2025-01-19
 
