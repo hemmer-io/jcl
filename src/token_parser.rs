@@ -438,7 +438,9 @@ impl TokenParser {
     }
 
     /// Parse inputs map: (input_name = (type = "String", required = true, ...), ...)
-    fn parse_module_inputs_map(&mut self) -> Result<std::collections::HashMap<String, crate::ast::ModuleInput>> {
+    fn parse_module_inputs_map(
+        &mut self,
+    ) -> Result<std::collections::HashMap<String, crate::ast::ModuleInput>> {
         use crate::ast::ModuleInput;
         use std::collections::HashMap;
 
@@ -466,7 +468,11 @@ impl TokenParser {
                     }
                     "required" => {
                         let expr = self.parse_expression()?;
-                        if let Expression::Literal { value: Value::Bool(b), .. } = expr {
+                        if let Expression::Literal {
+                            value: Value::Bool(b),
+                            ..
+                        } = expr
+                        {
                             required = b;
                         } else {
                             return Err(anyhow!("Expected boolean for 'required' field"));
@@ -477,7 +483,11 @@ impl TokenParser {
                     }
                     "description" => {
                         let expr = self.parse_expression()?;
-                        if let Expression::Literal { value: Value::String(s), .. } = expr {
+                        if let Expression::Literal {
+                            value: Value::String(s),
+                            ..
+                        } = expr
+                        {
                             description = Some(s);
                         } else {
                             return Err(anyhow!("Expected string for 'description' field"));
@@ -515,7 +525,9 @@ impl TokenParser {
     }
 
     /// Parse outputs map: (output_name = (type = "String", description = "..."), ...)
-    fn parse_module_outputs_map(&mut self) -> Result<std::collections::HashMap<String, crate::ast::ModuleOutput>> {
+    fn parse_module_outputs_map(
+        &mut self,
+    ) -> Result<std::collections::HashMap<String, crate::ast::ModuleOutput>> {
         use crate::ast::ModuleOutput;
         use std::collections::HashMap;
 
@@ -541,7 +553,11 @@ impl TokenParser {
                     }
                     "description" => {
                         let expr = self.parse_expression()?;
-                        if let Expression::Literal { value: Value::String(s), .. } = expr {
+                        if let Expression::Literal {
+                            value: Value::String(s),
+                            ..
+                        } = expr
+                        {
                             description = Some(s);
                         } else {
                             return Err(anyhow!("Expected string for 'description' field"));
@@ -637,7 +653,11 @@ impl TokenParser {
             if field_name == "source" {
                 // Parse source path (must be a string)
                 let expr = self.parse_expression()?;
-                if let Expression::Literal { value: Value::String(s), .. } = expr {
+                if let Expression::Literal {
+                    value: Value::String(s),
+                    ..
+                } = expr
+                {
                     source = Some(s);
                 } else {
                     return Err(anyhow!("Module source must be a string literal"));
@@ -2092,7 +2112,10 @@ module.interface = (
         let module = result.unwrap();
         assert_eq!(module.statements.len(), 1);
 
-        if let Statement::ModuleInterface { inputs, outputs, .. } = &module.statements[0] {
+        if let Statement::ModuleInterface {
+            inputs, outputs, ..
+        } = &module.statements[0]
+        {
             assert_eq!(inputs.len(), 2);
             assert!(inputs.contains_key("name"));
             assert!(inputs.contains_key("count"));

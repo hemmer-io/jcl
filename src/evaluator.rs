@@ -45,6 +45,19 @@ impl ImportMetrics {
     }
 }
 
+/// Module interface definition
+#[derive(Debug, Clone)]
+pub struct ModuleInterface {
+    pub inputs: HashMap<String, crate::ast::ModuleInput>,
+    pub outputs: HashMap<String, crate::ast::ModuleOutput>,
+}
+
+/// Evaluated module outputs
+#[derive(Debug, Clone)]
+pub struct ModuleOutputs {
+    pub outputs: HashMap<String, Value>,
+}
+
 /// Evaluator context
 pub struct Evaluator {
     pub variables: HashMap<String, Value>,
@@ -65,6 +78,12 @@ pub struct Evaluator {
     pub trace_imports: bool,
     /// Import metrics collection
     import_metrics: RefCell<ImportMetrics>,
+    /// Module interface cache (path -> interface definition)
+    module_interface_cache: RefCell<HashMap<PathBuf, ModuleInterface>>,
+    /// Module output cache (path -> evaluated outputs)
+    module_output_cache: RefCell<HashMap<PathBuf, ModuleOutputs>>,
+    /// Current module inputs (for module.inputs access within a module)
+    current_module_inputs: RefCell<Option<HashMap<String, Value>>>,
 }
 
 impl Evaluator {
@@ -81,6 +100,9 @@ impl Evaluator {
             import_cache: RefCell::new(HashMap::new()),
             trace_imports: false,
             import_metrics: RefCell::new(ImportMetrics::default()),
+            module_interface_cache: RefCell::new(HashMap::new()),
+            module_output_cache: RefCell::new(HashMap::new()),
+            current_module_inputs: RefCell::new(None),
         };
         evaluator.register_builtins();
         evaluator
@@ -242,17 +264,75 @@ impl Evaluator {
                     // Expression statements - evaluate but don't bind
                     self.evaluate_expression(&expr)?;
                 }
-                Statement::ModuleInterface { .. } => {
-                    // Module interfaces are handled during module loading, not evaluation
-                    // Just skip for now
+                Statement::ModuleInterface { inputs, outputs, .. } => {
+                    // Store the module interface for later validation
+                    // This should only appear in module files, not main files
+                    if let Some(ref current_path) = *self.current_file.borrow() {
+                        self.module_interface_cache.borrow_mut().insert(
+                            current_path.clone(),
+                            ModuleInterface {
+                                inputs: inputs.clone(),
+                                outputs: outputs.clone(),
+                            },
+                        );
+                    }
                 }
-                Statement::ModuleOutputs { .. } => {
-                    // Module outputs are handled during module evaluation
-                    // Skip for now - will be implemented in module loader
+                Statement::ModuleOutputs { outputs, .. } => {
+                    // Evaluate module outputs and store them
+                    // This should only be called within a module context
+                    let mut evaluated_outputs = HashMap::new();
+                    for (name, expr) in outputs {
+                        let value = self.evaluate_expression(&expr)?;
+                        evaluated_outputs.insert(name.clone(), value);
+                    }
+
+                    // Store in the module outputs for the current file
+                    if let Some(ref current_path) = *self.current_file.borrow() {
+                        self.module_output_cache.borrow_mut().insert(
+                            current_path.clone(),
+                            ModuleOutputs {
+                                outputs: evaluated_outputs,
+                            },
+                        );
+                    }
                 }
-                Statement::ModuleInstance { .. } => {
-                    // Module instances will be evaluated by the module loader
-                    // Skip for now - will be implemented in module loader
+                Statement::ModuleInstance {
+                    module_type,
+                    instance_name,
+                    source,
+                    inputs: input_exprs,
+                    ..
+                } => {
+                    // Evaluate module instance
+                    let outputs = self.evaluate_module_instance(&source, &input_exprs)?;
+
+                    // Create nested structure: module.<type>.<instance> = outputs
+                    // Get or create the "module" map
+                    let module_map = if let Some(Value::Map(m)) = self.variables.get("module") {
+                        m.clone()
+                    } else {
+                        HashMap::new()
+                    };
+
+                    // Get or create the module_type map within module
+                    let mut module_map = module_map;
+                    let type_map = if let Some(Value::Map(m)) = module_map.get(&module_type.to_string()) {
+                        m.clone()
+                    } else {
+                        HashMap::new()
+                    };
+
+                    // Insert instance into type map
+                    let mut type_map = type_map;
+                    type_map.insert(instance_name.clone(), Value::Map(outputs));
+
+                    // Update module map
+                    module_map.insert(module_type.clone(), Value::Map(type_map.clone()));
+
+                    // Store the updated module map
+                    self.variables
+                        .insert("module".to_string(), Value::Map(module_map.clone()));
+                    bindings.insert("module".to_string(), Value::Map(module_map));
                 }
             }
         }
@@ -323,6 +403,20 @@ impl Evaluator {
                 field,
                 span,
             } => {
+                // Special handling for module.inputs
+                if let Expression::Variable { name, .. } = &**object {
+                    if name == "module" && field == "inputs" {
+                        // Return the current module inputs as a map
+                        if let Some(ref inputs) = *self.current_module_inputs.borrow() {
+                            return Ok(Value::Map(inputs.clone()));
+                        } else {
+                            return Err(anyhow!(
+                                "module.inputs can only be accessed within a module context"
+                            ));
+                        }
+                    }
+                }
+
                 // Check if the object expression contains a Splat
                 if self.contains_splat(object) {
                     // Evaluate with splat semantics
@@ -1140,6 +1234,9 @@ impl Evaluator {
             import_cache: RefCell::new(self.import_cache.borrow().clone()),
             trace_imports: self.trace_imports,
             import_metrics: RefCell::new(self.import_metrics.borrow().clone()),
+            module_interface_cache: RefCell::new(self.module_interface_cache.borrow().clone()),
+            module_output_cache: RefCell::new(self.module_output_cache.borrow().clone()),
+            current_module_inputs: RefCell::new(self.current_module_inputs.borrow().clone()),
         };
         new_eval.variables.insert(var_name.to_string(), value);
         new_eval
@@ -1630,6 +1727,145 @@ impl Evaluator {
                 for (name, value) in imported_bindings {
                     self.variables.insert(name, value);
                 }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Evaluate a module instance with input parameters
+    fn evaluate_module_instance(
+        &mut self,
+        source: &str,
+        input_exprs: &HashMap<String, Expression>,
+    ) -> Result<HashMap<String, Value>> {
+        // Resolve the module path relative to the current file
+        let resolved_path = self.resolve_import_path(source)?;
+
+        // Parse the module file
+        let module_ast = crate::parse_file(&resolved_path).map_err(|e| {
+            anyhow!(
+                "Failed to parse module file '{}': {}",
+                resolved_path.display(),
+                e
+            )
+        })?;
+
+        // Save the current file
+        let previous_file = self.current_file.borrow().clone();
+
+        // Set the current file to the module path for nested imports
+        self.set_current_file(&resolved_path);
+
+        // Evaluate input expressions in the CALLER's context
+        let mut input_values = HashMap::new();
+        for (name, expr) in input_exprs {
+            // Restore caller context temporarily for input evaluation
+            *self.current_file.borrow_mut() = previous_file.clone();
+            let value = self.evaluate_expression(expr)?;
+            input_values.insert(name.clone(), value);
+            // Restore module context
+            self.set_current_file(&resolved_path);
+        }
+
+        // Clear any previous module output cache for this path
+        // (since we're evaluating with different inputs)
+        self.module_output_cache.borrow_mut().remove(&resolved_path);
+
+        // Save current variable state to isolate module evaluation
+        let saved_variables = self.variables.clone();
+        let saved_functions = self.functions.clone();
+
+        // Set module.inputs for the module context
+        *self.current_module_inputs.borrow_mut() = Some(input_values.clone());
+
+        // Evaluate the module
+        let _evaluated = self.evaluate(module_ast).map_err(|e| {
+            anyhow!(
+                "Failed to evaluate module file '{}': {}",
+                resolved_path.display(),
+                e
+            )
+        })?;
+
+        // Clear module.inputs after evaluation
+        *self.current_module_inputs.borrow_mut() = None;
+
+        // Restore the previous file
+        *self.current_file.borrow_mut() = previous_file;
+
+        // Restore variable state (isolate module variables from parent scope)
+        self.variables = saved_variables;
+        self.functions = saved_functions;
+
+        // Get the module interface for validation
+        let interface = self
+            .module_interface_cache
+            .borrow()
+            .get(&resolved_path)
+            .cloned();
+
+        // Validate inputs against the interface if it exists
+        if let Some(ref iface) = interface {
+            self.validate_module_inputs(&input_values, &iface.inputs)?;
+        }
+
+        // Get the module outputs
+        let outputs = self
+            .module_output_cache
+            .borrow()
+            .get(&resolved_path)
+            .map(|o| o.outputs.clone())
+            .ok_or_else(|| {
+                anyhow!(
+                    "Module '{}' did not define module.outputs",
+                    resolved_path.display()
+                )
+            })?;
+
+        // Validate outputs against the interface if it exists
+        if let Some(ref iface) = interface {
+            self.validate_module_outputs(&outputs, &iface.outputs)?;
+        }
+
+        Ok(outputs)
+    }
+
+    /// Validate module inputs against the interface
+    fn validate_module_inputs(
+        &self,
+        provided: &HashMap<String, Value>,
+        interface: &HashMap<String, crate::ast::ModuleInput>,
+    ) -> Result<()> {
+        // Check for required inputs
+        for (name, input_def) in interface {
+            if input_def.required && !provided.contains_key(name) {
+                if input_def.default.is_none() {
+                    return Err(anyhow!("Required module input '{}' not provided", name));
+                }
+            }
+        }
+
+        // Check for unknown inputs
+        for name in provided.keys() {
+            if !interface.contains_key(name) {
+                return Err(anyhow!("Unknown module input '{}'", name));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate module outputs against the interface
+    fn validate_module_outputs(
+        &self,
+        provided: &HashMap<String, Value>,
+        interface: &HashMap<String, crate::ast::ModuleOutput>,
+    ) -> Result<()> {
+        // Check that all declared outputs are provided
+        for name in interface.keys() {
+            if !provided.contains_key(name) {
+                return Err(anyhow!("Module output '{}' declared but not provided", name));
             }
         }
 
