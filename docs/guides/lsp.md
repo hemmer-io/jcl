@@ -25,7 +25,7 @@ The binary will be available at `target/release/jcl-lsp`.
   - Naming convention violations
   - Type annotation suggestions
   - Redundant operations
-  - **Schema validation errors** (if `.jcl-schema.json` or `.jcl-schema.yaml` present)
+  - **Schema validation errors** (if `.jcf-schema.json` or `.jcf-schema.yaml` present)
 
 - **Autocomplete**: Intelligent code completion for:
   - All 70+ built-in functions
@@ -80,8 +80,8 @@ local lspconfig = require('lspconfig')
 local configs = require('lspconfig.configs')
 
 -- Define JCL LSP if not already defined
-if not configs.jcl then
-  configs.jcl = {
+if not configs.jcf then
+  configs.jcf = {
     default_config = {
       cmd = {'/path/to/jcl-lsp'},
       filetypes = {'jcl'},
@@ -92,7 +92,7 @@ if not configs.jcl then
 end
 
 -- Setup JCL LSP
-lspconfig.jcl.setup{}
+lspconfig.jcf.setup{}
 ```
 
 ### Emacs (with lsp-mode)
@@ -123,7 +123,7 @@ Add to `LSP.sublime-settings`:
     "jcl": {
       "enabled": true,
       "command": ["/path/to/jcl-lsp"],
-      "selector": "source.jcl"
+      "selector": "source.jcf"
     }
   }
 }
@@ -137,9 +137,9 @@ The LSP server automatically discovers and loads schema files from your workspac
 
 When the LSP server initializes, it searches for schema files in your workspace root in this order:
 
-1. `.jcl-schema.json`
-2. `.jcl-schema.yaml`
-3. `.jcl-schema.yml`
+1. `.jcf-schema.json`
+2. `.jcf-schema.yaml`
+3. `.jcf-schema.yml`
 4. `jcl-schema.json`
 5. `jcl-schema.yaml`
 
@@ -147,7 +147,7 @@ The first file found is loaded and used for validation. Both JSON and YAML schem
 
 ### Example: Using Schema Validation
 
-Create a schema file `.jcl-schema.json` in your workspace root:
+Create a schema file `.jcf-schema.json` in your workspace root:
 
 ```json
 {
@@ -171,7 +171,7 @@ Create a schema file `.jcl-schema.json` in your workspace root:
 Now edit a JCL file:
 
 ```jcl
-# config.jcl
+# config.jcf
 name = "my-app"
 port = "8080"  # ← Error: Type mismatch: expected Int, found String (at config.port)
 ```
@@ -196,7 +196,7 @@ The schema is loaded when the LSP server initializes. To reload after changing t
 
 ## Testing the LSP Server
 
-Create a test file `test.jcl`:
+Create a test file `test.jcf`:
 
 ```jcl
 # This should show autocomplete for built-in functions
@@ -267,7 +267,7 @@ Planned features:
 
 ### No diagnostics appearing
 
-1. Ensure file has `.jcl` extension
+1. Ensure file has `.jcf` extension
 2. Check that file is syntactically valid
 3. Look at LSP logs for errors
 

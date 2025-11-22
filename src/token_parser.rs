@@ -2071,7 +2071,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_path_based() {
-        let input = r#"import "./config.jcl""#;
+        let input = r#"import "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2081,7 +2081,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             assert!(matches!(kind, crate::ast::ImportKind::Full { alias: None }));
         } else {
             panic!("Expected import statement");
@@ -2090,7 +2090,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_path_based_with_alias() {
-        let input = r#"import "./config.jcl" as cfg"#;
+        let input = r#"import "./config.jcf" as cfg"#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2100,7 +2100,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             if let crate::ast::ImportKind::Full { alias } = kind {
                 assert_eq!(alias.as_ref().unwrap(), "cfg");
             } else {
@@ -2113,7 +2113,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_selective() {
-        let input = r#"import (database, server) from "./config.jcl""#;
+        let input = r#"import (database, server) from "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2123,7 +2123,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             if let crate::ast::ImportKind::Selective { items } = kind {
                 assert_eq!(items.len(), 2);
                 assert_eq!(items[0].name, "database");
@@ -2140,7 +2140,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_selective_with_aliases() {
-        let input = r#"import (database as db, server as srv) from "./config.jcl""#;
+        let input = r#"import (database as db, server as srv) from "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2150,7 +2150,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             if let crate::ast::ImportKind::Selective { items } = kind {
                 assert_eq!(items.len(), 2);
                 assert_eq!(items[0].name, "database");
@@ -2167,7 +2167,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_wildcard() {
-        let input = r#"import * from "./config.jcl""#;
+        let input = r#"import * from "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2177,7 +2177,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             assert!(matches!(kind, crate::ast::ImportKind::Wildcard));
         } else {
             panic!("Expected import statement");
@@ -2248,7 +2248,7 @@ module.outputs = (
     fn test_parse_module_instance() {
         let input = r#"
 module.server.web = (
-    source = "./modules/server.jcl",
+    source = "./modules/server.jcf",
     port = 8080,
     host = "localhost"
 )
@@ -2271,7 +2271,7 @@ module.server.web = (
         {
             assert_eq!(module_type, "server");
             assert_eq!(instance_name, "web");
-            assert_eq!(source, "./modules/server.jcl");
+            assert_eq!(source, "./modules/server.jcf");
             assert_eq!(inputs.len(), 2);
             assert!(inputs.contains_key("port"));
             assert!(inputs.contains_key("host"));

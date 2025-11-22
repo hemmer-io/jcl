@@ -70,7 +70,7 @@ message = template("Server: {{host}}:{{port}}", config)
 
 ## File Association
 
-The extension automatically activates for `.jcl` files.
+The extension automatically activates for `.jcf` files.
 
 ## About JCL
 

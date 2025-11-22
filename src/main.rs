@@ -150,13 +150,13 @@ fn main() -> Result<()> {
             // Create basic project structure
             std::fs::create_dir_all(&project_name)?;
             std::fs::write(
-                format!("{}/main.jcl", project_name),
+                format!("{}/main.jcf", project_name),
                 "# JCL Configuration\n\n# Define your configuration here\n",
             )?;
 
             println!("{}", "✓ Created project structure".green());
             println!("  Created: {}/", project_name);
-            println!("  Created: {}/main.jcl", project_name);
+            println!("  Created: {}/main.jcf", project_name);
         }
 
         Commands::Parse { path } => {
@@ -234,7 +234,7 @@ fn main() -> Result<()> {
             let files = if path_obj.is_file() {
                 vec![path_obj]
             } else if path_obj.is_dir() {
-                // Find all .jcl files in directory
+                // Find all .jcf files in directory
                 std::fs::read_dir(&path_obj)?
                     .filter_map(|e| e.ok())
                     .map(|e| e.path())
@@ -292,8 +292,8 @@ fn main() -> Result<()> {
             let files = if path_buf.is_file() {
                 vec![path_buf]
             } else if path_buf.is_dir() {
-                // Find all .jcl files in directory
-                glob::glob(&format!("{}/**/*.jcl", target))
+                // Find all .jcf files in directory
+                glob::glob(&format!("{}/**/*.jcf", target))
                     .expect("Failed to read glob pattern")
                     .filter_map(Result::ok)
                     .collect()
@@ -385,7 +385,7 @@ fn main() -> Result<()> {
             let files = if path_buf.is_file() {
                 vec![path_buf]
             } else if path_buf.is_dir() {
-                glob::glob(&format!("{}/**/*.jcl", target))
+                glob::glob(&format!("{}/**/*.jcf", target))
                     .expect("Failed to read glob pattern")
                     .filter_map(Result::ok)
                     .collect()

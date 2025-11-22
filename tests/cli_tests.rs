@@ -24,7 +24,7 @@ fn create_temp_file(name: &str, content: &str) -> String {
 fn test_jcl_eval_basic() {
     let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
-        "test_eval_basic.jcl",
+        "test_eval_basic.jcf",
         r#"
 x = 42
 y = "hello"
@@ -49,7 +49,7 @@ z = x + 10
 fn test_jcl_eval_json_output() {
     let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
-        "test_eval_json.jcl",
+        "test_eval_json.jcf",
         r#"
 name = "test"
 value = 123
@@ -85,7 +85,7 @@ value = 123
 fn test_jcl_eval_yaml_output() {
     let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
-        "test_eval_yaml.jcl",
+        "test_eval_yaml.jcf",
         r#"
 config = (host = "localhost", port = 8080)
 "#,
@@ -116,7 +116,7 @@ config = (host = "localhost", port = 8080)
 fn test_jcl_eval_parse_error() {
     let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
-        "test_eval_error.jcl",
+        "test_eval_error.jcf",
         r#"
 x =
 "#,
@@ -149,7 +149,7 @@ fn test_jcl_eval_nonexistent_file() {
 
     let output = Command::new(&jcl_path)
         .arg("eval")
-        .arg("/nonexistent/file.jcl")
+        .arg("/nonexistent/file.jcf")
         .output()
         .expect("Failed to execute jcl eval");
 
@@ -163,7 +163,7 @@ fn test_jcl_eval_nonexistent_file() {
 fn test_jcl_fmt_basic() {
     let jcl_fmt_path = get_binary_path("jcl-fmt");
     let test_file = create_temp_file(
-        "test_fmt.jcl",
+        "test_fmt.jcf",
         r#"x=42
 y="hello"
 z=x+10"#,
@@ -183,7 +183,7 @@ z=x+10"#,
 fn test_jcl_fmt_check_mode() {
     let jcl_fmt_path = get_binary_path("jcl-fmt");
     let test_file = create_temp_file(
-        "test_fmt_check.jcl",
+        "test_fmt_check.jcf",
         r#"
 x = 42
 y = "hello"
@@ -205,14 +205,14 @@ y = "hello"
 fn test_jcl_validate_with_schema() {
     let jcl_validate_path = get_binary_path("jcl-validate");
     let config_file = create_temp_file(
-        "test_validate_config.jcl",
+        "test_validate_config.jcf",
         r#"
 x = 42
 y = "valid"
 "#,
     );
     let schema_file = create_temp_file(
-        "test_validate_schema.jcl",
+        "test_validate_schema.jcf",
         r#"
 x: Int
 y: String
@@ -235,7 +235,7 @@ y: String
 fn test_jcl_validate_invalid_file() {
     let jcl_validate_path = get_binary_path("jcl-validate");
     let test_file = create_temp_file(
-        "test_validate_invalid.jcl",
+        "test_validate_invalid.jcf",
         r#"
 x =
 invalid syntax here
@@ -369,8 +369,8 @@ type:
     );
 
     // Create valid config files
-    let config1 = create_temp_file("test_multifile_1.jcl", "name = \"config1\"");
-    let config2 = create_temp_file("test_multifile_2.jcl", "name = \"config2\"");
+    let config1 = create_temp_file("test_multifile_1.jcf", "name = \"config1\"");
+    let config2 = create_temp_file("test_multifile_2.jcf", "name = \"config2\"");
 
     let output = Command::new(&jcl_validate_path)
         .arg("--schema")
@@ -418,8 +418,8 @@ type:
     );
 
     // Create test files in directory
-    fs::write(temp_dir.join("test1.jcl"), "value = 10").expect("Failed to write test1.jcl");
-    fs::write(temp_dir.join("test2.jcl"), "value = 20").expect("Failed to write test2.jcl");
+    fs::write(temp_dir.join("test1.jcf"), "value = 10").expect("Failed to write test1.jcf");
+    fs::write(temp_dir.join("test2.jcf"), "value = 20").expect("Failed to write test2.jcf");
 
     let output = Command::new(&jcl_validate_path)
         .arg("--schema")
@@ -464,9 +464,9 @@ type:
     );
 
     // Create files - some valid, some invalid
-    let config1 = create_temp_file("test_nff_1.jcl", "required_field = \"valid\"");
-    let config2 = create_temp_file("test_nff_2.jcl", "other_field = \"invalid\""); // Missing required field
-    let config3 = create_temp_file("test_nff_3.jcl", "required_field = \"also_valid\"");
+    let config1 = create_temp_file("test_nff_1.jcf", "required_field = \"valid\"");
+    let config2 = create_temp_file("test_nff_2.jcf", "other_field = \"invalid\""); // Missing required field
+    let config3 = create_temp_file("test_nff_3.jcf", "required_field = \"also_valid\"");
 
     let output = Command::new(&jcl_validate_path)
         .arg("--schema")
@@ -518,7 +518,7 @@ fn test_jcl_lsp_help() {
 fn test_jcl_eval_with_functions() {
     let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
-        "test_eval_functions.jcl",
+        "test_eval_functions.jcf",
         r#"
 fn double(x) = x * 2
 result = double(21)
@@ -546,7 +546,7 @@ result = double(21)
 fn test_jcl_eval_with_lists() {
     let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
-        "test_eval_lists.jcl",
+        "test_eval_lists.jcf",
         r#"
 numbers = [1, 2, 3, 4, 5]
 first = numbers[0]
@@ -574,7 +574,7 @@ first = numbers[0]
 fn test_jcl_eval_with_maps() {
     let jcl_path = get_binary_path("jcl-cli");
     let test_file = create_temp_file(
-        "test_eval_maps.jcl",
+        "test_eval_maps.jcf",
         r#"
 config = (host = "localhost", port = 8080)
 server_host = config.host

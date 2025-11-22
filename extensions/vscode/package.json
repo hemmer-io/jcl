@@ -46,7 +46,7 @@
           "jcl"
         ],
         "extensions": [
-          ".jcl"
+          ".jcf"
         ],
         "configuration": "./language-configuration.json",
         "icon": {

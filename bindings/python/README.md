@@ -63,7 +63,7 @@ print(result["config"])      # {'debug': True, 'timeout': 30}
 import jcl
 
 # Load and evaluate a JCL file
-result = jcl.eval_file("config.jcl")
+result = jcl.eval_file("config.jcf")
 print(result)
 ```
 

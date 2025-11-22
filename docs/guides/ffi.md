@@ -227,17 +227,17 @@ class JclResult(ctypes.Structure):
     ]
 
 # Define functions
-lib.jcl_init.restype = ctypes.c_int
-lib.jcl_parse.argtypes = [ctypes.c_char_p]
-lib.jcl_parse.restype = JclResult
-lib.jcl_free_result.argtypes = [ctypes.POINTER(JclResult)]
+lib.jcf_init.restype = ctypes.c_int
+lib.jcf_parse.argtypes = [ctypes.c_char_p]
+lib.jcf_parse.restype = JclResult
+lib.jcf_free_result.argtypes = [ctypes.POINTER(JclResult)]
 
 # Initialize
-lib.jcl_init()
+lib.jcf_init()
 
 # Parse
 source = b"x = 42\ny = x + 1"
-result = lib.jcl_parse(source)
+result = lib.jcf_parse(source)
 
 if result.success:
     print(f"Success: {result.value.decode('utf-8')}")
@@ -245,7 +245,7 @@ else:
     print(f"Error: {result.error.decode('utf-8')}")
 
 # Clean up
-lib.jcl_free_result(ctypes.byref(result))
+lib.jcf_free_result(ctypes.byref(result))
 ```
 
 ### Go
@@ -265,13 +265,13 @@ import (
 )
 
 func main() {
-    C.jcl_init()
+    C.jcf_init()
 
     source := C.CString("x = 42\ny = x + 1")
     defer C.free(unsafe.Pointer(source))
 
-    result := C.jcl_parse(source)
-    defer C.jcl_free_result(&result)
+    result := C.jcf_parse(source)
+    defer C.jcf_free_result(&result)
 
     if result.success {
         fmt.Println("Success:", C.GoString(result.value))
@@ -301,9 +301,9 @@ module JCL
   attach_function :jcl_free_result, [Result.ptr], :void
 end
 
-JCL.jcl_init
+JCL.jcf_init
 
-result = JCL.jcl_parse("x = 42\ny = x + 1")
+result = JCL.jcf_parse("x = 42\ny = x + 1")
 
 if result[:success]
   puts "Success: #{result[:value].read_string}"
@@ -311,7 +311,7 @@ else
   puts "Error: #{result[:error].read_string}"
 end
 
-JCL.jcl_free_result(result.pointer)
+JCL.jcf_free_result(result.pointer)
 ```
 
 ## Examples

@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     module.outputs = (result = "Hello, ${module.inputs.name}!")
 
     # Module usage
-    module.greeter.alice = (source = "./greeter.jcl", name = "Alice")
+    module.greeter.alice = (source = "./greeter.jcf", name = "Alice")
     message = module.greeter.alice.result  # "Hello, Alice!"
     ```
 - **Module System - Phase 2: Module Composition** (#95)
@@ -39,17 +39,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Module context preservation**: Proper isolation of `module.inputs` context for nested modules
   - Example of nested modules:
     ```jcl
-    # wrapper.jcl uses base.jcl
+    # wrapper.jcf uses base.jcf
     module.interface = (
         inputs = (person = (type = string, required = true),
                   prefix = (type = string, required = false, default = "Welcome")),
         outputs = (full_message = (type = string))
     )
-    module.base.instance1 = (source = "./base.jcl", name = module.inputs.person)
+    module.base.instance1 = (source = "./base.jcf", name = module.inputs.person)
     module.outputs = (full_message = "${module.inputs.prefix}: ${module.base.instance1.message}")
 
-    # main.jcl uses wrapper.jcl (which uses base.jcl)
-    module.wrapper.alice = (source = "./wrapper.jcl", person = "Alice", prefix = "Greetings")
+    # main.jcf uses wrapper.jcf (which uses base.jcf)
+    module.wrapper.alice = (source = "./wrapper.jcf", person = "Alice", prefix = "Greetings")
     result = module.wrapper.alice.full_message  # "Greetings: Hello, Alice!"
     ```
 - **Module System - Phase 3: Advanced Features** (#95)
@@ -65,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Conditional module instantiation**: Use `condition` to conditionally create module instances
     ```jcl
     module.service.web = (
-        source = "./service.jcl",
+        source = "./service.jcf",
         condition = environment == "production",
         name = "web-server"
     )
@@ -73,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Count meta-argument**: Create N identical module instances stored as a list
     ```jcl
     module.server.cluster = (
-        source = "./server.jcl",
+        source = "./server.jcf",
         count = 3,
         name = "server-${count.index}"  # count.index available during evaluation
     )
@@ -83,13 +83,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ```jcl
     # With list
     module.server.named = (
-        source = "./server.jcl",
+        source = "./server.jcf",
         for_each = ["web", "api", "db"],
         name = each.value  # each.key = index, each.value = element
     )
     # With map
     module.server.envs = (
-        source = "./server.jcl",
+        source = "./server.jcf",
         for_each = (dev = "dev-server", prod = "prod-server"),
         name = each.value  # each.key = map key, each.value = map value
     )
@@ -108,21 +108,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Git repository sources**: Clone and use modules from Git repositories
     ```jcl
     module.external.example = (
-        source = "git::https://github.com/user/repo.git//modules/example.jcl?ref=v1.0.0",
+        source = "git::https://github.com/user/repo.git//modules/example.jcf?ref=v1.0.0",
         config_value = "production"
     )
     ```
   - **HTTP/HTTPS sources**: Download modules from web URLs
     ```jcl
     module.remote.config = (
-        source = "https://example.com/modules/config.jcl",
+        source = "https://example.com/modules/config.jcf",
         api_key = secrets.api_key
     )
     ```
   - **Tarball sources**: Extract and use modules from compressed archives
     ```jcl
     module.archived.legacy = (
-        source = "https://example.com/modules/legacy.tar.gz//legacy/module.jcl",
+        source = "https://example.com/modules/legacy.tar.gz//legacy/module.jcf",
         compatibility_mode = true
     )
     ```
@@ -134,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Version resolution**: Support for Git refs (tags, branches, commits)
     - Specify version with `?ref=` query parameter
     - Example: `?ref=v1.2.3`, `?ref=main`, `?ref=abc123`
-  - **Lock file format**: `.jcl.lock` for reproducible builds
+  - **Lock file format**: `.jcf.lock` for reproducible builds
     - JSON format with resolved URLs and checksums
     - Tracks exact versions of external modules
     - Ensures consistent builds across environments
@@ -192,11 +192,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       "dependencies": {
         "aws-base": "^2.0.0"
       },
-      "main": "module.jcl"
+      "main": "module.jcf"
     }
     ```
   - **Dependency resolution**: Automatically download and resolve dependencies
-  - **Default registry**: `https://registry.jcl.io` (configurable)
+  - **Default registry**: `https://registry.jcf.io` (configurable)
   - **Multi-registry support**: Configure multiple registries (public, private, company-internal)
 - **Module System - Phase 6: Tooling** (#95)
   - **CLI Commands**: `jcl-module` binary for module management
@@ -243,14 +243,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configurable generation options (infer types, infer constraints, all optional)
 - **LSP Schema Validation Integration** (#101)
   - Real-time schema validation in editors (VSCode, Vim, etc.)
-  - Automatic schema discovery from workspace (`.jcl-schema.json`, `.jcl-schema.yaml`)
+  - Automatic schema discovery from workspace (`.jcf-schema.json`, `.jcf-schema.yaml`)
   - Schema validation diagnostics alongside linting errors
   - Detailed error messages with suggestions in editor
   - Hot-reloading of schema files on workspace initialization
 - **Enhanced Import System**: Complete multi-file module system with two import patterns (#94)
-  - **Path-based imports**: `import "./config.jcl"` or `import "./config.jcl" as alias`
-  - **Selective imports**: `import (item1, item2) from "./path.jcl"` with per-item aliasing
-  - **Wildcard imports**: `import * from "./path.jcl"`
+  - **Path-based imports**: `import "./config.jcf"` or `import "./config.jcf" as alias`
+  - **Selective imports**: `import (item1, item2) from "./path.jcf"` with per-item aliasing
+  - **Wildcard imports**: `import * from "./path.jcf"`
   - **Path resolution**: Relative to importing file (not cwd)
   - **Circular dependency detection**: Automatic cycle prevention with clear error messages
   - **Import caching**: Parse and evaluate each module only once for performance

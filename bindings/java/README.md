@@ -97,7 +97,7 @@ Map<String, Object> app = (Map<String, Object>) config.get("app");
 System.out.println("App name: " + app.get("name"));
 
 // Evaluate from file
-Map<String, Object> fileConfig = JCL.evalFileToMap("config.jcl");
+Map<String, Object> fileConfig = JCL.evalFileToMap("config.jcf");
 ```
 
 ### Using JsonObject
@@ -257,7 +257,7 @@ public class JclConfig {
 
     @Bean
     public AppConfiguration loadConfig() {
-        Map<String, Object> config = JCL.evalFileToMap("application.jcl");
+        Map<String, Object> config = JCL.evalFileToMap("application.jcf");
 
         AppConfiguration appConfig = new AppConfiguration();
         appConfig.setPort((Integer) config.get("port"));
@@ -282,7 +282,7 @@ public class MyApplication extends Application {
 
         // Load config from assets
         try {
-            InputStream is = getAssets().open("config.jcl");
+            InputStream is = getAssets().open("config.jcf");
             String jclCode = new String(is.readAllBytes());
             config = JCL.evalToMap(jclCode);
         } catch (IOException e) {
@@ -341,7 +341,7 @@ public class JclFormatTask extends DefaultTask {
     @TaskAction
     public void format() {
         getProject().fileTree("src/main/resources")
-            .include("**/*.jcl")
+            .include("**/*.jcf")
             .forEach(file -> {
                 try {
                     String content = new String(Files.readAllBytes(file.toPath()));
@@ -362,7 +362,7 @@ All methods throw `RuntimeException` on errors. It's recommended to catch and ha
 
 ```java
 try {
-    Map<String, Object> config = JCL.evalFileToMap("config.jcl");
+    Map<String, Object> config = JCL.evalFileToMap("config.jcf");
 } catch (RuntimeException e) {
     if (e.getMessage().contains("Parse error")) {
         System.err.println("Invalid JCL syntax: " + e.getMessage());

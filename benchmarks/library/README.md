@@ -130,9 +130,9 @@ Recommendation: Use library bindings for production applications
 
 ## Test Fixtures
 
-- `fixtures/small.jcl` - 10 lines, typical microservice config
-- `fixtures/medium.jcl` - 100 lines, complex service config
-- `fixtures/large.jcl` - 1000 lines, platform-scale config
+- `fixtures/small.jcf` - 10 lines, typical microservice config
+- `fixtures/medium.jcf` - 100 lines, complex service config
+- `fixtures/large.jcf` - 1000 lines, platform-scale config
 - `fixtures/small.json` - JSON equivalent for comparison
 
 ## Notes

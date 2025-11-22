@@ -21,7 +21,7 @@ pip install jcl-lang
 import jcl
 
 # Load and evaluate a JCL file
-config = jcl.eval_file("config.jcl")
+config = jcl.eval_file("config.jcf")
 print(config["database"]["host"])
 
 # Evaluate JCL from a string
@@ -66,7 +66,7 @@ Load and evaluate a JCL file.
 
 **Example**:
 ```python
-config = jcl.eval_file("config.jcl")
+config = jcl.eval_file("config.jcf")
 database_host = config["database"]["host"]
 ```
 
@@ -135,7 +135,7 @@ import os
 
 # Load config based on environment
 env = os.getenv("APP_ENV", "development")
-config = jcl.eval_file(f"config/{env}.jcl")
+config = jcl.eval_file(f"config/{env}.jcf")
 
 # Access nested values
 database_url = f"postgresql://{config['database']['host']}:{config['database']['port']}/{config['database']['name']}"
@@ -150,7 +150,7 @@ import jcl
 app = Flask(__name__)
 
 # Load configuration at startup
-app_config = jcl.eval_file("config.jcl")
+app_config = jcl.eval_file("config.jcf")
 app.config.update(app_config["flask"])
 
 @app.route("/")
@@ -187,7 +187,7 @@ import time
 # Typical performance: ~0.05ms per evaluation
 start = time.time()
 for _ in range(1000):
-    config = jcl.eval_file("config.jcl")
+    config = jcl.eval_file("config.jcf")
 elapsed = time.time() - start
 print(f"Average: {elapsed/1000*1000:.2f}ms per load")
 # Output: Average: 0.05ms per load
@@ -203,7 +203,7 @@ print(f"Average: {elapsed/1000*1000:.2f}ms per load")
 import jcl
 
 try:
-    config = jcl.eval_file("config.jcl")
+    config = jcl.eval_file("config.jcf")
 except SyntaxError as e:
     print(f"Parse error: {e}")
 except RuntimeError as e:
