@@ -417,7 +417,8 @@ jcl-lsp
 
 The LSP server provides:
 - **Syntax highlighting** - Semantic token highlighting
-- **Diagnostics** - Parse and evaluation errors
+- **Diagnostics** - Parse errors, linting warnings, and schema validation errors
+- **Schema validation** - Automatic schema discovery and real-time validation (see [LSP Guide](../guides/lsp.md#schema-validation))
 - **Go to definition** - Jump to variable/function definitions
 - **Find references** - Find all uses of a symbol
 - **Rename symbol** - Rename variables/functions
