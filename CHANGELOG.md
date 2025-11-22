@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **LSP Schema Validation Integration** (#101)
+  - Real-time schema validation in editors (VSCode, Vim, etc.)
+  - Automatic schema discovery from workspace (`.jcl-schema.json`, `.jcl-schema.yaml`)
+  - Schema validation diagnostics alongside linting errors
+  - Detailed error messages with suggestions in editor
+  - Hot-reloading of schema files on workspace initialization
 - **Enhanced Import System**: Complete multi-file module system with two import patterns (#94)
   - **Path-based imports**: `import "./config.jcl"` or `import "./config.jcl" as alias`
   - **Selective imports**: `import (item1, item2) from "./path.jcl"` with per-item aliasing
