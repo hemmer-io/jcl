@@ -1,11 +1,6 @@
 # Basic JCL example - Hello World
 
-environment "development" {
-  variables {
-    greeting = "Hello, JCL!"
-  }
-}
+greeting = "Hello, JCL!"
 
-output "message" {
-  value = env.vars.greeting
-}
+# Output
+out.message = greeting
