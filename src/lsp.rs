@@ -1,8 +1,10 @@
 //! Language Server Protocol implementation for JCL
 
 use crate::linter;
+use crate::schema::Validator;
 use crate::symbol_table::SymbolTable;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
@@ -13,6 +15,12 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 pub struct JclLanguageServer {
     client: Client,
     document_map: Arc<RwLock<HashMap<String, String>>>,
+    /// Schema validator (if a schema file is found)
+    schema_validator: Arc<RwLock<Option<Validator>>>,
+    /// Path to the schema file being used
+    schema_path: Arc<RwLock<Option<PathBuf>>>,
+    /// Workspace root URI
+    workspace_root: Arc<RwLock<Option<Url>>>,
 }
 
 impl JclLanguageServer {
@@ -20,7 +28,78 @@ impl JclLanguageServer {
         Self {
             client,
             document_map: Arc::new(RwLock::new(HashMap::new())),
+            schema_validator: Arc::new(RwLock::new(None)),
+            schema_path: Arc::new(RwLock::new(None)),
+            workspace_root: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Discover and load schema file from workspace
+    async fn discover_schema(&self, workspace_root: Option<&Url>) {
+        if let Some(root) = workspace_root {
+            if let Ok(root_path) = root.to_file_path() {
+                // Look for schema files in order of preference
+                let schema_candidates = vec![
+                    root_path.join(".jcl-schema.json"),
+                    root_path.join(".jcl-schema.yaml"),
+                    root_path.join(".jcl-schema.yml"),
+                    root_path.join("jcl-schema.json"),
+                    root_path.join("jcl-schema.yaml"),
+                ];
+
+                for schema_file in schema_candidates {
+                    if schema_file.exists() {
+                        match self.load_schema(&schema_file).await {
+                            Ok(()) => {
+                                self.client
+                                    .log_message(
+                                        MessageType::INFO,
+                                        format!("Loaded schema from {}", schema_file.display()),
+                                    )
+                                    .await;
+                                return;
+                            }
+                            Err(e) => {
+                                self.client
+                                    .log_message(
+                                        MessageType::ERROR,
+                                        format!(
+                                            "Failed to load schema from {}: {}",
+                                            schema_file.display(),
+                                            e
+                                        ),
+                                    )
+                                    .await;
+                            }
+                        }
+                    }
+                }
+
+                self.client
+                    .log_message(
+                        MessageType::INFO,
+                        "No schema file found in workspace. Schema validation disabled."
+                            .to_string(),
+                    )
+                    .await;
+            }
+        }
+    }
+
+    /// Load schema from file
+    async fn load_schema(&self, path: &PathBuf) -> anyhow::Result<()> {
+        let content = std::fs::read_to_string(path)?;
+
+        let validator = if path.extension().and_then(|s| s.to_str()) == Some("json") {
+            Validator::from_json(&content)?
+        } else {
+            Validator::from_yaml(&content)?
+        };
+
+        *self.schema_validator.write().await = Some(validator);
+        *self.schema_path.write().await = Some(path.clone());
+
+        Ok(())
     }
 
     /// Get diagnostics for a document
@@ -78,6 +157,44 @@ impl JclLanguageServer {
                             message,
                             ..Default::default()
                         });
+                    }
+                }
+
+                // Run schema validation if a schema is loaded
+                if let Some(validator) = self.schema_validator.read().await.as_ref() {
+                    if let Ok(schema_errors) = validator.validate_module(&module) {
+                        for error in schema_errors {
+                            let message = if let Some(suggestion) = &error.suggestion {
+                                format!("{}\nHelp: {}", error.message, suggestion)
+                            } else {
+                                error.message.clone()
+                            };
+
+                            // Validation errors don't have spans, so use field path to estimate position
+                            // In the future we could search for the field in the document
+                            let range = Range {
+                                start: Position {
+                                    line: 0,
+                                    character: 0,
+                                },
+                                end: Position {
+                                    line: 0,
+                                    character: 1,
+                                },
+                            };
+
+                            diagnostics.push(Diagnostic {
+                                range,
+                                severity: Some(DiagnosticSeverity::ERROR),
+                                code: Some(NumberOrString::String(format!(
+                                    "schema-{:?}",
+                                    error.error_type
+                                ))),
+                                source: Some("jcl-schema".to_string()),
+                                message: format!("{} (at {})", message, error.path),
+                                ..Default::default()
+                            });
+                        }
                     }
                 }
             }
@@ -350,7 +467,12 @@ impl JclLanguageServer {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for JclLanguageServer {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        // Store workspace root
+        if let Some(root_uri) = params.root_uri {
+            *self.workspace_root.write().await = Some(root_uri);
+        }
+
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: "JCL Language Server".to_string(),
@@ -378,6 +500,10 @@ impl LanguageServer for JclLanguageServer {
         self.client
             .log_message(MessageType::INFO, "JCL Language Server initialized")
             .await;
+
+        // Discover and load schema from workspace
+        let workspace_root = self.workspace_root.read().await.clone();
+        self.discover_schema(workspace_root.as_ref()).await;
     }
 
     async fn shutdown(&self) -> Result<()> {
