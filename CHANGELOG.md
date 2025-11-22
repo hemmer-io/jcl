@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Schema Generation from Examples** (#102)
+  - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
+  - Automatic type inference from values (String, Number, Boolean, List, Map)
+  - Pattern detection for common formats (email, URL, file paths)
+  - Constraint inference (min/max lengths, ranges)
+  - Required field detection (fields present in all examples)
+  - Supports multiple input files for comprehensive schema generation
+  - Multiple output formats (JSON Schema, YAML, OpenAPI)
+  - Programmatic API: `generate_from_examples()` function
+  - Configurable generation options (infer types, infer constraints, all optional)
 - **LSP Schema Validation Integration** (#101)
   - Real-time schema validation in editors (VSCode, Vim, etc.)
   - Automatic schema discovery from workspace (`.jcl-schema.json`, `.jcl-schema.yaml`)
