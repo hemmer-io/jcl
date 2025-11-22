@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **File Extension Migration** (#106)
+  - Migrated file extension from `.jcl` to `.jcf` (JCL Configuration Format)
+  - Avoids conflict with IBM mainframe Job Control Language in GitHub Linguist
+  - All 27 example/test files renamed
+  - Updated all documentation and code references
+  - VSCode extensions updated to recognize `.jcf` files
+  - All CLI tools (jcl-validate, jcl-watch) now process `.jcf` files
+
 ### Added
 - **Module System - Phase 1** (#95)
   - **Module interfaces**: Declare module inputs and outputs with type contracts
