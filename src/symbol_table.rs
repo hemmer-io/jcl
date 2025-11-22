@@ -224,6 +224,15 @@ impl SymbolTable {
             Statement::Expression { expr, .. } => {
                 self.process_expression(expr);
             }
+            Statement::ModuleInterface { .. } => {
+                // Module interfaces - symbol tracking not yet implemented
+            }
+            Statement::ModuleOutputs { .. } => {
+                // Module outputs - symbol tracking not yet implemented
+            }
+            Statement::ModuleInstance { .. } => {
+                // Module instances - symbol tracking not yet implemented
+            }
         }
     }
 

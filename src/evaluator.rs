@@ -242,6 +242,18 @@ impl Evaluator {
                     // Expression statements - evaluate but don't bind
                     self.evaluate_expression(&expr)?;
                 }
+                Statement::ModuleInterface { .. } => {
+                    // Module interfaces are handled during module loading, not evaluation
+                    // Just skip for now
+                }
+                Statement::ModuleOutputs { .. } => {
+                    // Module outputs are handled during module evaluation
+                    // Skip for now - will be implemented in module loader
+                }
+                Statement::ModuleInstance { .. } => {
+                    // Module instances will be evaluated by the module loader
+                    // Skip for now - will be implemented in module loader
+                }
             }
         }
 
