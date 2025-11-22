@@ -1501,22 +1501,41 @@ impl TokenParser {
     }
 
     /// Parse when expression (pattern matching)
+    /// Supports both syntaxes:
+    /// - New: when expr { pattern => value, ... }
+    /// - Legacy: when expr (pattern => value, ...)  (only works with complex expressions)
     fn parse_when_expr(&mut self) -> Result<Expression> {
         let start = self.mark_position();
 
         self.expect(&TokenKind::When)?;
         let value = self.parse_expression()?;
-        self.expect(&TokenKind::LeftParen)?;
+
+        // Support both { } and ( ) syntax for when arms
+        let use_braces = if self.check(&TokenKind::LeftBrace) {
+            self.advance();
+            true
+        } else if self.check(&TokenKind::LeftParen) {
+            self.advance();
+            false
+        } else {
+            return Err(anyhow!("Expected '{{' or '(' after when expression"));
+        };
 
         let mut arms = vec![self.parse_when_arm()?];
         while self.check(&TokenKind::Comma) {
             self.advance();
-            if self.check(&TokenKind::RightParen) {
+            let closing_token = if use_braces { TokenKind::RightBrace } else { TokenKind::RightParen };
+            if self.check(&closing_token) {
                 break; // Trailing comma
             }
             arms.push(self.parse_when_arm()?);
         }
-        self.expect(&TokenKind::RightParen)?;
+
+        if use_braces {
+            self.expect(&TokenKind::RightBrace)?;
+        } else {
+            self.expect(&TokenKind::RightParen)?;
+        }
 
         Ok(Expression::When {
             value: Box::new(value),
