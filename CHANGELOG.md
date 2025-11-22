@@ -103,6 +103,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     hostnames = module_outputs(module.server.cluster, "hostname")
     # hostnames = ["server-0", "server-1", "server-2"]
     ```
+- **Module System - Phase 4: External Sources** (#95)
+  - **Module source resolution API**: Abstraction for loading modules from various sources
+  - **Git repository sources**: Clone and use modules from Git repositories
+    ```jcl
+    module.external.example = (
+        source = "git::https://github.com/user/repo.git//modules/example.jcl?ref=v1.0.0",
+        config_value = "production"
+    )
+    ```
+  - **HTTP/HTTPS sources**: Download modules from web URLs
+    ```jcl
+    module.remote.config = (
+        source = "https://example.com/modules/config.jcl",
+        api_key = secrets.api_key
+    )
+    ```
+  - **Tarball sources**: Extract and use modules from compressed archives
+    ```jcl
+    module.archived.legacy = (
+        source = "https://example.com/modules/legacy.tar.gz//legacy/module.jcl",
+        compatibility_mode = true
+    )
+    ```
+  - **Module caching**: Automatic local caching of downloaded modules
+    - Cache directory: `~/.cache/jcl/modules/` (configurable)
+    - Cache key based on URL hash (MD5)
+    - Git repos cached and updated with `git fetch`
+    - HTTP/tarball sources downloaded once and reused
+  - **Version resolution**: Support for Git refs (tags, branches, commits)
+    - Specify version with `?ref=` query parameter
+    - Example: `?ref=v1.2.3`, `?ref=main`, `?ref=abc123`
+  - **Lock file format**: `.jcl.lock` for reproducible builds
+    - JSON format with resolved URLs and checksums
+    - Tracks exact versions of external modules
+    - Ensures consistent builds across environments
 - **Schema Generation from Examples** (#102)
   - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
   - Automatic type inference from values (String, Number, Boolean, List, Map)

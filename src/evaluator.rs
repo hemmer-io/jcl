@@ -5,6 +5,7 @@ use crate::ast::{
     UnaryOperator, Value, WhenArm,
 };
 use crate::functions;
+use crate::module_source::ModuleSourceResolver;
 use anyhow::{anyhow, Result};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -96,6 +97,8 @@ pub struct Evaluator {
     current_module_inputs: RefCell<Option<HashMap<String, Value>>>,
     /// Modules currently being instantiated (for circular dependency detection)
     instantiating_modules: RefCell<Vec<PathBuf>>,
+    /// Module source resolver (for external module sources)
+    module_source_resolver: RefCell<ModuleSourceResolver>,
 }
 
 impl Evaluator {
@@ -116,6 +119,7 @@ impl Evaluator {
             module_output_cache: RefCell::new(HashMap::new()),
             current_module_inputs: RefCell::new(None),
             instantiating_modules: RefCell::new(Vec::new()),
+            module_source_resolver: RefCell::new(ModuleSourceResolver::new(None)),
         };
         evaluator.register_builtins();
         evaluator
@@ -1343,6 +1347,7 @@ impl Evaluator {
             module_output_cache: RefCell::new(self.module_output_cache.borrow().clone()),
             current_module_inputs: RefCell::new(self.current_module_inputs.borrow().clone()),
             instantiating_modules: RefCell::new(Vec::new()),
+            module_source_resolver: RefCell::new(ModuleSourceResolver::new(None)),
         };
         new_eval.variables.insert(var_name.to_string(), value);
         new_eval
@@ -2226,6 +2231,26 @@ impl Evaluator {
 
     /// Resolve an import path relative to the current file
     fn resolve_import_path(&self, path: &str) -> Result<PathBuf> {
+        // Check if this is an external source (git, http, tarball)
+        if path.starts_with("git::") || path.starts_with("http://") || path.starts_with("https://")
+        {
+            // Use module source resolver for external sources
+            let base_dir = if let Some(current) = self.current_file.borrow().clone() {
+                current
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .ok_or_else(|| anyhow!("Current file has no parent directory"))?
+            } else {
+                PathBuf::from(".")
+            };
+
+            return self
+                .module_source_resolver
+                .borrow_mut()
+                .resolve(path, &base_dir);
+        }
+
+        // Local path resolution (existing logic)
         let import_path = Path::new(path);
 
         // If it's an absolute path, use it directly

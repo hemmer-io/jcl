@@ -77,6 +77,9 @@ lru = "0.16"
 rayon = "1.8"
 num_cpus = "1.16"
 
+# Directory utilities
+dirs = "6.0"
+
 # Testing utilities (needed by benchmarking tool)
 tempfile = { version = "3.8", optional = true }
 
