@@ -21,6 +21,7 @@ A general-purpose configuration language designed for human readability, type sa
 - [Functions](#functions)
 - [Control Flow](#control-flow)
 - [Imports](#imports)
+- [Module System](#module-system)
 - [Error Handling](#error-handling)
 - [Comments](#comments)
 
@@ -973,6 +974,345 @@ result = "${config.full_name} (${config.environment})"
 ### Import Caching
 
 JCL caches imported modules for performance. If a file is imported multiple times, it's only parsed and evaluated once.
+
+---
+
+## Module System
+
+The JCL Module System provides a powerful way to create reusable, composable configuration components with explicit interfaces, type-safe inputs/outputs, and support for external sources including a module registry.
+
+### Module Basics
+
+#### Module Interface
+
+Declare a module's contract with explicit inputs and outputs:
+
+```jcl
+# greeter.jcl
+module.metadata = (
+    version = "1.0.0",
+    description = "A simple greeting module",
+    author = "JCL Team",
+    license = "MIT"
+)
+
+module.interface = (
+    inputs = (
+        name = (
+            type = string,
+            required = true,
+            description = "Person's name to greet"
+        ),
+        prefix = (
+            type = string,
+            required = false,
+            default = "Hello",
+            description = "Greeting prefix"
+        )
+    ),
+    outputs = (
+        message = (
+            type = string,
+            description = "The formatted greeting"
+        )
+    )
+)
+
+module.outputs = (
+    message = "${module.inputs.prefix}, ${module.inputs.name}!"
+)
+```
+
+#### Module Instantiation
+
+Use modules by creating instances with specific inputs:
+
+```jcl
+# main.jcl
+module.greeter.alice = (
+    source = "./greeter.jcl",
+    name = "Alice",
+    prefix = "Good morning"
+)
+
+module.greeter.bob = (
+    source = "./greeter.jcl",
+    name = "Bob"
+    # prefix uses default: "Hello"
+)
+
+# Access outputs
+alice_message = module.greeter.alice.message  # "Good morning, Alice!"
+bob_message = module.greeter.bob.message      # "Hello, Bob!"
+```
+
+### Module Sources
+
+JCL supports multiple module source types:
+
+#### Local Files
+
+```jcl
+module.config.app = (
+    source = "./modules/app-config.jcl",
+    environment = "production"
+)
+```
+
+#### Git Repositories
+
+```jcl
+module.external.aws = (
+    source = "git::https://github.com/org/modules.git//aws/ec2.jcl?ref=v1.0.0",
+    instance_type = "t3.medium",
+    region = "us-east-1"
+)
+```
+
+Parameters:
+- `ref`: Git reference (tag, branch, or commit SHA)
+- Path after `//` specifies file within repository
+
+#### HTTP/HTTPS
+
+```jcl
+module.remote.policy = (
+    source = "https://config.example.com/security-policy.jcl",
+    strictness = "high"
+)
+```
+
+#### Registry Modules
+
+```jcl
+# Use semantic versioning
+module.compute.ec2 = (
+    source = "registry::aws-ec2@^1.0.0",
+    instance_type = "t3.medium"
+)
+
+# Use latest version
+module.database.rds = (
+    source = "registry::aws-rds",
+    engine = "postgres"
+)
+```
+
+Version requirements:
+- `^1.2.3` - Caret: Compatible with 1.x.x (>=1.2.3, <2.0.0)
+- `~1.2.3` - Tilde: Compatible with 1.2.x (>=1.2.3, <1.3.0)
+- `=1.2.3` - Exact: Only version 1.2.3
+- `*` - Wildcard: Latest version
+
+### Advanced Module Features
+
+#### Conditional Module Instantiation
+
+```jcl
+module.service.web = (
+    source = "./web-service.jcl",
+    condition = environment == "production",
+    replicas = 3
+)
+# Module only created if condition is true
+```
+
+#### Count Meta-Argument
+
+Create N identical instances:
+
+```jcl
+module.server.cluster = (
+    source = "./server.jcl",
+    count = 3,
+    name = "server-${count.index}",  # count.index available: 0, 1, 2
+    port = 8080 + count.index
+)
+
+# Access as list
+all_servers = module.server.cluster  # [instance0, instance1, instance2]
+first_server = module.server.cluster[0].hostname
+```
+
+#### For_each Meta-Argument
+
+Create instances for each element:
+
+```jcl
+# With list
+environments = ["dev", "staging", "prod"]
+module.service.envs = (
+    source = "./service.jcl",
+    for_each = environments,
+    env_name = each.value,  # each.key = index, each.value = element
+    replicas = each.value == "prod" ? 5 : 1
+)
+
+# With map
+regions = (us-east = "10.0.0.0/16", us-west = "10.1.0.0/16")
+module.vpc.regional = (
+    source = "./vpc.jcl",
+    for_each = regions,
+    region = each.key,      # each.key = map key
+    cidr = each.value       # each.value = map value
+)
+
+# Access as map
+us_east_vpc = module.vpc.regional.us-east.vpc_id
+```
+
+#### Module Output Helpers
+
+Extract outputs from multiple instances:
+
+```jcl
+# From count-based modules (returns list)
+hostnames = module_outputs(module.server.cluster, "hostname")
+# ["server-0", "server-1", "server-2"]
+
+# From for_each modules (returns map)
+vpc_ids = module_outputs_map(module.vpc.regional, "vpc_id")
+# (us-east = "vpc-123", us-west = "vpc-456")
+
+# Get all outputs (returns list of maps)
+all_server_outputs = module_all_outputs(module.server.cluster)
+```
+
+### Nested Modules
+
+Modules can use other modules for composition:
+
+```jcl
+# base-greeting.jcl
+module.interface = (
+    inputs = (name = (type = string, required = true)),
+    outputs = (greeting = (type = string))
+)
+module.outputs = (
+    greeting = "Hello, ${module.inputs.name}!"
+)
+```
+
+```jcl
+# fancy-greeting.jcl
+module.interface = (
+    inputs = (
+        name = (type = string, required = true),
+        prefix = (type = string, required = false, default = "Welcome")
+    ),
+    outputs = (full_message = (type = string))
+)
+
+# Use base module
+module.base.inner = (
+    source = "./base-greeting.jcl",
+    name = module.inputs.name
+)
+
+module.outputs = (
+    full_message = "${module.inputs.prefix}: ${module.base.inner.greeting}"
+)
+```
+
+### Module Management (jcl-module CLI)
+
+#### Initialize New Module
+
+```bash
+jcl-module init my-module \
+    --version "0.1.0" \
+    --description "My awesome module" \
+    --author "Your Name" \
+    --license "MIT"
+```
+
+Creates:
+- `jcl.json` - Module manifest
+- `module.jcl` - Module template with interface
+- `README.md` - Documentation template
+- `.gitignore` - JCL cache exclusions
+
+#### Validate Module
+
+```bash
+jcl-module validate ./my-module
+```
+
+Checks:
+- Manifest validity
+- Module interface presence
+- Main file parsing
+- Dependencies
+
+#### Install Dependencies
+
+```bash
+jcl-module get ./my-module
+```
+
+Downloads and caches all dependencies from the registry.
+
+#### List Installed Modules
+
+```bash
+jcl-module list --verbose
+```
+
+Shows all cached modules with versions and descriptions.
+
+### Module Manifest (jcl.json)
+
+```json
+{
+  "name": "aws-ec2",
+  "version": "1.2.3",
+  "description": "AWS EC2 instance configuration",
+  "author": "JCL Community",
+  "license": "MIT",
+  "repository": "https://github.com/jcl-modules/aws-ec2",
+  "homepage": "https://example.com/docs",
+  "keywords": ["aws", "ec2", "compute"],
+  "dependencies": {
+    "aws-base": "^2.0.0",
+    "networking": "~1.5.0"
+  },
+  "main": "module.jcl"
+}
+```
+
+### Module Caching
+
+Modules are cached locally for performance:
+
+- **Local files**: Not cached (read directly)
+- **Git repositories**: Cloned to `~/.cache/jcl/modules/git/`
+- **HTTP sources**: Downloaded to `~/.cache/jcl/modules/http/`
+- **Registry modules**: Downloaded to `~/.cache/jcl/modules/registry/`
+
+Cache is automatically managed and updated when source versions change.
+
+### Circular Dependency Detection
+
+JCL automatically detects and prevents circular module dependencies:
+
+```jcl
+# module-a.jcl
+module.b.instance = (source = "./module-b.jcl")
+
+# module-b.jcl
+module.a.instance = (source = "./module-a.jcl")  # ✗ Error: Circular dependency
+```
+
+### Best Practices
+
+1. **Define clear interfaces**: Always declare `module.interface` with typed inputs and outputs
+2. **Use semantic versioning**: Version modules properly for compatibility
+3. **Document inputs/outputs**: Add descriptions to all interface fields
+4. **Validate required inputs**: Mark critical inputs as `required = true`
+5. **Provide sensible defaults**: Use `default` for optional inputs
+6. **Keep modules focused**: Each module should have a single responsibility
+7. **Test module independently**: Validate modules in isolation before composition
+8. **Use registry for shared modules**: Publish reusable modules to the registry
 
 ---
 
