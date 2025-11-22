@@ -29,12 +29,42 @@ pub struct VariableDoc {
     pub mutable: bool,
 }
 
+/// Documentation for a module input
+#[derive(Debug, Clone)]
+pub struct ModuleInputDoc {
+    pub name: String,
+    pub input_type: Option<Type>,
+    pub required: bool,
+    pub default: Option<String>,
+    pub description: Option<String>,
+}
+
+/// Documentation for a module output
+#[derive(Debug, Clone)]
+pub struct ModuleOutputDoc {
+    pub name: String,
+    pub output_type: Option<Type>,
+    pub description: Option<String>,
+}
+
 /// Documentation for a module
 #[derive(Debug, Clone)]
 pub struct ModuleDoc {
     pub functions: Vec<FunctionDoc>,
     pub variables: Vec<VariableDoc>,
     pub imports: Vec<String>,
+    pub module_inputs: Vec<ModuleInputDoc>,
+    pub module_outputs: Vec<ModuleOutputDoc>,
+    pub module_metadata: Option<ModuleMetadata>,
+}
+
+/// Module metadata documentation
+#[derive(Debug, Clone)]
+pub struct ModuleMetadata {
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub license: Option<String>,
 }
 
 /// Generate documentation from a module
@@ -43,6 +73,9 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
         functions: Vec::new(),
         variables: Vec::new(),
         imports: Vec::new(),
+        module_inputs: Vec::new(),
+        module_outputs: Vec::new(),
+        module_metadata: None,
     };
 
     for statement in &module.statements {
@@ -128,6 +161,45 @@ pub fn generate(module: &Module) -> Result<ModuleDoc> {
                 doc.imports.push(import_str);
             }
 
+            Statement::ModuleMetadata {
+                version,
+                description,
+                author,
+                license,
+                ..
+            } => {
+                doc.module_metadata = Some(ModuleMetadata {
+                    version: version.clone(),
+                    description: description.clone(),
+                    author: author.clone(),
+                    license: license.clone(),
+                });
+            }
+
+            Statement::ModuleInterface {
+                inputs, outputs, ..
+            } => {
+                // Extract module inputs
+                for (name, input) in inputs {
+                    doc.module_inputs.push(ModuleInputDoc {
+                        name: name.clone(),
+                        input_type: Some(input.input_type.clone()),
+                        required: input.required,
+                        default: input.default.as_ref().map(expr_to_string),
+                        description: input.description.clone(),
+                    });
+                }
+
+                // Extract module outputs
+                for (name, output) in outputs {
+                    doc.module_outputs.push(ModuleOutputDoc {
+                        name: name.clone(),
+                        output_type: Some(output.output_type.clone()),
+                        description: output.description.clone(),
+                    });
+                }
+            }
+
             _ => {}
         }
     }
@@ -141,6 +213,71 @@ pub fn format_markdown(doc: &ModuleDoc, module_name: &str) -> String {
 
     // Header
     output.push_str(&format!("# {}\n\n", module_name));
+
+    // Module metadata
+    if let Some(metadata) = &doc.module_metadata {
+        if let Some(desc) = &metadata.description {
+            output.push_str(&format!("{}\n\n", desc));
+        }
+        output.push_str("## Metadata\n\n");
+        if let Some(version) = &metadata.version {
+            output.push_str(&format!("**Version:** {}\n\n", version));
+        }
+        if let Some(author) = &metadata.author {
+            output.push_str(&format!("**Author:** {}\n\n", author));
+        }
+        if let Some(license) = &metadata.license {
+            output.push_str(&format!("**License:** {}\n\n", license));
+        }
+    }
+
+    // Module inputs
+    if !doc.module_inputs.is_empty() {
+        output.push_str("## Inputs\n\n");
+        for input in &doc.module_inputs {
+            let type_str = input
+                .input_type
+                .as_ref()
+                .map(|t| format!(": {}", type_to_string(t)))
+                .unwrap_or_default();
+            let required_str = if input.required {
+                " **(required)**"
+            } else {
+                ""
+            };
+
+            output.push_str(&format!(
+                "### `{}{}`{}\n\n",
+                input.name, type_str, required_str
+            ));
+
+            if let Some(desc) = &input.description {
+                output.push_str(&format!("{}\n\n", desc));
+            }
+
+            if let Some(default) = &input.default {
+                output.push_str(&format!("**Default:** `{}`\n\n", default));
+            }
+        }
+    }
+
+    // Module outputs
+    if !doc.module_outputs.is_empty() {
+        output.push_str("## Outputs\n\n");
+        for output_doc in &doc.module_outputs {
+            let type_str = output_doc
+                .output_type
+                .as_ref()
+                .map(|t| format!(": {}", type_to_string(t)))
+                .unwrap_or_default();
+
+            output.push_str(&format!("### `{}{}`\n\n", output_doc.name, type_str));
+
+            if let Some(desc) = &output_doc.description {
+                output.push_str(&format!("{}\n\n", desc));
+            }
+        }
+    }
 
     // Imports
     if !doc.imports.is_empty() {

@@ -156,6 +156,11 @@ name = "jcl-bench"
 path = "src/bin/jcl-bench.rs"
 required-features = ["cli"]
 
+[[bin]]
+name = "jcl-module"
+path = "src/bin/jcl-module.rs"
+required-features = ["cli"]
+
 [lib]
 name = "jcl"
 path = "src/lib.rs"

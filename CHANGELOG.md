@@ -198,6 +198,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Dependency resolution**: Automatically download and resolve dependencies
   - **Default registry**: `https://registry.jcl.io` (configurable)
   - **Multi-registry support**: Configure multiple registries (public, private, company-internal)
+- **Module System - Phase 6: Tooling** (#95)
+  - **CLI Commands**: `jcl-module` binary for module management
+    - `jcl-module init <name>`: Scaffold a new module with manifest, interface template, README, and .gitignore
+    - `jcl-module validate <path>`: Validate module structure, manifest, and interface
+    - `jcl-module get <path>`: Download module dependencies from registry
+    - `jcl-module list`: List installed modules with version information
+  - **LSP Enhancements**: Language server support for module development
+    - Symbol tracking for module instances in symbol table
+    - Module instance metadata (source path) for navigation
+  - **Module Documentation Generation**: Generate markdown docs from module interfaces
+    - Extract module metadata (version, description, author, license)
+    - Document module inputs with types, required status, defaults, and descriptions
+    - Document module outputs with types and descriptions
+    - Integrated with existing `docgen` module
+    - Example:
+      ```jcl
+      module.metadata = (
+          version = "1.0.0",
+          description = "A simple greeting module",
+          author = "JCL Team",
+          license = "MIT"
+      )
+      module.interface = (
+          inputs = (
+              name = (type = string, required = true, description = "Person's name"),
+              prefix = (type = string, required = false, default = "Hello", description = "Greeting prefix")
+          ),
+          outputs = (
+              message = (type = string, description = "The greeting message")
+          )
+      )
+      # Generated docs include all inputs, outputs, and metadata in markdown format
+      ```
 - **Schema Generation from Examples** (#102)
   - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
   - Automatic type inference from values (String, Number, Boolean, List, Map)
