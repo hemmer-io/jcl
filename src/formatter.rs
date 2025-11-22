@@ -164,6 +164,26 @@ impl Formatter {
                 result.push_str(&self.format_expression(expr)?);
                 Ok(result)
             }
+
+            Statement::ModuleMetadata { .. } => Ok(format!(
+                "{}# Module metadata (formatting not yet implemented)",
+                self.indent()
+            )),
+
+            Statement::ModuleInterface { .. } => Ok(format!(
+                "{}# Module interface (formatting not yet implemented)",
+                self.indent()
+            )),
+
+            Statement::ModuleOutputs { .. } => Ok(format!(
+                "{}# Module outputs (formatting not yet implemented)",
+                self.indent()
+            )),
+
+            Statement::ModuleInstance { .. } => Ok(format!(
+                "{}# Module instance (formatting not yet implemented)",
+                self.indent()
+            )),
         }
     }
 

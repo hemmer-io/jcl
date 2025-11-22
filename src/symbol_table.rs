@@ -12,6 +12,18 @@ pub struct Symbol {
     pub kind: SymbolKind,
     pub definition: Location,
     pub references: Vec<Location>,
+    /// Additional metadata (e.g., module source path for ModuleInstance)
+    pub metadata: Option<SymbolMetadata>,
+}
+
+/// Additional metadata for symbols
+#[derive(Debug, Clone, PartialEq)]
+pub enum SymbolMetadata {
+    /// Module instance with source path
+    ModuleInstance {
+        source: String,
+        source_location: Option<Location>,
+    },
 }
 
 /// Kind of symbol
@@ -21,6 +33,7 @@ pub enum SymbolKind {
     Function,
     Parameter,
     Import,
+    ModuleInstance,
 }
 
 /// Location in source code
@@ -93,11 +106,23 @@ impl SymbolTable {
 
     /// Add a symbol definition
     fn add_definition(&mut self, name: String, kind: SymbolKind, location: Location) {
+        self.add_definition_with_metadata(name, kind, location, None);
+    }
+
+    /// Add a symbol definition with metadata
+    fn add_definition_with_metadata(
+        &mut self,
+        name: String,
+        kind: SymbolKind,
+        location: Location,
+        metadata: Option<SymbolMetadata>,
+    ) {
         self.symbols.entry(name.clone()).or_insert_with(|| Symbol {
             name,
             kind,
             definition: location,
             references: Vec::new(),
+            metadata,
         });
     }
 
@@ -223,6 +248,53 @@ impl SymbolTable {
             }
             Statement::Expression { expr, .. } => {
                 self.process_expression(expr);
+            }
+            Statement::ModuleMetadata { .. } => {
+                // Module metadata - symbol tracking not yet implemented
+            }
+            Statement::ModuleInterface { .. } => {
+                // Module interfaces - symbol tracking not yet implemented
+            }
+            Statement::ModuleOutputs { .. } => {
+                // Module outputs - symbol tracking not yet implemented
+            }
+            Statement::ModuleInstance {
+                module_type,
+                instance_name,
+                source,
+                span,
+                inputs,
+                ..
+            } => {
+                // Track module instance as a symbol
+                let full_name = format!("module.{}.{}", module_type, instance_name);
+                let location = span
+                    .as_ref()
+                    .map(Location::from)
+                    .unwrap_or_else(|| Location {
+                        line: 0,
+                        column: 0,
+                        offset: 0,
+                        length: full_name.len(),
+                    });
+
+                // Create metadata with source path
+                let metadata = Some(SymbolMetadata::ModuleInstance {
+                    source: source.clone(),
+                    source_location: None, // TODO: Extract source location from AST
+                });
+
+                self.add_definition_with_metadata(
+                    full_name,
+                    SymbolKind::ModuleInstance,
+                    location,
+                    metadata,
+                );
+
+                // Process input expressions
+                for value in inputs.values() {
+                    self.process_expression(value);
+                }
             }
         }
     }

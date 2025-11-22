@@ -77,6 +77,12 @@ lru = "0.16"
 rayon = "1.8"
 num_cpus = "1.16"
 
+# Directory utilities
+dirs = "6.0"
+
+# Semantic versioning
+semver = { version = "1.0", features = ["serde"] }
+
 # Testing utilities (needed by benchmarking tool)
 tempfile = { version = "3.8", optional = true }
 
@@ -148,6 +154,11 @@ required-features = ["cli"]
 [[bin]]
 name = "jcl-bench"
 path = "src/bin/jcl-bench.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "jcl-module"
+path = "src/bin/jcl-module.rs"
 required-features = ["cli"]
 
 [lib]

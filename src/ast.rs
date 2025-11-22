@@ -56,6 +56,7 @@ pub struct ImportItem {
 
 /// Top-level statement
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum Statement {
     /// Variable assignment: `name = value` or `mut name = value`
     Assignment {
@@ -102,6 +103,60 @@ pub enum Statement {
         expr: Expression,
         span: Option<SourceSpan>,
     },
+
+    /// Module metadata declaration: `module.metadata = (...)`
+    ModuleMetadata {
+        version: Option<String>,
+        description: Option<String>,
+        author: Option<String>,
+        license: Option<String>,
+        doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
+    },
+
+    /// Module interface declaration: `module.interface = (...)`
+    ModuleInterface {
+        inputs: HashMap<String, ModuleInput>,
+        outputs: HashMap<String, ModuleOutput>,
+        doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
+    },
+
+    /// Module outputs declaration: `module.outputs = (...)`
+    ModuleOutputs {
+        outputs: HashMap<String, Expression>,
+        doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
+    },
+
+    /// Module instantiation: `module.<type>.<instance> = (source = "...", count = N, for_each = [...], ...)`
+    ModuleInstance {
+        module_type: String,
+        instance_name: String,
+        source: String,
+        when: Option<Expression>, // Named 'when' for brevity, uses 'condition' in syntax
+        count: Option<Expression>, // Create N instances
+        for_each: Option<Expression>, // Create instances for each element
+        inputs: HashMap<String, Expression>,
+        doc_comments: Option<Vec<String>>,
+        span: Option<SourceSpan>,
+    },
+}
+
+/// Module input parameter definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModuleInput {
+    pub input_type: Type,
+    pub required: bool,
+    pub default: Option<Expression>,
+    pub description: Option<String>,
+}
+
+/// Module output definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModuleOutput {
+    pub output_type: Type,
+    pub description: Option<String>,
 }
 
 /// Function parameter
@@ -321,6 +376,10 @@ impl Statement {
             Statement::Import { span, .. } => span.as_ref(),
             Statement::ForLoop { span, .. } => span.as_ref(),
             Statement::Expression { span, .. } => span.as_ref(),
+            Statement::ModuleMetadata { span, .. } => span.as_ref(),
+            Statement::ModuleInterface { span, .. } => span.as_ref(),
+            Statement::ModuleOutputs { span, .. } => span.as_ref(),
+            Statement::ModuleInstance { span, .. } => span.as_ref(),
         }
     }
 }

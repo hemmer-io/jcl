@@ -75,6 +75,21 @@ impl TokenParser {
             return self.parse_assignment(true, doc_comments);
         }
 
+        // Check for module patterns (module.interface, module.outputs, module.<type>.<instance>)
+        if self.check_identifier() {
+            // Peek at the current identifier without consuming
+            if let TokenKind::Identifier(name) = &self.current().kind {
+                if name == "module" {
+                    let next_pos = self.position + 1;
+                    if next_pos < self.tokens.len()
+                        && matches!(self.tokens[next_pos].kind, TokenKind::Dot)
+                    {
+                        return self.parse_assignment(false, doc_comments);
+                    }
+                }
+            }
+        }
+
         // Check for assignment (identifier followed by = or :)
         if self.check_identifier() {
             let next_pos = self.position + 1;
@@ -316,6 +331,40 @@ impl TokenParser {
 
         let name = self.parse_identifier()?;
 
+        // Check for module-specific patterns
+        if name == "module" && self.check(&TokenKind::Dot) {
+            self.advance(); // consume the dot
+            let member = self.parse_identifier()?;
+
+            // module.metadata = (version = "...", description = "...", ...)
+            if member == "metadata" {
+                return self.parse_module_metadata(doc_comments, start);
+            }
+
+            // module.interface = (inputs = (...), outputs = (...))
+            if member == "interface" {
+                return self.parse_module_interface(doc_comments, start);
+            }
+
+            // module.outputs = (...)
+            if member == "outputs" {
+                return self.parse_module_outputs(doc_comments, start);
+            }
+
+            // module.<type>.<instance> = (source = "...", ...)
+            // member is the type, need to parse instance name
+            if self.check(&TokenKind::Dot) {
+                self.advance(); // consume the dot
+                let instance_name = self.parse_identifier()?;
+                return self.parse_module_instance(member, instance_name, doc_comments, start);
+            }
+
+            return Err(anyhow!(
+                "Invalid module pattern: module.{}, expected 'metadata', 'interface', 'outputs', or '<type>.<instance>'",
+                member
+            ));
+        }
+
         let type_annotation = if self.check(&TokenKind::Colon) {
             self.advance();
             Some(self.parse_type()?)
@@ -338,6 +387,399 @@ impl TokenParser {
             type_annotation,
             mutable,
             doc_comments: doc,
+            span: self.span_from(start),
+        })
+    }
+
+    /// Parse module.interface = (inputs = (...), outputs = (...))
+    fn parse_module_metadata(
+        &mut self,
+        doc_comments: Vec<String>,
+        start: usize,
+    ) -> Result<Statement> {
+        self.expect(&TokenKind::Equal)?;
+        self.expect(&TokenKind::LeftParen)?;
+
+        let mut version = None;
+        let mut description = None;
+        let mut author = None;
+        let mut license = None;
+
+        // Parse metadata fields
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let field_name = self.parse_identifier()?;
+            self.expect(&TokenKind::Equal)?;
+
+            let expr = self.parse_expression()?;
+            let value_str = if let Expression::Literal {
+                value: Value::String(s),
+                ..
+            } = expr
+            {
+                s
+            } else {
+                return Err(anyhow!(
+                    "Expected string value for metadata field '{}'",
+                    field_name
+                ));
+            };
+
+            match field_name.as_str() {
+                "version" => version = Some(value_str),
+                "description" => description = Some(value_str),
+                "author" => author = Some(value_str),
+                "license" => license = Some(value_str),
+                _ => {
+                    return Err(anyhow!(
+                        "Invalid metadata field: {}, expected 'version', 'description', 'author', or 'license'",
+                        field_name
+                    ));
+                }
+            }
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+
+        Ok(Statement::ModuleMetadata {
+            version,
+            description,
+            author,
+            license,
+            doc_comments: if doc_comments.is_empty() {
+                None
+            } else {
+                Some(doc_comments)
+            },
+            span: self.span_from(start),
+        })
+    }
+
+    fn parse_module_interface(
+        &mut self,
+        doc_comments: Vec<String>,
+        start: usize,
+    ) -> Result<Statement> {
+        use std::collections::HashMap;
+
+        self.expect(&TokenKind::Equal)?;
+        self.expect(&TokenKind::LeftParen)?;
+
+        let mut inputs = HashMap::new();
+        let mut outputs = HashMap::new();
+
+        // Parse interface fields: inputs and outputs
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let field_name = self.parse_identifier()?;
+            self.expect(&TokenKind::Equal)?;
+
+            if field_name == "inputs" {
+                // Parse inputs map
+                inputs = self.parse_module_inputs_map()?;
+            } else if field_name == "outputs" {
+                // Parse outputs map
+                outputs = self.parse_module_outputs_map()?;
+            } else {
+                return Err(anyhow!(
+                    "Invalid module interface field: {}, expected 'inputs' or 'outputs'",
+                    field_name
+                ));
+            }
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+
+        Ok(Statement::ModuleInterface {
+            inputs,
+            outputs,
+            doc_comments: if doc_comments.is_empty() {
+                None
+            } else {
+                Some(doc_comments)
+            },
+            span: self.span_from(start),
+        })
+    }
+
+    /// Parse inputs map: (input_name = (type = "String", required = true, ...), ...)
+    fn parse_module_inputs_map(
+        &mut self,
+    ) -> Result<std::collections::HashMap<String, crate::ast::ModuleInput>> {
+        use crate::ast::ModuleInput;
+        use std::collections::HashMap;
+
+        self.expect(&TokenKind::LeftParen)?;
+        let mut inputs = HashMap::new();
+
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let input_name = self.parse_identifier()?;
+            self.expect(&TokenKind::Equal)?;
+            self.expect(&TokenKind::LeftParen)?;
+
+            let mut input_type = Type::Any;
+            let mut required = true;
+            let mut default = None;
+            let mut description = None;
+
+            // Parse input parameters
+            while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+                let param_name = self.parse_identifier()?;
+                self.expect(&TokenKind::Equal)?;
+
+                match param_name.as_str() {
+                    "type" => {
+                        input_type = self.parse_type()?;
+                    }
+                    "required" => {
+                        let expr = self.parse_expression()?;
+                        if let Expression::Literal {
+                            value: Value::Bool(b),
+                            ..
+                        } = expr
+                        {
+                            required = b;
+                        } else {
+                            return Err(anyhow!("Expected boolean for 'required' field"));
+                        }
+                    }
+                    "default" => {
+                        default = Some(self.parse_expression()?);
+                    }
+                    "description" => {
+                        let expr = self.parse_expression()?;
+                        if let Expression::Literal {
+                            value: Value::String(s),
+                            ..
+                        } = expr
+                        {
+                            description = Some(s);
+                        } else {
+                            return Err(anyhow!("Expected string for 'description' field"));
+                        }
+                    }
+                    _ => {
+                        return Err(anyhow!("Invalid input parameter: {}", param_name));
+                    }
+                }
+
+                if self.check(&TokenKind::Comma) {
+                    self.advance();
+                }
+            }
+
+            self.expect(&TokenKind::RightParen)?;
+
+            inputs.insert(
+                input_name,
+                ModuleInput {
+                    input_type,
+                    required,
+                    default,
+                    description,
+                },
+            );
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+        Ok(inputs)
+    }
+
+    /// Parse outputs map: (output_name = (type = "String", description = "..."), ...)
+    fn parse_module_outputs_map(
+        &mut self,
+    ) -> Result<std::collections::HashMap<String, crate::ast::ModuleOutput>> {
+        use crate::ast::ModuleOutput;
+        use std::collections::HashMap;
+
+        self.expect(&TokenKind::LeftParen)?;
+        let mut outputs = HashMap::new();
+
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let output_name = self.parse_identifier()?;
+            self.expect(&TokenKind::Equal)?;
+            self.expect(&TokenKind::LeftParen)?;
+
+            let mut output_type = Type::Any;
+            let mut description = None;
+
+            // Parse output parameters
+            while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+                let param_name = self.parse_identifier()?;
+                self.expect(&TokenKind::Equal)?;
+
+                match param_name.as_str() {
+                    "type" => {
+                        output_type = self.parse_type()?;
+                    }
+                    "description" => {
+                        let expr = self.parse_expression()?;
+                        if let Expression::Literal {
+                            value: Value::String(s),
+                            ..
+                        } = expr
+                        {
+                            description = Some(s);
+                        } else {
+                            return Err(anyhow!("Expected string for 'description' field"));
+                        }
+                    }
+                    _ => {
+                        return Err(anyhow!("Invalid output parameter: {}", param_name));
+                    }
+                }
+
+                if self.check(&TokenKind::Comma) {
+                    self.advance();
+                }
+            }
+
+            self.expect(&TokenKind::RightParen)?;
+
+            outputs.insert(
+                output_name,
+                ModuleOutput {
+                    output_type,
+                    description,
+                },
+            );
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+        Ok(outputs)
+    }
+
+    /// Parse module.outputs = (output_name = expression, ...)
+    fn parse_module_outputs(
+        &mut self,
+        doc_comments: Vec<String>,
+        start: usize,
+    ) -> Result<Statement> {
+        use std::collections::HashMap;
+
+        self.expect(&TokenKind::Equal)?;
+        self.expect(&TokenKind::LeftParen)?;
+
+        let mut outputs = HashMap::new();
+
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let output_name = self.parse_identifier()?;
+            self.expect(&TokenKind::Equal)?;
+            let output_expr = self.parse_expression()?;
+
+            outputs.insert(output_name, output_expr);
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+
+        Ok(Statement::ModuleOutputs {
+            outputs,
+            doc_comments: if doc_comments.is_empty() {
+                None
+            } else {
+                Some(doc_comments)
+            },
+            span: self.span_from(start),
+        })
+    }
+
+    /// Parse module.<type>.<instance> = (source = "...", input1 = value1, ...)
+    fn parse_module_instance(
+        &mut self,
+        module_type: String,
+        instance_name: String,
+        doc_comments: Vec<String>,
+        start: usize,
+    ) -> Result<Statement> {
+        use std::collections::HashMap;
+
+        self.expect(&TokenKind::Equal)?;
+        self.expect(&TokenKind::LeftParen)?;
+
+        let mut source = None;
+        let mut when_condition = None;
+        let mut count_expr = None;
+        let mut for_each_expr = None;
+        let mut inputs = HashMap::new();
+
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let field_name = self.parse_identifier()?;
+            self.expect(&TokenKind::Equal)?;
+
+            if field_name == "source" {
+                // Parse source path (must be a string)
+                let expr = self.parse_expression()?;
+                if let Expression::Literal {
+                    value: Value::String(s),
+                    ..
+                } = expr
+                {
+                    source = Some(s);
+                } else {
+                    return Err(anyhow!("Module source must be a string literal"));
+                }
+            } else if field_name == "condition" {
+                // Parse condition (any boolean expression)
+                when_condition = Some(self.parse_expression()?);
+            } else if field_name == "count" {
+                // Parse count (integer expression)
+                count_expr = Some(self.parse_expression()?);
+            } else if field_name == "for_each" {
+                // Parse for_each (list or map expression)
+                for_each_expr = Some(self.parse_expression()?);
+            } else {
+                // Parse input parameter
+                let input_expr = self.parse_expression()?;
+                inputs.insert(field_name, input_expr);
+            }
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+
+        let source = source.ok_or_else(|| anyhow!("Module instance missing 'source' field"))?;
+
+        // Validate that count and for_each are not both specified
+        if count_expr.is_some() && for_each_expr.is_some() {
+            return Err(anyhow!(
+                "Module instance cannot have both 'count' and 'for_each'"
+            ));
+        }
+
+        Ok(Statement::ModuleInstance {
+            module_type,
+            instance_name,
+            source,
+            when: when_condition,
+            count: count_expr,
+            for_each: for_each_expr,
+            inputs,
+            doc_comments: if doc_comments.is_empty() {
+                None
+            } else {
+                Some(doc_comments)
+            },
             span: self.span_from(start),
         })
     }
@@ -1739,6 +2181,102 @@ evens = [x for x in numbers if x % 2 == 0]
             assert!(matches!(kind, crate::ast::ImportKind::Wildcard));
         } else {
             panic!("Expected import statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_module_interface() {
+        let input = r#"
+module.interface = (
+    inputs = (
+        name = (type = string, required = true, description = "The name"),
+        count = (type = int, required = false, default = 10)
+    ),
+    outputs = (
+        result = (type = string, description = "The result")
+    )
+)
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::ModuleInterface {
+            inputs, outputs, ..
+        } = &module.statements[0]
+        {
+            assert_eq!(inputs.len(), 2);
+            assert!(inputs.contains_key("name"));
+            assert!(inputs.contains_key("count"));
+            assert_eq!(outputs.len(), 1);
+            assert!(outputs.contains_key("result"));
+        } else {
+            panic!("Expected module interface statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_module_outputs() {
+        let input = r#"
+module.outputs = (
+    result = "hello",
+    count = 42
+)
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::ModuleOutputs { outputs, .. } = &module.statements[0] {
+            assert_eq!(outputs.len(), 2);
+            assert!(outputs.contains_key("result"));
+            assert!(outputs.contains_key("count"));
+        } else {
+            panic!("Expected module outputs statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_module_instance() {
+        let input = r#"
+module.server.web = (
+    source = "./modules/server.jcl",
+    port = 8080,
+    host = "localhost"
+)
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        if let Statement::ModuleInstance {
+            module_type,
+            instance_name,
+            source,
+            inputs,
+            ..
+        } = &module.statements[0]
+        {
+            assert_eq!(module_type, "server");
+            assert_eq!(instance_name, "web");
+            assert_eq!(source, "./modules/server.jcl");
+            assert_eq!(inputs.len(), 2);
+            assert!(inputs.contains_key("port"));
+            assert!(inputs.contains_key("host"));
+        } else {
+            panic!("Expected module instance statement");
         }
     }
 }

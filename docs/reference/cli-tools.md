@@ -516,6 +516,217 @@ done
 
 ---
 
+## jcl-module - Module Management
+
+Manage JCL modules including creation, validation, dependency installation, and listing.
+
+### Commands
+
+#### init
+
+Initialize a new JCL module with scaffolding.
+
+```bash
+jcl-module init <name> [OPTIONS]
+```
+
+**Options:**
+- `-p, --path <PATH>` - Directory to create module in (defaults to module name)
+- `-v, --version <VERSION>` - Module version (default: "0.1.0")
+- `-d, --description <DESCRIPTION>` - Module description
+- `-a, --author <AUTHOR>` - Module author
+- `-l, --license <LICENSE>` - Module license (default: "MIT")
+
+**Example:**
+```bash
+$ jcl-module init my-module \
+    --version "0.1.0" \
+    --description "My awesome module" \
+    --author "Your Name" \
+    --license "MIT"
+
+Creating module 'my-module' in my-module
+  ✓ Created jcl.json
+  ✓ Created module.jcl
+  ✓ Created README.md
+  ✓ Created .gitignore
+
+✓ Module 'my-module' initialized successfully!
+
+Next steps:
+  1. cd my-module
+  2. Edit module.jcl to define your module
+  3. Run 'jcl-module validate' to check your module
+```
+
+**Creates:**
+- `jcl.json` - Module manifest with metadata and dependencies
+- `module.jcl` - Module template with interface and outputs structure
+- `README.md` - Documentation template with usage examples
+- `.gitignore` - JCL cache and OS file exclusions
+
+**Module Template:**
+```jcl
+# my-module Module
+
+module.interface = (
+    inputs = (
+        # Define your module inputs here
+        # Example:
+        # name = (type = string, required = true, description = "Resource name")
+    ),
+    outputs = (
+        # Define your module outputs here
+        # Example:
+        # id = (type = string, description = "Resource ID")
+    )
+)
+
+module.outputs = (
+    # Implement your module outputs here
+    # Example:
+    # id = "resource-${module.inputs.name}"
+)
+```
+
+#### validate
+
+Validate module structure, manifest, and interface.
+
+```bash
+jcl-module validate [PATH]
+```
+
+**Arguments:**
+- `PATH` - Path to module directory (defaults to current directory)
+
+**Example:**
+```bash
+$ jcl-module validate ./my-module
+
+Validating module in ./my-module
+  ✓ Valid manifest (jcl.json)
+    Name: my-module
+    Version: 0.1.0
+  ✓ Main module file exists (module.jcl)
+  ✓ Module file parses successfully
+  ✓ Module interface defined
+  ✓ Module outputs defined
+
+  Dependencies:
+    aws-base @ ^2.0.0
+    networking @ ~1.5.0
+
+✓ Module validation successful!
+```
+
+**Checks:**
+- `jcl.json` manifest exists and is valid JSON
+- Manifest contains required fields (name, version, main)
+- Main module file exists
+- Module file parses without syntax errors
+- `module.interface` statement is present
+- `module.outputs` statement is present
+- All dependencies are listed
+
+**Exit Codes:**
+- `0` - Validation passed
+- `1` - Validation failed
+
+#### get
+
+Download and install module dependencies from the registry.
+
+```bash
+jcl-module get [PATH]
+```
+
+**Arguments:**
+- `PATH` - Path to module directory (defaults to current directory)
+
+**Example:**
+```bash
+$ jcl-module get ./my-module
+
+Downloading dependencies for module in ./my-module
+
+  Resolving aws-base @ ^2.0.0...
+    → Resolved to v2.1.3
+    Downloading...
+    ✓ Downloaded to /Users/user/.cache/jcl/modules/registry/aws-base/2.1.3
+
+  Resolving networking @ ~1.5.0...
+    → Resolved to v1.5.2
+    Downloading...
+    ✓ Downloaded to /Users/user/.cache/jcl/modules/registry/networking/1.5.2
+
+✓ All dependencies downloaded successfully!
+```
+
+**Features:**
+- Reads dependencies from `jcl.json` manifest
+- Resolves version requirements using semantic versioning
+- Downloads modules from the default registry
+- Caches modules locally for performance
+- Shows progress and resolved versions
+
+**Cache Location:**
+- Default: `~/.cache/jcl/modules/registry/`
+- Structure: `{cache_dir}/{module_name}/{version}/`
+
+#### list
+
+List all installed modules.
+
+```bash
+jcl-module list [OPTIONS]
+```
+
+**Options:**
+- `-v, --verbose` - Show detailed information including versions and descriptions
+
+**Example (basic):**
+```bash
+$ jcl-module list
+
+Installed modules:
+  aws-base
+  aws-ec2
+  networking
+
+Total: 3 module(s)
+```
+
+**Example (verbose):**
+```bash
+$ jcl-module list --verbose
+
+Installed modules:
+
+  aws-base
+    v2.0.0
+    v2.1.3
+      Base AWS configuration module
+
+  aws-ec2
+    v1.2.3
+      AWS EC2 instance configuration
+
+  networking
+    v1.5.0
+    v1.5.2
+      Network configuration utilities
+
+Total: 3 module(s)
+```
+
+**Module Cache:**
+The list command shows modules cached in:
+- `~/.cache/jcl/modules/registry/` - Registry modules
+- Organized by module name, then version
+
+---
+
 ## Environment Variables
 
 - `JCL_LSP_LOG_LEVEL` - Set LSP logging level (trace, debug, info, warn, error)

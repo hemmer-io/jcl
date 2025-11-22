@@ -8,6 +8,229 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Module System - Phase 1** (#95)
+  - **Module interfaces**: Declare module inputs and outputs with type contracts
+  - **Module instantiation**: `module.<type>.<instance> = (source = "...", inputs...)`
+  - **Module inputs access**: Special `module.inputs` variable within modules
+  - **Module outputs**: Define outputs with `module.outputs = (...)`
+  - **Input validation**: Required field checking, unknown field detection
+  - **Output validation**: Ensure all declared outputs are provided
+  - **Variable isolation**: Module evaluations don't pollute parent scope
+  - **Multiple instances**: Same module can be instantiated multiple times with different inputs
+  - **Nested access**: `module.<type>.<instance>.<output>` for accessing outputs
+  - Syntax:
+    ```jcl
+    # Module definition
+    module.interface = (
+        inputs = (name = (type = string, required = true)),
+        outputs = (result = (type = string))
+    )
+    module.outputs = (result = "Hello, ${module.inputs.name}!")
+
+    # Module usage
+    module.greeter.alice = (source = "./greeter.jcl", name = "Alice")
+    message = module.greeter.alice.result  # "Hello, Alice!"
+    ```
+- **Module System - Phase 2: Module Composition** (#95)
+  - **Nested module calls**: Modules can instantiate other modules
+  - **Default value support**: Module inputs can have default values that are automatically applied
+  - **Circular dependency detection**: Detects and prevents circular module dependencies with clear error messages
+  - **Multi-level hierarchies**: Support for complex 3+ level module call chains
+  - **Module context preservation**: Proper isolation of `module.inputs` context for nested modules
+  - Example of nested modules:
+    ```jcl
+    # wrapper.jcl uses base.jcl
+    module.interface = (
+        inputs = (person = (type = string, required = true),
+                  prefix = (type = string, required = false, default = "Welcome")),
+        outputs = (full_message = (type = string))
+    )
+    module.base.instance1 = (source = "./base.jcl", name = module.inputs.person)
+    module.outputs = (full_message = "${module.inputs.prefix}: ${module.base.instance1.message}")
+
+    # main.jcl uses wrapper.jcl (which uses base.jcl)
+    module.wrapper.alice = (source = "./wrapper.jcl", person = "Alice", prefix = "Greetings")
+    result = module.wrapper.alice.full_message  # "Greetings: Hello, Alice!"
+    ```
+- **Module System - Phase 3: Advanced Features** (#95)
+  - **Module metadata**: Declare module version, description, author, and license
+    ```jcl
+    module.metadata = (
+        version = "1.0.0",
+        description = "A simple greeting module",
+        author = "JCL Team",
+        license = "MIT"
+    )
+    ```
+  - **Conditional module instantiation**: Use `condition` to conditionally create module instances
+    ```jcl
+    module.service.web = (
+        source = "./service.jcl",
+        condition = environment == "production",
+        name = "web-server"
+    )
+    ```
+  - **Count meta-argument**: Create N identical module instances stored as a list
+    ```jcl
+    module.server.cluster = (
+        source = "./server.jcl",
+        count = 3,
+        name = "server-${count.index}"  # count.index available during evaluation
+    )
+    # Access: module.server.cluster = [instance0, instance1, instance2]
+    ```
+  - **For_each meta-argument**: Create module instances for each element in a list or map
+    ```jcl
+    # With list
+    module.server.named = (
+        source = "./server.jcl",
+        for_each = ["web", "api", "db"],
+        name = each.value  # each.key = index, each.value = element
+    )
+    # With map
+    module.server.envs = (
+        source = "./server.jcl",
+        for_each = (dev = "dev-server", prod = "prod-server"),
+        name = each.value  # each.key = map key, each.value = map value
+    )
+    # Access: module.server.envs = (dev = {...}, prod = {...})
+    ```
+  - **Module output aggregation helpers**: Built-in functions for extracting outputs
+    - `module_outputs(list, "field")`: Extract field from list of module instances
+    - `module_outputs_map(map, "field")`: Extract field from map of module instances
+    - `module_all_outputs(list)`: Get all outputs from list of module instances
+    ```jcl
+    hostnames = module_outputs(module.server.cluster, "hostname")
+    # hostnames = ["server-0", "server-1", "server-2"]
+    ```
+- **Module System - Phase 4: External Sources** (#95)
+  - **Module source resolution API**: Abstraction for loading modules from various sources
+  - **Git repository sources**: Clone and use modules from Git repositories
+    ```jcl
+    module.external.example = (
+        source = "git::https://github.com/user/repo.git//modules/example.jcl?ref=v1.0.0",
+        config_value = "production"
+    )
+    ```
+  - **HTTP/HTTPS sources**: Download modules from web URLs
+    ```jcl
+    module.remote.config = (
+        source = "https://example.com/modules/config.jcl",
+        api_key = secrets.api_key
+    )
+    ```
+  - **Tarball sources**: Extract and use modules from compressed archives
+    ```jcl
+    module.archived.legacy = (
+        source = "https://example.com/modules/legacy.tar.gz//legacy/module.jcl",
+        compatibility_mode = true
+    )
+    ```
+  - **Module caching**: Automatic local caching of downloaded modules
+    - Cache directory: `~/.cache/jcl/modules/` (configurable)
+    - Cache key based on URL hash (MD5)
+    - Git repos cached and updated with `git fetch`
+    - HTTP/tarball sources downloaded once and reused
+  - **Version resolution**: Support for Git refs (tags, branches, commits)
+    - Specify version with `?ref=` query parameter
+    - Example: `?ref=v1.2.3`, `?ref=main`, `?ref=abc123`
+  - **Lock file format**: `.jcl.lock` for reproducible builds
+    - JSON format with resolved URLs and checksums
+    - Tracks exact versions of external modules
+    - Ensures consistent builds across environments
+- **Module System - Phase 5: Module Registry** (#95)
+  - **Registry protocol**: RESTful API for module discovery, publishing, and downloads
+    - GET `/api/v1/modules/search?q=<query>` - Search modules
+    - GET `/api/v1/modules/<name>` - Get module metadata
+    - GET `/api/v1/modules/<name>/versions/<version>` - Get specific version
+    - POST `/api/v1/modules/publish` - Publish module (requires auth)
+  - **Registry client**: Full-featured client for interacting with registries
+    ```rust
+    use jcl::module_registry::RegistryClient;
+
+    let client = RegistryClient::default_registry();
+    let results = client.search("aws", 10)?;
+    let module = client.get_module("aws-ec2")?;
+    ```
+  - **Registry module sources**: Use modules from registry with semantic versioning
+    ```jcl
+    module.compute.ec2 = (
+        source = "registry::aws-ec2@^1.0.0",
+        region = "us-east-1"
+    )
+
+    module.database.rds = (
+        source = "registry::aws-rds",  # Latest version
+        engine = "postgres"
+    )
+    ```
+  - **Semantic versioning**: Full semver support with version requirements
+    - Caret requirements: `^1.2.3` (compatible with 1.x.x)
+    - Tilde requirements: `~1.2.3` (compatible with 1.2.x)
+    - Exact requirements: `=1.2.3`
+    - Wildcard: `*` (latest version)
+    - Version resolution finds highest matching version
+  - **Module publishing workflow**: Publish modules to registry
+    - Module manifest (`jcl.json`) with name, version, dependencies
+    - Automatic tarball creation and checksum generation
+    - Authentication via bearer tokens
+    - Example: `client.publish("./my-module")`
+  - **Module discovery and search**: Find modules in registry
+    - Search by name, keywords, description
+    - Pagination support
+    - Download counts and popularity
+  - **Module manifests** (`jcl.json`):
+    ```json
+    {
+      "name": "aws-ec2",
+      "version": "1.2.3",
+      "description": "AWS EC2 instance configuration",
+      "author": "JCL Community",
+      "license": "MIT",
+      "repository": "https://github.com/jcl-modules/aws-ec2",
+      "keywords": ["aws", "ec2", "compute"],
+      "dependencies": {
+        "aws-base": "^2.0.0"
+      },
+      "main": "module.jcl"
+    }
+    ```
+  - **Dependency resolution**: Automatically download and resolve dependencies
+  - **Default registry**: `https://registry.jcl.io` (configurable)
+  - **Multi-registry support**: Configure multiple registries (public, private, company-internal)
+- **Module System - Phase 6: Tooling** (#95)
+  - **CLI Commands**: `jcl-module` binary for module management
+    - `jcl-module init <name>`: Scaffold a new module with manifest, interface template, README, and .gitignore
+    - `jcl-module validate <path>`: Validate module structure, manifest, and interface
+    - `jcl-module get <path>`: Download module dependencies from registry
+    - `jcl-module list`: List installed modules with version information
+  - **LSP Enhancements**: Language server support for module development
+    - Symbol tracking for module instances in symbol table
+    - Module instance metadata (source path) for navigation
+  - **Module Documentation Generation**: Generate markdown docs from module interfaces
+    - Extract module metadata (version, description, author, license)
+    - Document module inputs with types, required status, defaults, and descriptions
+    - Document module outputs with types and descriptions
+    - Integrated with existing `docgen` module
+    - Example:
+      ```jcl
+      module.metadata = (
+          version = "1.0.0",
+          description = "A simple greeting module",
+          author = "JCL Team",
+          license = "MIT"
+      )
+      module.interface = (
+          inputs = (
+              name = (type = string, required = true, description = "Person's name"),
+              prefix = (type = string, required = false, default = "Hello", description = "Greeting prefix")
+          ),
+          outputs = (
+              message = (type = string, description = "The greeting message")
+          )
+      )
+      # Generated docs include all inputs, outputs, and metadata in markdown format
+      ```
 - **Schema Generation from Examples** (#102)
   - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
   - Automatic type inference from values (String, Number, Boolean, List, Map)
