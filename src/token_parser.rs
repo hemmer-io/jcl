@@ -81,10 +81,10 @@ impl TokenParser {
             if let TokenKind::Identifier(name) = &self.current().kind {
                 if name == "module" {
                     let next_pos = self.position + 1;
-                    if next_pos < self.tokens.len() {
-                        if matches!(self.tokens[next_pos].kind, TokenKind::Dot) {
-                            return self.parse_assignment(false, doc_comments);
-                        }
+                    if next_pos < self.tokens.len()
+                        && matches!(self.tokens[next_pos].kind, TokenKind::Dot)
+                    {
+                        return self.parse_assignment(false, doc_comments);
                     }
                 }
             }

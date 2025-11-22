@@ -292,7 +292,7 @@ impl SymbolTable {
                 );
 
                 // Process input expressions
-                for (_key, value) in inputs {
+                for value in inputs.values() {
                     self.process_expression(value);
                 }
             }

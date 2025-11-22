@@ -274,7 +274,7 @@ impl ModuleSourceResolver {
             fs::create_dir_all(&repo_dir).context("Failed to create cache directory")?;
 
             let output = Command::new("git")
-                .args(&["clone", url, repo_dir.to_str().unwrap()])
+                .args(["clone", url, repo_dir.to_str().unwrap()])
                 .output()
                 .context("Failed to clone git repository")?;
 
@@ -287,7 +287,7 @@ impl ModuleSourceResolver {
         } else {
             // Update existing repository
             let output = Command::new("git")
-                .args(&["-C", repo_dir.to_str().unwrap(), "fetch", "--all"])
+                .args(["-C", repo_dir.to_str().unwrap(), "fetch", "--all"])
                 .output()
                 .context("Failed to fetch git repository")?;
 
@@ -302,7 +302,7 @@ impl ModuleSourceResolver {
         // Checkout the specified reference
         if let Some(ref_name) = reference {
             let output = Command::new("git")
-                .args(&["-C", repo_dir.to_str().unwrap(), "checkout", ref_name])
+                .args(["-C", repo_dir.to_str().unwrap(), "checkout", ref_name])
                 .output()
                 .context("Failed to checkout git reference")?;
 
@@ -347,7 +347,7 @@ impl ModuleSourceResolver {
 
             // Use curl or wget to download
             let output = std::process::Command::new("curl")
-                .args(&["-L", "-o", cache_file.to_str().unwrap(), url])
+                .args(["-L", "-o", cache_file.to_str().unwrap(), url])
                 .output()
                 .context("Failed to download module via HTTP")?;
 
@@ -383,7 +383,7 @@ impl ModuleSourceResolver {
             // Download tarball
             let tarball_file = tarball_dir.join("module.tar.gz");
             let output = Command::new("curl")
-                .args(&["-L", "-o", tarball_file.to_str().unwrap(), url])
+                .args(["-L", "-o", tarball_file.to_str().unwrap(), url])
                 .output()
                 .context("Failed to download tarball")?;
 
@@ -396,7 +396,7 @@ impl ModuleSourceResolver {
 
             // Extract tarball
             let output = Command::new("tar")
-                .args(&[
+                .args([
                     "-xzf",
                     tarball_file.to_str().unwrap(),
                     "-C",

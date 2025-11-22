@@ -56,6 +56,7 @@ pub struct ImportItem {
 
 /// Top-level statement
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum Statement {
     /// Variable assignment: `name = value` or `mut name = value`
     Assignment {

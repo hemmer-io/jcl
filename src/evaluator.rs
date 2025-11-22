@@ -1902,7 +1902,7 @@ impl Evaluator {
         let previous_file = self.current_file.borrow().clone();
 
         // Set the current file to the module path for nested imports
-        self.set_current_file(&resolved_path);
+        self.set_current_file(resolved_path);
 
         // Evaluate input expressions in the CALLER's context
         let mut input_values = HashMap::new();
@@ -1916,7 +1916,7 @@ impl Evaluator {
             input_values.insert(name.clone(), value);
 
             // Restore module file context
-            self.set_current_file(&resolved_path);
+            self.set_current_file(resolved_path);
         }
 
         // Clear any previous module output cache for this path
@@ -1940,7 +1940,7 @@ impl Evaluator {
                         *self.current_file.borrow_mut() = previous_file.clone();
                         let default_value = self.evaluate_expression(default_expr)?;
                         final_input_values.insert(name.clone(), default_value);
-                        self.set_current_file(&resolved_path);
+                        self.set_current_file(resolved_path);
                     }
                 }
             }
@@ -2193,10 +2193,8 @@ impl Evaluator {
     ) -> Result<()> {
         // Check for required inputs
         for (name, input_def) in interface {
-            if input_def.required && !provided.contains_key(name) {
-                if input_def.default.is_none() {
-                    return Err(anyhow!("Required module input '{}' not provided", name));
-                }
+            if input_def.required && !provided.contains_key(name) && input_def.default.is_none() {
+                return Err(anyhow!("Required module input '{}' not provided", name));
             }
         }
 
