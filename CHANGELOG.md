@@ -52,6 +52,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     module.wrapper.alice = (source = "./wrapper.jcl", person = "Alice", prefix = "Greetings")
     result = module.wrapper.alice.full_message  # "Greetings: Hello, Alice!"
     ```
+- **Module System - Phase 3: Advanced Features** (#95)
+  - **Module metadata**: Declare module version, description, author, and license
+    ```jcl
+    module.metadata = (
+        version = "1.0.0",
+        description = "A simple greeting module",
+        author = "JCL Team",
+        license = "MIT"
+    )
+    ```
+  - **Conditional module instantiation**: Use `condition` to conditionally create module instances
+    ```jcl
+    module.service.web = (
+        source = "./service.jcl",
+        condition = environment == "production",
+        name = "web-server"
+    )
+    ```
+  - **Count meta-argument**: Create N identical module instances stored as a list
+    ```jcl
+    module.server.cluster = (
+        source = "./server.jcl",
+        count = 3,
+        name = "server-${count.index}"  # count.index available during evaluation
+    )
+    # Access: module.server.cluster = [instance0, instance1, instance2]
+    ```
+  - **For_each meta-argument**: Create module instances for each element in a list or map
+    ```jcl
+    # With list
+    module.server.named = (
+        source = "./server.jcl",
+        for_each = ["web", "api", "db"],
+        name = each.value  # each.key = index, each.value = element
+    )
+    # With map
+    module.server.envs = (
+        source = "./server.jcl",
+        for_each = (dev = "dev-server", prod = "prod-server"),
+        name = each.value  # each.key = map key, each.value = map value
+    )
+    # Access: module.server.envs = (dev = {...}, prod = {...})
+    ```
+  - **Module output aggregation helpers**: Built-in functions for extracting outputs
+    - `module_outputs(list, "field")`: Extract field from list of module instances
+    - `module_outputs_map(map, "field")`: Extract field from map of module instances
+    - `module_all_outputs(list)`: Get all outputs from list of module instances
+    ```jcl
+    hostnames = module_outputs(module.server.cluster, "hostname")
+    # hostnames = ["server-0", "server-1", "server-2"]
+    ```
 - **Schema Generation from Examples** (#102)
   - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
   - Automatic type inference from values (String, Number, Boolean, List, Map)

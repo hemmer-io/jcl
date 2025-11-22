@@ -165,6 +165,11 @@ impl Formatter {
                 Ok(result)
             }
 
+            Statement::ModuleMetadata { .. } => Ok(format!(
+                "{}# Module metadata (formatting not yet implemented)",
+                self.indent()
+            )),
+
             Statement::ModuleInterface { .. } => Ok(format!(
                 "{}# Module interface (formatting not yet implemented)",
                 self.indent()

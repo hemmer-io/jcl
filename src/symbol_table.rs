@@ -224,6 +224,9 @@ impl SymbolTable {
             Statement::Expression { expr, .. } => {
                 self.process_expression(expr);
             }
+            Statement::ModuleMetadata { .. } => {
+                // Module metadata - symbol tracking not yet implemented
+            }
             Statement::ModuleInterface { .. } => {
                 // Module interfaces - symbol tracking not yet implemented
             }

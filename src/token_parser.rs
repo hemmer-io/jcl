@@ -336,6 +336,11 @@ impl TokenParser {
             self.advance(); // consume the dot
             let member = self.parse_identifier()?;
 
+            // module.metadata = (version = "...", description = "...", ...)
+            if member == "metadata" {
+                return self.parse_module_metadata(doc_comments, start);
+            }
+
             // module.interface = (inputs = (...), outputs = (...))
             if member == "interface" {
                 return self.parse_module_interface(doc_comments, start);
@@ -355,7 +360,7 @@ impl TokenParser {
             }
 
             return Err(anyhow!(
-                "Invalid module pattern: module.{}, expected 'interface', 'outputs', or '<type>.<instance>'",
+                "Invalid module pattern: module.{}, expected 'metadata', 'interface', 'outputs', or '<type>.<instance>'",
                 member
             ));
         }
@@ -387,6 +392,72 @@ impl TokenParser {
     }
 
     /// Parse module.interface = (inputs = (...), outputs = (...))
+    fn parse_module_metadata(
+        &mut self,
+        doc_comments: Vec<String>,
+        start: usize,
+    ) -> Result<Statement> {
+        self.expect(&TokenKind::Equal)?;
+        self.expect(&TokenKind::LeftParen)?;
+
+        let mut version = None;
+        let mut description = None;
+        let mut author = None;
+        let mut license = None;
+
+        // Parse metadata fields
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let field_name = self.parse_identifier()?;
+            self.expect(&TokenKind::Equal)?;
+
+            let expr = self.parse_expression()?;
+            let value_str = if let Expression::Literal {
+                value: Value::String(s),
+                ..
+            } = expr
+            {
+                s
+            } else {
+                return Err(anyhow!(
+                    "Expected string value for metadata field '{}'",
+                    field_name
+                ));
+            };
+
+            match field_name.as_str() {
+                "version" => version = Some(value_str),
+                "description" => description = Some(value_str),
+                "author" => author = Some(value_str),
+                "license" => license = Some(value_str),
+                _ => {
+                    return Err(anyhow!(
+                        "Invalid metadata field: {}, expected 'version', 'description', 'author', or 'license'",
+                        field_name
+                    ));
+                }
+            }
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+
+        Ok(Statement::ModuleMetadata {
+            version,
+            description,
+            author,
+            license,
+            doc_comments: if doc_comments.is_empty() {
+                None
+            } else {
+                Some(doc_comments)
+            },
+            span: self.span_from(start),
+        })
+    }
+
     fn parse_module_interface(
         &mut self,
         doc_comments: Vec<String>,
@@ -644,6 +715,9 @@ impl TokenParser {
         self.expect(&TokenKind::LeftParen)?;
 
         let mut source = None;
+        let mut when_condition = None;
+        let mut count_expr = None;
+        let mut for_each_expr = None;
         let mut inputs = HashMap::new();
 
         while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
@@ -662,6 +736,15 @@ impl TokenParser {
                 } else {
                     return Err(anyhow!("Module source must be a string literal"));
                 }
+            } else if field_name == "condition" {
+                // Parse condition (any boolean expression)
+                when_condition = Some(self.parse_expression()?);
+            } else if field_name == "count" {
+                // Parse count (integer expression)
+                count_expr = Some(self.parse_expression()?);
+            } else if field_name == "for_each" {
+                // Parse for_each (list or map expression)
+                for_each_expr = Some(self.parse_expression()?);
             } else {
                 // Parse input parameter
                 let input_expr = self.parse_expression()?;
@@ -677,10 +760,20 @@ impl TokenParser {
 
         let source = source.ok_or_else(|| anyhow!("Module instance missing 'source' field"))?;
 
+        // Validate that count and for_each are not both specified
+        if count_expr.is_some() && for_each_expr.is_some() {
+            return Err(anyhow!(
+                "Module instance cannot have both 'count' and 'for_each'"
+            ));
+        }
+
         Ok(Statement::ModuleInstance {
             module_type,
             instance_name,
             source,
+            when: when_condition,
+            count: count_expr,
+            for_each: for_each_expr,
             inputs,
             doc_comments: if doc_comments.is_empty() {
                 None

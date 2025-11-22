@@ -45,11 +45,21 @@ impl ImportMetrics {
     }
 }
 
+/// Module metadata
+#[derive(Debug, Clone)]
+pub struct ModuleMetadata {
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub license: Option<String>,
+}
+
 /// Module interface definition
 #[derive(Debug, Clone)]
 pub struct ModuleInterface {
     pub inputs: HashMap<String, crate::ast::ModuleInput>,
     pub outputs: HashMap<String, crate::ast::ModuleOutput>,
+    pub metadata: Option<ModuleMetadata>,
 }
 
 /// Evaluated module outputs
@@ -267,19 +277,63 @@ impl Evaluator {
                     // Expression statements - evaluate but don't bind
                     self.evaluate_expression(&expr)?;
                 }
+                Statement::ModuleMetadata {
+                    version,
+                    description,
+                    author,
+                    license,
+                    ..
+                } => {
+                    // Store module metadata in the interface cache
+                    // If interface already exists, update it; otherwise create a new one
+                    if let Some(ref current_path) = *self.current_file.borrow() {
+                        let mut cache = self.module_interface_cache.borrow_mut();
+                        if let Some(interface) = cache.get_mut(current_path) {
+                            interface.metadata = Some(ModuleMetadata {
+                                version: version.clone(),
+                                description: description.clone(),
+                                author: author.clone(),
+                                license: license.clone(),
+                            });
+                        } else {
+                            // Create minimal interface with just metadata
+                            cache.insert(
+                                current_path.clone(),
+                                ModuleInterface {
+                                    inputs: HashMap::new(),
+                                    outputs: HashMap::new(),
+                                    metadata: Some(ModuleMetadata {
+                                        version: version.clone(),
+                                        description: description.clone(),
+                                        author: author.clone(),
+                                        license: license.clone(),
+                                    }),
+                                },
+                            );
+                        }
+                    }
+                }
                 Statement::ModuleInterface {
                     inputs, outputs, ..
                 } => {
                     // Store the module interface for later validation
                     // This should only appear in module files, not main files
                     if let Some(ref current_path) = *self.current_file.borrow() {
-                        self.module_interface_cache.borrow_mut().insert(
-                            current_path.clone(),
-                            ModuleInterface {
-                                inputs: inputs.clone(),
-                                outputs: outputs.clone(),
-                            },
-                        );
+                        let mut cache = self.module_interface_cache.borrow_mut();
+                        if let Some(interface) = cache.get_mut(current_path) {
+                            // Update existing interface (metadata may have been set first)
+                            interface.inputs = inputs.clone();
+                            interface.outputs = outputs.clone();
+                        } else {
+                            cache.insert(
+                                current_path.clone(),
+                                ModuleInterface {
+                                    inputs: inputs.clone(),
+                                    outputs: outputs.clone(),
+                                    metadata: None,
+                                },
+                            );
+                        }
                     }
                 }
                 Statement::ModuleOutputs { outputs, .. } => {
@@ -305,40 +359,85 @@ impl Evaluator {
                     module_type,
                     instance_name,
                     source,
+                    when,
+                    count,
+                    for_each,
                     inputs: input_exprs,
                     ..
                 } => {
-                    // Evaluate module instance
-                    let outputs = self.evaluate_module_instance(&source, &input_exprs)?;
+                    // Check when condition if present
+                    if let Some(when_expr) = when {
+                        let condition_value = self.evaluate_expression(&when_expr)?;
+                        let should_instantiate = match condition_value {
+                            Value::Bool(b) => b,
+                            _ => {
+                                return Err(anyhow!(
+                                    "Module 'condition' must evaluate to a boolean, got {:?}",
+                                    condition_value
+                                ));
+                            }
+                        };
 
-                    // Create nested structure: module.<type>.<instance> = outputs
-                    // Get or create the "module" map
-                    let module_map = if let Some(Value::Map(m)) = self.variables.get("module") {
-                        m.clone()
+                        if !should_instantiate {
+                            // Skip this module instantiation
+                            continue;
+                        }
+                    }
+
+                    // Handle count/for_each meta-arguments
+                    if let Some(count_expr) = count {
+                        // Evaluate count and create N instances
+                        self.evaluate_module_count(
+                            &module_type,
+                            &instance_name,
+                            &source,
+                            &count_expr,
+                            &input_exprs,
+                            &mut bindings,
+                        )?;
+                    } else if let Some(for_each_expr) = for_each {
+                        // Evaluate for_each and create instances for each element
+                        self.evaluate_module_for_each(
+                            &module_type,
+                            &instance_name,
+                            &source,
+                            &for_each_expr,
+                            &input_exprs,
+                            &mut bindings,
+                        )?;
                     } else {
-                        HashMap::new()
-                    };
+                        // Single module instance (original behavior)
+                        let outputs = self.evaluate_module_instance(&source, &input_exprs)?;
 
-                    // Get or create the module_type map within module
-                    let mut module_map = module_map;
-                    let type_map =
-                        if let Some(Value::Map(m)) = module_map.get(&module_type.to_string()) {
+                        // Create nested structure: module.<type>.<instance> = outputs
+                        // Get or create the "module" map
+                        let module_map = if let Some(Value::Map(m)) = self.variables.get("module") {
                             m.clone()
                         } else {
                             HashMap::new()
                         };
 
-                    // Insert instance into type map
-                    let mut type_map = type_map;
-                    type_map.insert(instance_name.clone(), Value::Map(outputs));
+                        // Get or create the module_type map within module
+                        let mut module_map = module_map;
+                        let type_map =
+                            if let Some(Value::Map(m)) = module_map.get(&module_type.to_string()) {
+                                m.clone()
+                            } else {
+                                HashMap::new()
+                            };
 
-                    // Update module map
-                    module_map.insert(module_type.clone(), Value::Map(type_map.clone()));
+                        // Insert instance into type map
+                        let mut type_map = type_map;
+                        type_map.insert(instance_name.clone(), Value::Map(outputs));
 
-                    // Store the updated module map
-                    self.variables
-                        .insert("module".to_string(), Value::Map(module_map.clone()));
-                    bindings.insert("module".to_string(), Value::Map(module_map));
+                        // Update module map
+                        module_map.insert(module_type.clone(), Value::Map(type_map.clone()));
+
+                        // Store the updated module map
+                        self.variables
+                            .insert("module".to_string(), Value::Map(module_map.clone()));
+                        bindings.insert("module".to_string(), Value::Map(module_map));
+                    }
                 }
             }
         }
@@ -1905,6 +2004,180 @@ impl Evaluator {
         }
 
         Ok(outputs)
+    }
+
+    /// Evaluate module with count meta-argument (create N instances)
+    fn evaluate_module_count(
+        &mut self,
+        module_type: &str,
+        instance_name: &str,
+        source: &str,
+        count_expr: &Expression,
+        input_exprs: &HashMap<String, Expression>,
+        bindings: &mut HashMap<String, Value>,
+    ) -> Result<()> {
+        // Evaluate count expression
+        let count_value = self.evaluate_expression(count_expr)?;
+        let count = match count_value {
+            Value::Int(n) if n >= 0 => n as usize,
+            _ => {
+                return Err(anyhow!(
+                    "Module 'count' must be a non-negative integer, got {:?}",
+                    count_value
+                ));
+            }
+        };
+
+        // Create count instances (stored as a list)
+        let mut instances = Vec::new();
+        for i in 0..count {
+            // Make count.index available during evaluation
+            let mut count_map = HashMap::new();
+            count_map.insert("index".to_string(), Value::Int(i as i64));
+            self.variables
+                .insert("count".to_string(), Value::Map(count_map));
+
+            // Evaluate the module instance
+            let outputs = self.evaluate_module_instance(source, input_exprs)?;
+            instances.push(Value::Map(outputs));
+
+            // Remove count variable
+            self.variables.remove("count");
+        }
+
+        // Store instances as a list: module.<type>.<instance> = [...]
+        let module_map = if let Some(Value::Map(m)) = self.variables.get("module") {
+            m.clone()
+        } else {
+            HashMap::new()
+        };
+
+        let mut module_map = module_map;
+        let type_map = if let Some(Value::Map(m)) = module_map.get(module_type) {
+            m.clone()
+        } else {
+            HashMap::new()
+        };
+
+        let mut type_map = type_map;
+        type_map.insert(instance_name.to_string(), Value::List(instances));
+
+        module_map.insert(module_type.to_string(), Value::Map(type_map));
+
+        self.variables
+            .insert("module".to_string(), Value::Map(module_map.clone()));
+        bindings.insert("module".to_string(), Value::Map(module_map));
+
+        Ok(())
+    }
+
+    /// Evaluate module with for_each meta-argument (create instances for each element)
+    fn evaluate_module_for_each(
+        &mut self,
+        module_type: &str,
+        instance_name: &str,
+        source: &str,
+        for_each_expr: &Expression,
+        input_exprs: &HashMap<String, Expression>,
+        bindings: &mut HashMap<String, Value>,
+    ) -> Result<()> {
+        // Evaluate for_each expression
+        let for_each_value = self.evaluate_expression(for_each_expr)?;
+
+        match for_each_value {
+            Value::List(list) => {
+                // For lists, create instances with each.value and each.key (index)
+                let mut instances = HashMap::new();
+                for (index, value) in list.iter().enumerate() {
+                    // Make each.key and each.value available
+                    let mut each_map = HashMap::new();
+                    each_map.insert("key".to_string(), Value::Int(index as i64));
+                    each_map.insert("value".to_string(), value.clone());
+                    self.variables
+                        .insert("each".to_string(), Value::Map(each_map));
+
+                    // Evaluate the module instance
+                    let outputs = self.evaluate_module_instance(source, input_exprs)?;
+                    instances.insert(index.to_string(), Value::Map(outputs));
+
+                    // Remove each variable
+                    self.variables.remove("each");
+                }
+
+                // Store instances as a map: module.<type>.<instance> = {...}
+                let module_map = if let Some(Value::Map(m)) = self.variables.get("module") {
+                    m.clone()
+                } else {
+                    HashMap::new()
+                };
+
+                let mut module_map = module_map;
+                let type_map = if let Some(Value::Map(m)) = module_map.get(module_type) {
+                    m.clone()
+                } else {
+                    HashMap::new()
+                };
+
+                let mut type_map = type_map;
+                type_map.insert(instance_name.to_string(), Value::Map(instances));
+
+                module_map.insert(module_type.to_string(), Value::Map(type_map));
+
+                self.variables
+                    .insert("module".to_string(), Value::Map(module_map.clone()));
+                bindings.insert("module".to_string(), Value::Map(module_map));
+
+                Ok(())
+            }
+            Value::Map(map) => {
+                // For maps, create instances with each.key and each.value
+                let mut instances = HashMap::new();
+                for (key, value) in map.iter() {
+                    // Make each.key and each.value available
+                    let mut each_map = HashMap::new();
+                    each_map.insert("key".to_string(), Value::String(key.clone()));
+                    each_map.insert("value".to_string(), value.clone());
+                    self.variables
+                        .insert("each".to_string(), Value::Map(each_map));
+
+                    // Evaluate the module instance
+                    let outputs = self.evaluate_module_instance(source, input_exprs)?;
+                    instances.insert(key.clone(), Value::Map(outputs));
+
+                    // Remove each variable
+                    self.variables.remove("each");
+                }
+
+                // Store instances as a map: module.<type>.<instance> = {...}
+                let module_map = if let Some(Value::Map(m)) = self.variables.get("module") {
+                    m.clone()
+                } else {
+                    HashMap::new()
+                };
+
+                let mut module_map = module_map;
+                let type_map = if let Some(Value::Map(m)) = module_map.get(module_type) {
+                    m.clone()
+                } else {
+                    HashMap::new()
+                };
+
+                let mut type_map = type_map;
+                type_map.insert(instance_name.to_string(), Value::Map(instances));
+
+                module_map.insert(module_type.to_string(), Value::Map(type_map));
+
+                self.variables
+                    .insert("module".to_string(), Value::Map(module_map.clone()));
+                bindings.insert("module".to_string(), Value::Map(module_map));
+
+                Ok(())
+            }
+            _ => Err(anyhow!(
+                "Module 'for_each' must be a list or map, got {:?}",
+                for_each_value
+            )),
+        }
     }
 
     /// Validate module inputs against the interface

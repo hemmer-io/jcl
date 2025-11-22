@@ -143,6 +143,11 @@ impl FunctionRegistry {
         registry.register("permutations", fn_permutations);
         registry.register("product", fn_product);
 
+        // Module aggregation helpers
+        registry.register("module_outputs", fn_module_outputs);
+        registry.register("module_outputs_map", fn_module_outputs_map);
+        registry.register("module_all_outputs", fn_module_all_outputs);
+
         registry
     }
 
@@ -1335,6 +1340,73 @@ fn generate_permutations(list: &[Value], n: usize) -> Vec<Value> {
     }
 
     result
+}
+
+// =============================================================================
+// MODULE AGGREGATION FUNCTIONS
+// =============================================================================
+
+/// Extract a specific output field from a list of module instances
+/// Usage: module_outputs(module_list, "field_name")
+/// Example: hostnames = module_outputs(module.server.cluster, "hostname")
+fn fn_module_outputs(args: &[Value]) -> Result<Value> {
+    require_args(args, 2, "module_outputs")?;
+    let instances = as_list(&args[0])?;
+    let field_name = as_string(&args[1])?;
+
+    let mut outputs = Vec::new();
+    for instance in instances {
+        let map = as_map(instance)?;
+        if let Some(value) = map.get(&field_name) {
+            outputs.push(value.clone());
+        } else {
+            return Err(anyhow!(
+                "Output field '{}' not found in module instance",
+                field_name
+            ));
+        }
+    }
+
+    Ok(Value::List(outputs))
+}
+
+/// Extract a specific output field from a map of module instances
+/// Usage: module_outputs_map(module_map, "field_name")
+/// Example: hostnames = module_outputs_map(module.server.envs, "hostname")
+/// Returns a map with the same keys but only the requested field values
+fn fn_module_outputs_map(args: &[Value]) -> Result<Value> {
+    require_args(args, 2, "module_outputs_map")?;
+    let instances = as_map(&args[0])?;
+    let field_name = as_string(&args[1])?;
+
+    let mut outputs = HashMap::new();
+    for (key, instance) in instances {
+        let map = as_map(instance)?;
+        if let Some(value) = map.get(&field_name) {
+            outputs.insert(key.clone(), value.clone());
+        } else {
+            return Err(anyhow!(
+                "Output field '{}' not found in module instance '{}'",
+                field_name,
+                key
+            ));
+        }
+    }
+
+    Ok(Value::Map(outputs))
+}
+
+/// Extract all outputs from a list of module instances
+/// Usage: all_outputs = module_all_outputs(module_list)
+/// Returns a list of all output maps
+fn fn_module_all_outputs(args: &[Value]) -> Result<Value> {
+    require_args(args, 1, "module_all_outputs")?;
+    // Already a list, just validate it contains maps
+    let instances = as_list(&args[0])?;
+    for instance in instances {
+        as_map(instance)?; // Validate each is a map
+    }
+    Ok(args[0].clone())
 }
 
 // =============================================================================
