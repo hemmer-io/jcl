@@ -84,6 +84,8 @@ pub struct Evaluator {
     module_output_cache: RefCell<HashMap<PathBuf, ModuleOutputs>>,
     /// Current module inputs (for module.inputs access within a module)
     current_module_inputs: RefCell<Option<HashMap<String, Value>>>,
+    /// Modules currently being instantiated (for circular dependency detection)
+    instantiating_modules: RefCell<Vec<PathBuf>>,
 }
 
 impl Evaluator {
@@ -103,6 +105,7 @@ impl Evaluator {
             module_interface_cache: RefCell::new(HashMap::new()),
             module_output_cache: RefCell::new(HashMap::new()),
             current_module_inputs: RefCell::new(None),
+            instantiating_modules: RefCell::new(Vec::new()),
         };
         evaluator.register_builtins();
         evaluator
@@ -264,7 +267,9 @@ impl Evaluator {
                     // Expression statements - evaluate but don't bind
                     self.evaluate_expression(&expr)?;
                 }
-                Statement::ModuleInterface { inputs, outputs, .. } => {
+                Statement::ModuleInterface {
+                    inputs, outputs, ..
+                } => {
                     // Store the module interface for later validation
                     // This should only appear in module files, not main files
                     if let Some(ref current_path) = *self.current_file.borrow() {
@@ -316,11 +321,12 @@ impl Evaluator {
 
                     // Get or create the module_type map within module
                     let mut module_map = module_map;
-                    let type_map = if let Some(Value::Map(m)) = module_map.get(&module_type.to_string()) {
-                        m.clone()
-                    } else {
-                        HashMap::new()
-                    };
+                    let type_map =
+                        if let Some(Value::Map(m)) = module_map.get(&module_type.to_string()) {
+                            m.clone()
+                        } else {
+                            HashMap::new()
+                        };
 
                     // Insert instance into type map
                     let mut type_map = type_map;
@@ -1237,6 +1243,7 @@ impl Evaluator {
             module_interface_cache: RefCell::new(self.module_interface_cache.borrow().clone()),
             module_output_cache: RefCell::new(self.module_output_cache.borrow().clone()),
             current_module_inputs: RefCell::new(self.current_module_inputs.borrow().clone()),
+            instantiating_modules: RefCell::new(Vec::new()),
         };
         new_eval.variables.insert(var_name.to_string(), value);
         new_eval
@@ -1742,8 +1749,44 @@ impl Evaluator {
         // Resolve the module path relative to the current file
         let resolved_path = self.resolve_import_path(source)?;
 
+        // Check for circular module dependencies
+        {
+            let instantiating = self.instantiating_modules.borrow();
+            if instantiating.contains(&resolved_path) {
+                let cycle: Vec<String> = instantiating
+                    .iter()
+                    .chain(std::iter::once(&resolved_path))
+                    .map(|p| p.display().to_string())
+                    .collect();
+                return Err(anyhow!(
+                    "Circular module dependency detected: {}",
+                    cycle.join(" -> ")
+                ));
+            }
+        }
+
+        // Add this module to the instantiation stack
+        self.instantiating_modules
+            .borrow_mut()
+            .push(resolved_path.clone());
+
+        // Call helper function and ensure we pop from stack regardless of result
+        let result = self.evaluate_module_instance_impl(&resolved_path, input_exprs);
+
+        // Remove from stack before returning
+        self.instantiating_modules.borrow_mut().pop();
+
+        result
+    }
+
+    /// Helper function for module instance evaluation (actual implementation)
+    fn evaluate_module_instance_impl(
+        &mut self,
+        resolved_path: &Path,
+        input_exprs: &HashMap<String, Expression>,
+    ) -> Result<HashMap<String, Value>> {
         // Parse the module file
-        let module_ast = crate::parse_file(&resolved_path).map_err(|e| {
+        let module_ast = crate::parse_file(resolved_path).map_err(|e| {
             anyhow!(
                 "Failed to parse module file '{}': {}",
                 resolved_path.display(),
@@ -1751,7 +1794,7 @@ impl Evaluator {
             )
         })?;
 
-        // Save the current file
+        // Save the current context (file only - module inputs handled separately)
         let previous_file = self.current_file.borrow().clone();
 
         // Set the current file to the module path for nested imports
@@ -1760,24 +1803,57 @@ impl Evaluator {
         // Evaluate input expressions in the CALLER's context
         let mut input_values = HashMap::new();
         for (name, expr) in input_exprs {
-            // Restore caller context temporarily for input evaluation
+            // Restore caller file context for input evaluation
+            // Keep module inputs context so nested modules can use module.inputs
             *self.current_file.borrow_mut() = previous_file.clone();
+            // DO NOT restore module inputs here - keep the current module's inputs available
+
             let value = self.evaluate_expression(expr)?;
             input_values.insert(name.clone(), value);
-            // Restore module context
+
+            // Restore module file context
             self.set_current_file(&resolved_path);
         }
 
         // Clear any previous module output cache for this path
         // (since we're evaluating with different inputs)
-        self.module_output_cache.borrow_mut().remove(&resolved_path);
+        self.module_output_cache.borrow_mut().remove(resolved_path);
+
+        // Get the module interface for validation and default values
+        let interface = self
+            .module_interface_cache
+            .borrow()
+            .get(resolved_path)
+            .cloned();
+
+        // Apply default values for missing inputs
+        let mut final_input_values = input_values.clone();
+        if let Some(ref iface) = interface {
+            for (name, input_def) in &iface.inputs {
+                if !final_input_values.contains_key(name) {
+                    if let Some(ref default_expr) = input_def.default {
+                        // Evaluate default expression in caller context
+                        *self.current_file.borrow_mut() = previous_file.clone();
+                        let default_value = self.evaluate_expression(default_expr)?;
+                        final_input_values.insert(name.clone(), default_value);
+                        self.set_current_file(&resolved_path);
+                    }
+                }
+            }
+        }
+
+        // Validate inputs against the interface if it exists
+        if let Some(ref iface) = interface {
+            self.validate_module_inputs(&final_input_values, &iface.inputs)?;
+        }
 
         // Save current variable state to isolate module evaluation
         let saved_variables = self.variables.clone();
         let saved_functions = self.functions.clone();
+        let saved_module_inputs = self.current_module_inputs.borrow().clone();
 
         // Set module.inputs for the module context
-        *self.current_module_inputs.borrow_mut() = Some(input_values.clone());
+        *self.current_module_inputs.borrow_mut() = Some(final_input_values.clone());
 
         // Evaluate the module
         let _evaluated = self.evaluate(module_ast).map_err(|e| {
@@ -1788,8 +1864,8 @@ impl Evaluator {
             )
         })?;
 
-        // Clear module.inputs after evaluation
-        *self.current_module_inputs.borrow_mut() = None;
+        // Restore module.inputs after evaluation (for nested modules)
+        *self.current_module_inputs.borrow_mut() = saved_module_inputs;
 
         // Restore the previous file
         *self.current_file.borrow_mut() = previous_file;
@@ -1802,7 +1878,7 @@ impl Evaluator {
         let interface = self
             .module_interface_cache
             .borrow()
-            .get(&resolved_path)
+            .get(resolved_path)
             .cloned();
 
         // Validate inputs against the interface if it exists
@@ -1814,7 +1890,7 @@ impl Evaluator {
         let outputs = self
             .module_output_cache
             .borrow()
-            .get(&resolved_path)
+            .get(resolved_path)
             .map(|o| o.outputs.clone())
             .ok_or_else(|| {
                 anyhow!(
@@ -1865,7 +1941,10 @@ impl Evaluator {
         // Check that all declared outputs are provided
         for name in interface.keys() {
             if !provided.contains_key(name) {
-                return Err(anyhow!("Module output '{}' declared but not provided", name));
+                return Err(anyhow!(
+                    "Module output '{}' declared but not provided",
+                    name
+                ));
             }
         }
 

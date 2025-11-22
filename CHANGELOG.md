@@ -31,6 +31,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     module.greeter.alice = (source = "./greeter.jcl", name = "Alice")
     message = module.greeter.alice.result  # "Hello, Alice!"
     ```
+- **Module System - Phase 2: Module Composition** (#95)
+  - **Nested module calls**: Modules can instantiate other modules
+  - **Default value support**: Module inputs can have default values that are automatically applied
+  - **Circular dependency detection**: Detects and prevents circular module dependencies with clear error messages
+  - **Multi-level hierarchies**: Support for complex 3+ level module call chains
+  - **Module context preservation**: Proper isolation of `module.inputs` context for nested modules
+  - Example of nested modules:
+    ```jcl
+    # wrapper.jcl uses base.jcl
+    module.interface = (
+        inputs = (person = (type = string, required = true),
+                  prefix = (type = string, required = false, default = "Welcome")),
+        outputs = (full_message = (type = string))
+    )
+    module.base.instance1 = (source = "./base.jcl", name = module.inputs.person)
+    module.outputs = (full_message = "${module.inputs.prefix}: ${module.base.instance1.message}")
+
+    # main.jcl uses wrapper.jcl (which uses base.jcl)
+    module.wrapper.alice = (source = "./wrapper.jcl", person = "Alice", prefix = "Greetings")
+    result = module.wrapper.alice.full_message  # "Greetings: Hello, Alice!"
+    ```
 - **Schema Generation from Examples** (#102)
   - `jcl-schema-gen` CLI tool to generate schemas from example JCL files
   - Automatic type inference from values (String, Number, Boolean, List, Map)
