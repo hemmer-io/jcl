@@ -46,7 +46,7 @@
           "jcl"
         ],
         "extensions": [
-          ".jcl"
+          ".jcf"
         ],
         "configuration": "./language-configuration.json",
         "icon": {
@@ -58,7 +58,7 @@
     "grammars": [
       {
         "language": "jcl",
-        "scopeName": "source.jcl",
+        "scopeName": "source.jcf",
         "path": "./syntaxes/jcl.tmLanguage.json"
       }
     ],

@@ -11,15 +11,15 @@ You can run any example using the JCL CLI:
 cargo run --bin jcl eval examples/basic.jcl
 
 # Output as JSON
-cargo run --bin jcl eval examples/basic.jcl --format json
+cargo run --bin jcl eval examples/basic.jcf --format json
 
 # Output as YAML
-cargo run --bin jcl eval examples/basic.jcl --format yaml
+cargo run --bin jcl eval examples/basic.jcf --format yaml
 ```
 
 ## Real-World Examples
 
-### `web-app-config.jcl`
+### `web-app-config.jcf`
 **Web Application Configuration**
 - Environment-specific settings with conditionals
 - Database and cache configuration
@@ -29,7 +29,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** How to structure a complete web application configuration.
 
-### `data-processing.jcl`
+### `data-processing.jcf`
 **Data Processing Pipeline**
 - Filtering and transforming data
 - Aggregations and statistics
@@ -39,7 +39,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** Advanced list processing and data transformation techniques.
 
-### `api-config.jcl`
+### `api-config.jcf`
 **REST API Configuration**
 - Endpoint definitions with rate limiting
 - Authentication (JWT, OAuth providers)
@@ -51,7 +51,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 ## Examples Overview
 
-### `basic.jcl`
+### `basic.jcf`
 **Core Language Basics**
 - Variable assignments with type inference
 - Arithmetic operations (`+`, `-`, `*`, `/`, `%`)
@@ -62,7 +62,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** Start here to understand JCL syntax and basic expressions.
 
-### `functions.jcl`
+### `functions.jcf`
 **Functions and Lambdas**
 - Function definitions with `fn` keyword
 - Type annotations for parameters and return types
@@ -72,7 +72,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** How to define and use functions in JCL.
 
-### `collections.jcl`
+### `collections.jcf`
 **Lists and Maps**
 - List literals with `[...]`
 - Map literals with `(...)`
@@ -83,7 +83,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** Working with collections and data structures.
 
-### `strings.jcl`
+### `strings.jcf`
 **String Operations**
 - String literals with `"..."`
 - String interpolation with `${...}`
@@ -93,7 +93,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** String manipulation and formatting.
 
-### `conditionals.jcl`
+### `conditionals.jcf`
 **Control Flow**
 - If/then/else expressions
 - Ternary operator (`? :`)
@@ -103,7 +103,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** Different ways to express conditional logic.
 
-### `pipelines.jcl`
+### `pipelines.jcf`
 **Data Transformation**
 - Pipe operator (`|`) for chaining operations
 - Multi-stage data pipelines
@@ -113,7 +113,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** Functional data transformation patterns.
 
-### `builtin.jcl`
+### `builtin.jcf`
 **Built-in Functions**
 - String functions: `upper`, `lower`, `trim`, `split`, `join`, `replace`
 - Collection functions: `sort`, `reverse`, `filter`, `map`, `contains`, `slice`
@@ -125,7 +125,7 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 **Learn:** The full standard library of built-in functions.
 
-### `web-server.jcl`
+### `web-server.jcf`
 **Real-World Configuration**
 - Complex nested configuration structures
 - Environment-based conditional logic
@@ -139,25 +139,25 @@ cargo run --bin jcl eval examples/basic.jcl --format yaml
 
 | Feature | Examples |
 |---------|----------|
-| Variables | `basic.jcl`, all examples |
-| Arithmetic | `basic.jcl`, `functions.jcl` |
-| Strings | `strings.jcl`, `web-server.jcl` |
-| Interpolation | `strings.jcl`, `web-server.jcl` |
-| Functions | `functions.jcl`, `pipelines.jcl` |
-| Lambdas | `functions.jcl`, `pipelines.jcl` |
-| Lists | `collections.jcl`, `builtin.jcl` |
-| Maps | `collections.jcl`, `web-server.jcl` |
-| Comprehensions | `collections.jcl` |
-| Conditionals | `conditionals.jcl`, `web-server.jcl` |
-| Pattern Matching | `conditionals.jcl` |
-| Pipelines | `pipelines.jcl` |
-| Built-ins | `builtin.jcl`, `strings.jcl` |
+| Variables | `basic.jcf`, all examples |
+| Arithmetic | `basic.jcf`, `functions.jcf` |
+| Strings | `strings.jcf`, `web-server.jcf` |
+| Interpolation | `strings.jcf`, `web-server.jcf` |
+| Functions | `functions.jcf`, `pipelines.jcf` |
+| Lambdas | `functions.jcf`, `pipelines.jcf` |
+| Lists | `collections.jcf`, `builtin.jcf` |
+| Maps | `collections.jcf`, `web-server.jcf` |
+| Comprehensions | `collections.jcf` |
+| Conditionals | `conditionals.jcf`, `web-server.jcf` |
+| Pattern Matching | `conditionals.jcf` |
+| Pipelines | `pipelines.jcf` |
+| Built-ins | `builtin.jcf`, `strings.jcf` |
 
 ## Tips
 
-1. **Start Simple**: Begin with `basic.jcl` to understand core syntax
-2. **Explore Features**: Try `functions.jcl` and `collections.jcl` for more advanced patterns
-3. **Real-World Usage**: Study `web-server.jcl` for production configuration patterns
+1. **Start Simple**: Begin with `basic.jcf` to understand core syntax
+2. **Explore Features**: Try `functions.jcf` and `collections.jcf` for more advanced patterns
+3. **Real-World Usage**: Study `web-server.jcf` for production configuration patterns
 4. **Experiment**: Modify examples and re-run to see how changes affect output
 5. **Check Output**: Use `--format json` to see structured output
 

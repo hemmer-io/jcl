@@ -357,7 +357,7 @@ fn run_parallel_benchmark(args: &Args) -> Result<()> {
     let mut paths = Vec::new();
 
     for i in 0..args.num_files {
-        let file_path = temp_dir.path().join(format!("test_{}.jcl", i));
+        let file_path = temp_dir.path().join(format!("test_{}.jcf", i));
         let mut file = fs::File::create(&file_path)?;
         writeln!(file, "x_{} = {}\ny_{} = \"test_{}\"", i, i * 10, i, i)?;
         paths.push(file_path);

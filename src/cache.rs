@@ -576,12 +576,18 @@ mod tests {
 
     #[test]
     fn test_env_var_cache_size() {
+        // Save current env var state
+        let original = std::env::var("JCL_CACHE_SIZE").ok();
+
         // Set env var
         std::env::set_var("JCL_CACHE_SIZE", "500");
         let cache = AstCache::with_default_capacity();
         assert_eq!(cache.capacity(), 500);
 
-        // Clean up
-        std::env::remove_var("JCL_CACHE_SIZE");
+        // Restore original state
+        match original {
+            Some(val) => std::env::set_var("JCL_CACHE_SIZE", val),
+            None => std::env::remove_var("JCL_CACHE_SIZE"),
+        }
     }
 }

@@ -25,7 +25,7 @@ jcl eval <file>
 
 **Example:**
 ```bash
-$ jcl eval config.jcl
+$ jcl eval config.jcf
 name: "my-app"
 version: "1.0.0"
 port: 8080
@@ -47,7 +47,7 @@ jcl repl
 - `:vars`, `:v` - Show all variables
 
 **Features:**
-- Persistent history (`~/.jcl_history`)
+- Persistent history (`~/.jcf_history`)
 - Multi-line input (use `\` at end of line)
 - Tab completion
 - History search (Ctrl-R)
@@ -88,13 +88,13 @@ jcl-validate <config> --schema <schema>
 
 **Basic validation:**
 ```bash
-$ jcl-validate config.jcl --schema schema.yaml
+$ jcl-validate config.jcf --schema schema.yaml
 ✅ Validation passed!
 ```
 
 **With errors:**
 ```bash
-$ jcl-validate invalid.jcl --schema schema.yaml
+$ jcl-validate invalid.jcf --schema schema.yaml
 ❌ 3 validation error(s) found:
 
   • version
@@ -109,9 +109,9 @@ $ jcl-validate invalid.jcl --schema schema.yaml
 
 **Verbose mode:**
 ```bash
-$ jcl-validate config.jcl --schema schema.yaml --verbose
+$ jcl-validate config.jcf --schema schema.yaml --verbose
 📋 Schema loaded from schema.yaml
-📄 Configuration loaded from config.jcl
+📄 Configuration loaded from config.jcf
 🔍 Validating...
 
 ✅ Validation passed!
@@ -183,8 +183,8 @@ database = (
 
 **Save to file:**
 ```bash
-$ jcl-migrate config.json -o config.jcl
-$ cat config.jcl
+$ jcl-migrate config.json -o config.jcf
+$ cat config.jcf
 name = "my-app"
 version = "1.0.0"
 ...
@@ -227,41 +227,41 @@ jcl-fmt <files>... [options]
 
 **Format a single file:**
 ```bash
-$ jcl-fmt config.jcl
-✓ config.jcl - Formatted
+$ jcl-fmt config.jcf
+✓ config.jcf - Formatted
 
 ✅ Formatted 1 file(s)
 ```
 
 **Format multiple files:**
 ```bash
-$ jcl-fmt *.jcl
-✓ config.jcl - Formatted
-✓ app.jcl - Already formatted
-✓ db.jcl - Formatted
+$ jcl-fmt *.jcf
+✓ config.jcf - Formatted
+✓ app.jcf - Already formatted
+✓ db.jcf - Formatted
 
 ✅ Formatted 3 file(s)
 ```
 
 **Check formatting (CI mode):**
 ```bash
-$ jcl-fmt --check config.jcl
+$ jcl-fmt --check config.jcf
 ✅ All files are properly formatted!
 
-$ jcl-fmt --check *.jcl
-! config.jcl - Needs formatting
-! app.jcl - Needs formatting
+$ jcl-fmt --check *.jcf
+! config.jcf - Needs formatting
+! app.jcf - Needs formatting
 
 ⚠️ 2 file(s) need formatting:
-  - config.jcl
-  - app.jcl
+  - config.jcf
+  - app.jcf
 ```
 
 **Verbose mode:**
 ```bash
-$ jcl-fmt config.jcl --verbose
-📝 Processing: config.jcl
-✓ config.jcl - Formatted
+$ jcl-fmt config.jcf --verbose
+📝 Processing: config.jcf
+✓ config.jcf - Formatted
 ```
 
 ### Formatting Rules
@@ -293,11 +293,11 @@ jcl-watch <paths>... [options]
 
 **Watch a single file:**
 ```bash
-$ jcl-watch config.jcl
+$ jcl-watch config.jcf
 🔍 JCL Watch Mode
 Watching for changes... (Press Ctrl+C to stop)
 
-✓ config.jcl - Formatted
+✓ config.jcf - Formatted
 ```
 
 **Watch a directory:**
@@ -311,11 +311,11 @@ Watching for changes... (Press Ctrl+C to stop)
 
 **Check mode (no modifications):**
 ```bash
-$ jcl-watch config.jcl --check
+$ jcl-watch config.jcf --check
 🔍 JCL Watch Mode
 Watching for changes... (Press Ctrl+C to stop)
 
-! config.jcl - Needs formatting
+! config.jcf - Needs formatting
 ```
 
 ---
@@ -340,10 +340,10 @@ jcl-bench [file] [options]
 
 **Benchmark a file:**
 ```bash
-$ jcl-bench config.jcl
+$ jcl-bench config.jcf
 JCL Benchmarking Tool
 
-Benchmarking: config.jcl
+Benchmarking: config.jcf
 Iterations: 1000
 
 📊 Parsing Benchmark
@@ -370,7 +370,7 @@ Operations per second:
 
 **Custom iteration count:**
 ```bash
-$ jcl-bench config.jcl -n 10000
+$ jcl-bench config.jcf -n 10000
 ...
 ```
 
@@ -394,7 +394,7 @@ Testing: String operations
 
 **Verbose mode:**
 ```bash
-$ jcl-bench config.jcl -n 100 --verbose
+$ jcl-bench config.jcf -n 100 --verbose
 ...
   Iteration 1: 545.125µs
   Iteration 2: 532.792µs
@@ -447,7 +447,7 @@ call coc#config('languageserver', {
 
 **Other Editors:**
 
-Any editor with LSP support can use `jcl-lsp`. Configure it to start the `jcl-lsp` command for `.jcl` files.
+Any editor with LSP support can use `jcl-lsp`. Configure it to start the `jcl-lsp` command for `.jcf` files.
 
 ---
 
@@ -460,13 +460,13 @@ Any editor with LSP support can use `jcl-lsp`. Configure it to start the `jcl-ls
 # Validate and format JCL configs in CI
 
 # Check formatting
-jcl-fmt --check *.jcl || exit 1
+jcl-fmt --check *.jcf || exit 1
 
 # Validate against schema
-jcl-validate config.jcl --schema schema.yaml || exit 1
+jcl-validate config.jcf --schema schema.yaml || exit 1
 
 # Run tests
-jcl eval test.jcl || exit 1
+jcl eval test.jcf || exit 1
 
 echo "✅ All checks passed!"
 ```
@@ -477,8 +477,8 @@ echo "✅ All checks passed!"
 #!/bin/bash
 # .git/hooks/pre-commit
 
-# Format all staged .jcl files
-git diff --cached --name-only --diff-filter=ACM | grep '\.jcl$' | while read file; do
+# Format all staged .jcf files
+git diff --cached --name-only --diff-filter=ACM | grep '\.jcf$' | while read file; do
   jcl-fmt "$file"
   git add "$file"
 done
@@ -494,7 +494,7 @@ jcl-watch ./configs --recursive
 # Files are automatically formatted on save
 
 # In another terminal, test configs
-jcl eval configs/app.jcl
+jcl eval configs/app.jcf
 ```
 
 ### Migration from JSON
@@ -502,14 +502,14 @@ jcl eval configs/app.jcl
 ```bash
 # Migrate all JSON files to JCL
 for file in *.json; do
-  jcl-migrate "$file" -o "${file%.json}.jcl"
+  jcl-migrate "$file" -o "${file%.json}.jcf"
 done
 
 # Format the new files
-jcl-fmt *.jcl
+jcl-fmt *.jcf
 
 # Validate them
-for file in *.jcl; do
+for file in *.jcf; do
   jcl-validate "$file" --schema schema.yaml
 done
 ```
@@ -555,13 +555,13 @@ Creating module 'my-module' in my-module
 
 Next steps:
   1. cd my-module
-  2. Edit module.jcl to define your module
+  2. Edit module.jcf to define your module
   3. Run 'jcl-module validate' to check your module
 ```
 
 **Creates:**
 - `jcl.json` - Module manifest with metadata and dependencies
-- `module.jcl` - Module template with interface and outputs structure
+- `module.jcf` - Module template with interface and outputs structure
 - `README.md` - Documentation template with usage examples
 - `.gitignore` - JCL cache and OS file exclusions
 
@@ -608,7 +608,7 @@ Validating module in ./my-module
   ✓ Valid manifest (jcl.json)
     Name: my-module
     Version: 0.1.0
-  ✓ Main module file exists (module.jcl)
+  ✓ Main module file exists (module.jcf)
   ✓ Module file parses successfully
   ✓ Module interface defined
   ✓ Module outputs defined
@@ -730,7 +730,7 @@ The list command shows modules cached in:
 ## Environment Variables
 
 - `JCL_LSP_LOG_LEVEL` - Set LSP logging level (trace, debug, info, warn, error)
-- `HOME` - Used for REPL history file location (`~/.jcl_history`)
+- `HOME` - Used for REPL history file location (`~/.jcf_history`)
 
 ---
 

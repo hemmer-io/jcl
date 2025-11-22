@@ -22,11 +22,11 @@ struct Args {
     #[arg(short, long, value_name = "SCHEMA")]
     schema: PathBuf,
 
-    /// Validate all .jcl files in a directory
+    /// Validate all .jcf files in a directory
     #[arg(short, long, value_name = "DIR")]
     dir: Option<PathBuf>,
 
-    /// Validate files matching glob pattern (e.g., "**/*.jcl")
+    /// Validate files matching glob pattern (e.g., "**/*.jcf")
     #[arg(short, long, value_name = "PATTERN")]
     pattern: Option<String>,
 
@@ -73,7 +73,7 @@ fn collect_files(args: &Args) -> Result<Vec<PathBuf>> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("jcl") {
+            if path.extension().and_then(|s| s.to_str()) == Some("jcf") {
                 files.push(path);
             }
         }
@@ -85,7 +85,7 @@ fn collect_files(args: &Args) -> Result<Vec<PathBuf>> {
             glob::glob(pattern).with_context(|| format!("Invalid glob pattern: {}", pattern))?;
         for path in glob_paths {
             let path = path?;
-            if path.extension().and_then(|s| s.to_str()) == Some("jcl") {
+            if path.extension().and_then(|s| s.to_str()) == Some("jcf") {
                 files.push(path);
             }
         }

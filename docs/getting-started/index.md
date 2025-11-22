@@ -49,7 +49,7 @@ go get github.com/hemmer-io/jcl
 
 ## Your First JCL File
 
-Create a file `config.jcl`:
+Create a file `config.jcf`:
 
 ```jcl
 name = "my-app"
@@ -69,7 +69,7 @@ features = ["auth", "api", "websockets"]
 Evaluate it:
 
 ```bash
-jcl eval config.jcl
+jcl eval config.jcf
 ```
 
 ## Basic Syntax
@@ -304,49 +304,49 @@ JCL comes with a comprehensive suite of tools:
 
 ```bash
 # Evaluate a file
-jcl eval config.jcl
+jcl eval config.jcf
 
 # Start REPL
 jcl repl
 
 # Format files
-jcl fmt config.jcl
+jcl fmt config.jcf
 
 # Lint files
-jcl lint config.jcl
+jcl lint config.jcf
 ```
 
 ### jcl-validate - Schema Validation
 
 ```bash
 # Validate against a schema
-jcl-validate config.jcl --schema schema.yaml
+jcl-validate config.jcf --schema schema.yaml
 ```
 
 ### jcl-migrate - Format Migration
 
 ```bash
 # Convert from JSON
-jcl-migrate config.json > config.jcl
+jcl-migrate config.json > config.jcf
 
 # Convert from YAML
-jcl-migrate config.yaml -o config.jcl
+jcl-migrate config.yaml -o config.jcf
 
 # Convert from TOML
-jcl-migrate config.toml > config.jcl
+jcl-migrate config.toml > config.jcf
 ```
 
 ### jcl-fmt - Code Formatter
 
 ```bash
 # Format files in place
-jcl-fmt config.jcl
+jcl-fmt config.jcf
 
 # Check formatting (CI mode)
-jcl-fmt --check config.jcl
+jcl-fmt --check config.jcf
 
 # Format multiple files
-jcl-fmt *.jcl
+jcl-fmt *.jcf
 ```
 
 ### jcl-watch - Auto-format on Save
@@ -356,20 +356,20 @@ jcl-fmt *.jcl
 jcl-watch ./configs --recursive
 
 # Watch specific files
-jcl-watch config.jcl app.jcl
+jcl-watch config.jcf app.jcf
 ```
 
 ### jcl-bench - Performance Benchmarking
 
 ```bash
 # Benchmark a file
-jcl-bench config.jcl
+jcl-bench config.jcf
 
 # Run built-in benchmarks
 jcl-bench --builtin
 
 # Custom iteration count
-jcl-bench config.jcl -n 10000
+jcl-bench config.jcf -n 10000
 ```
 
 ### jcl-lsp - Language Server
@@ -405,7 +405,7 @@ Goodbye!
 ```
 
 **REPL Features:**
-- Persistent history (`~/.jcl_history`)
+- Persistent history (`~/.jcf_history`)
 - Multi-line input (use `\` at end of line)
 - Tab completion
 - History search (Ctrl-R)
@@ -468,7 +468,7 @@ JCL supports importing configurations from other files for better organization a
 ### Basic Imports
 
 ```jcl
-# database.jcl
+# database.jcf
 database = (
     host = "localhost",
     port = 5432,
@@ -479,8 +479,8 @@ connection_string = "postgres://${database.host}:${database.port}/${database.nam
 ```
 
 ```jcl
-# main.jcl
-import "./database.jcl" as db
+# main.jcf
+import "./database.jcf" as db
 
 # Use imported configuration
 app_config = (
@@ -494,8 +494,8 @@ app_config = (
 Import only what you need:
 
 ```jcl
-# main.jcl
-import (database, connection_string) from "./database.jcl"
+# main.jcf
+import (database, connection_string) from "./database.jcf"
 
 # Use directly
 app_config = (name = "myapp", db_url = connection_string)
@@ -506,17 +506,17 @@ app_config = (name = "myapp", db_url = connection_string)
 **Recommended structure:**
 ```
 config/
-├── database.jcl       # Database settings
-├── server.jcl         # Server configuration
-├── features.jcl       # Feature flags
-└── main.jcl           # Main config that imports others
+├── database.jcf       # Database settings
+├── server.jcf         # Server configuration
+├── features.jcf       # Feature flags
+└── main.jcf           # Main config that imports others
 ```
 
-**main.jcl:**
+**main.jcf:**
 ```jcl
-import "./database.jcl" as db
-import "./server.jcl" as srv
-import "./features.jcl" as feat
+import "./database.jcf" as db
+import "./server.jcf" as srv
+import "./features.jcf" as feat
 
 # Combine configurations
 config = (

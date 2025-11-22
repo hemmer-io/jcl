@@ -129,7 +129,7 @@ cors_origins = [
 
 ```bash
 # Convert JSON to JCL
-jcl-migrate config.json -o config.jcl
+jcl-migrate config.json -o config.jcf
 
 # Or to stdout
 jcl-migrate config.json
@@ -249,7 +249,7 @@ service_b = default_service("service-b")
 
 ```bash
 # Convert YAML to JCL
-jcl-migrate config.yaml -o config.jcl
+jcl-migrate config.yaml -o config.jcf
 
 # Or to stdout
 jcl-migrate config.yaml
@@ -372,7 +372,7 @@ app = (
 
 ```bash
 # Convert TOML to JCL
-jcl-migrate config.toml -o config.jcl
+jcl-migrate config.toml -o config.jcf
 
 # Or to stdout
 jcl-migrate config.toml
@@ -500,45 +500,45 @@ JCL provides tools to migrate from other formats seamlessly.
 
 ```bash
 # Single file
-jcl-migrate config.json -o config.jcl
+jcl-migrate config.json -o config.jcf
 
 # Multiple files
 for file in *.json; do
-  jcl-migrate "$file" -o "${file%.json}.jcl"
+  jcl-migrate "$file" -o "${file%.json}.jcf"
 done
 
 # Format the results
-jcl-fmt *.jcl
+jcl-fmt *.jcf
 ```
 
 ### From YAML
 
 ```bash
 # Single file
-jcl-migrate config.yaml -o config.jcl
+jcl-migrate config.yaml -o config.jcf
 
 # Multiple files
 for file in *.yaml *.yml; do
-  jcl-migrate "$file" -o "${file%.*}.jcl"
+  jcl-migrate "$file" -o "${file%.*}.jcf"
 done
 
 # Format the results
-jcl-fmt *.jcl
+jcl-fmt *.jcf
 ```
 
 ### From TOML
 
 ```bash
 # Single file
-jcl-migrate config.toml -o config.jcl
+jcl-migrate config.toml -o config.jcf
 
 # Multiple files
 for file in *.toml; do
-  jcl-migrate "$file" -o "${file%.toml}.jcl"
+  jcl-migrate "$file" -o "${file%.toml}.jcf"
 done
 
 # Format the results
-jcl-fmt *.jcl
+jcl-fmt *.jcf
 ```
 
 ### Manual Enhancement After Migration
@@ -563,13 +563,13 @@ debug = environment != "production"
 
 ```bash
 # Validate against a schema
-jcl-validate config.jcl --schema schema.yaml
+jcl-validate config.jcf --schema schema.yaml
 
 # Check formatting
-jcl-fmt --check config.jcl
+jcl-fmt --check config.jcf
 
 # Test evaluation
-jcl eval config.jcl
+jcl eval config.jcf
 ```
 
 ---
@@ -702,13 +702,13 @@ JCL combines the best features of existing configuration languages:
 cargo install jcl
 
 # Migrate your configs
-jcl-migrate old-config.json -o config.jcl
+jcl-migrate old-config.json -o config.jcf
 
 # Format them
-jcl-fmt config.jcl
+jcl-fmt config.jcf
 
 # Start using JCL!
-jcl eval config.jcl
+jcl eval config.jcf
 ```
 
 [Learn more →](../getting-started/)

@@ -69,7 +69,7 @@ cargo run --bin jcl repl
 cargo run --bin jcl -- eval examples/hello.jcl
 
 # Run formatter
-cargo run --bin jcl-fmt -- config.jcl
+cargo run --bin jcl-fmt -- config.jcf
 
 # Run LSP
 cargo run --bin jcl-lsp

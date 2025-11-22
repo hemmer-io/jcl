@@ -20,7 +20,7 @@ pub struct RegistryConfig {
     /// Registry name (e.g., "default", "company-internal")
     pub name: String,
 
-    /// Registry URL (e.g., "https://registry.jcl.io")
+    /// Registry URL (e.g., "https://registry.jcf.io")
     pub url: String,
 
     /// Authentication token (optional)
@@ -31,7 +31,7 @@ impl Default for RegistryConfig {
     fn default() -> Self {
         Self {
             name: "default".to_string(),
-            url: "https://registry.jcl.io".to_string(),
+            url: "https://registry.jcf.io".to_string(),
             token: None,
         }
     }
@@ -120,7 +120,7 @@ impl RegistryClient {
     /// Create a new registry client
     pub fn new(config: RegistryConfig) -> Self {
         let cache_dir = dirs::cache_dir()
-            .unwrap_or_else(|| PathBuf::from(".jcl-cache"))
+            .unwrap_or_else(|| PathBuf::from(".jcf-cache"))
             .join("jcl")
             .join("registry")
             .join(&config.name);
@@ -513,7 +513,7 @@ pub struct ModuleManifest {
 }
 
 fn default_main() -> String {
-    "module.jcl".to_string()
+    "module.jcf".to_string()
 }
 
 impl ModuleManifest {
@@ -580,6 +580,6 @@ mod tests {
     fn test_default_registry_config() {
         let config = RegistryConfig::default();
         assert_eq!(config.name, "default");
-        assert_eq!(config.url, "https://registry.jcl.io");
+        assert_eq!(config.url, "https://registry.jcf.io");
     }
 }

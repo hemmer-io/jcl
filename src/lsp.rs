@@ -40,9 +40,9 @@ impl JclLanguageServer {
             if let Ok(root_path) = root.to_file_path() {
                 // Look for schema files in order of preference
                 let schema_candidates = vec![
-                    root_path.join(".jcl-schema.json"),
-                    root_path.join(".jcl-schema.yaml"),
-                    root_path.join(".jcl-schema.yml"),
+                    root_path.join(".jcf-schema.json"),
+                    root_path.join(".jcf-schema.yaml"),
+                    root_path.join(".jcf-schema.yml"),
                     root_path.join("jcl-schema.json"),
                     root_path.join("jcl-schema.yaml"),
                 ];

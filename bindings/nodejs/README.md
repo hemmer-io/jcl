@@ -90,7 +90,7 @@ console.log(config); // { env: 'production', debug: false }
 Load and evaluate a JCL file.
 
 ```javascript
-const config = jcl.evalFile('./config.jcl');
+const config = jcl.evalFile('./config.jcf');
 console.log(config);
 ```
 
@@ -173,7 +173,7 @@ const jcl = require('@hemmerio/jcl');
 class JclWebpackPlugin {
   apply(compiler) {
     compiler.hooks.beforeCompile.tapAsync('JclWebpackPlugin', (params, callback) => {
-      const config = jcl.evalFile('./build.jcl');
+      const config = jcl.evalFile('./build.jcf');
       // Use config to modify webpack configuration
       callback();
     });
@@ -187,7 +187,7 @@ class JclWebpackPlugin {
 const express = require('express');
 const jcl = require('@hemmerio/jcl');
 
-const config = jcl.evalFile('./server.jcl');
+const config = jcl.evalFile('./server.jcf');
 
 const app = express();
 app.listen(config.port, () => {
@@ -203,8 +203,8 @@ const jcl = require('@hemmerio/jcl');
 // Load environment-specific config
 const env = process.env.NODE_ENV || 'development';
 const config = jcl.eval(`
-  import * from "./config/base.jcl"
-  import * from "./config/${env}.jcl"
+  import * from "./config/base.jcf"
+  import * from "./config/${env}.jcf"
 
   # Override with environment variables
   port = env("PORT", port)

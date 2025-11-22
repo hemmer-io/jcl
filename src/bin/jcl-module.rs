@@ -127,7 +127,7 @@ fn cmd_init(
         homepage: None,
         keywords: Vec::new(),
         dependencies: HashMap::new(),
-        main: "module.jcl".to_string(),
+        main: "module.jcf".to_string(),
     };
 
     let manifest_path = module_dir.join("jcl.json");
@@ -163,10 +163,10 @@ module.outputs = (
         name
     );
 
-    let main_path = module_dir.join("module.jcl");
+    let main_path = module_dir.join("module.jcf");
     fs::write(&main_path, module_template).context("Failed to write main module file")?;
 
-    println!("  ✓ Created module.jcl");
+    println!("  ✓ Created module.jcf");
 
     // Create README
     let readme_template = format!(
@@ -214,8 +214,8 @@ result = module.example.instance.id
 
     // Create .gitignore
     let gitignore_content = r#"# JCL cache
-.jcl-cache/
-.jcl.lock
+.jcf-cache/
+.jcf.lock
 
 # OS files
 .DS_Store
@@ -230,7 +230,7 @@ Thumbs.db
     println!("\n✓ Module '{}' initialized successfully!", name);
     println!("\nNext steps:");
     println!("  1. cd {}", module_dir.display());
-    println!("  2. Edit module.jcl to define your module");
+    println!("  2. Edit module.jcf to define your module");
     println!("  3. Run 'jcl-module validate' to check your module");
 
     Ok(())
@@ -360,7 +360,7 @@ fn cmd_list(verbose: bool) -> Result<()> {
 
     // Get cache directory
     let cache_dir = dirs::cache_dir()
-        .unwrap_or_else(|| PathBuf::from(".jcl-cache"))
+        .unwrap_or_else(|| PathBuf::from(".jcf-cache"))
         .join("jcl")
         .join("registry")
         .join("default");

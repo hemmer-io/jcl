@@ -70,9 +70,9 @@ fn main() -> Result<()> {
         eprintln!("Usage: jcl-schema-gen <FILES>...");
         eprintln!();
         eprintln!("Examples:");
-        eprintln!("  jcl-schema-gen config.jcl");
-        eprintln!("  jcl-schema-gen config1.jcl config2.jcl --output schema.json");
-        eprintln!("  jcl-schema-gen examples/*.jcl --format yaml");
+        eprintln!("  jcl-schema-gen config.jcf");
+        eprintln!("  jcl-schema-gen config1.jcf config2.jcf --output schema.json");
+        eprintln!("  jcl-schema-gen examples/*.jcf --format yaml");
         std::process::exit(1);
     }
 

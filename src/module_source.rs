@@ -1,11 +1,11 @@
 //! Module source resolution and caching
 //!
 //! This module provides functionality to resolve module sources from various locations:
-//! - Local file paths (./path/to/module.jcl)
+//! - Local file paths (./path/to/module.jcf)
 //! - Registry modules (registry::module-name@^1.0.0)
-//! - Git repositories (git::https://github.com/user/repo.git//path/to/module.jcl?ref=v1.0.0)
-//! - HTTP/HTTPS URLs (https://example.com/modules/module.jcl)
-//! - Tarballs (https://example.com/modules/module.tar.gz//module.jcl)
+//! - Git repositories (git::https://github.com/user/repo.git//path/to/module.jcf?ref=v1.0.0)
+//! - HTTP/HTTPS URLs (https://example.com/modules/module.jcf)
+//! - Tarballs (https://example.com/modules/module.tar.gz//module.jcf)
 //!
 //! It also handles caching of remote modules and version resolution.
 
@@ -21,7 +21,7 @@ use crate::module_registry::RegistryClient;
 /// Module source types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModuleSource {
-    /// Local file path: ./path/to/module.jcl or /absolute/path/to/module.jcl
+    /// Local file path: ./path/to/module.jcf or /absolute/path/to/module.jcl
     Local { path: PathBuf },
 
     /// Registry module: registry::module-name@^1.0.0
@@ -30,7 +30,7 @@ pub enum ModuleSource {
         version_req: String, // Stored as string for serialization
     },
 
-    /// Git repository: git::https://github.com/user/repo.git//path/to/module.jcl?ref=v1.0.0
+    /// Git repository: git::https://github.com/user/repo.git//path/to/module.jcf?ref=v1.0.0
     Git {
         url: String,
         path: String,
@@ -65,7 +65,7 @@ pub struct LockEntry {
     pub version: Option<String>,
 }
 
-/// Lock file format (.jcl.lock)
+/// Lock file format (.jcf.lock)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockFile {
     pub version: String,
@@ -77,7 +77,7 @@ impl ModuleSourceResolver {
     pub fn new(cache_dir: Option<PathBuf>) -> Self {
         let cache_dir = cache_dir.unwrap_or_else(|| {
             dirs::cache_dir()
-                .unwrap_or_else(|| PathBuf::from(".jcl-cache"))
+                .unwrap_or_else(|| PathBuf::from(".jcf-cache"))
                 .join("jcl")
                 .join("modules")
         });
@@ -108,7 +108,7 @@ impl ModuleSourceResolver {
             return Ok(ModuleSource::Registry { name, version_req });
         }
 
-        // Git source: git::https://github.com/user/repo.git//path/to/module.jcl?ref=v1.0.0
+        // Git source: git::https://github.com/user/repo.git//path/to/module.jcf?ref=v1.0.0
         if source.starts_with("git::") {
             let source = source.strip_prefix("git::").unwrap();
 
@@ -471,12 +471,12 @@ mod tests {
 
     #[test]
     fn test_parse_local_source() {
-        let source = "./path/to/module.jcl";
+        let source = "./path/to/module.jcf";
         let parsed = ModuleSourceResolver::parse_source(source).unwrap();
         assert_eq!(
             parsed,
             ModuleSource::Local {
-                path: PathBuf::from("./path/to/module.jcl")
+                path: PathBuf::from("./path/to/module.jcf")
             }
         );
     }
@@ -509,13 +509,13 @@ mod tests {
 
     #[test]
     fn test_parse_git_source() {
-        let source = "git::https://github.com/user/repo.git//path/to/module.jcl?ref=v1.0.0";
+        let source = "git::https://github.com/user/repo.git//path/to/module.jcf?ref=v1.0.0";
         let parsed = ModuleSourceResolver::parse_source(source).unwrap();
         assert_eq!(
             parsed,
             ModuleSource::Git {
                 url: "https://github.com/user/repo.git".to_string(),
-                path: "path/to/module.jcl".to_string(),
+                path: "path/to/module.jcf".to_string(),
                 reference: Some("v1.0.0".to_string()),
             }
         );
@@ -523,25 +523,25 @@ mod tests {
 
     #[test]
     fn test_parse_http_source() {
-        let source = "https://example.com/modules/module.jcl";
+        let source = "https://example.com/modules/module.jcf";
         let parsed = ModuleSourceResolver::parse_source(source).unwrap();
         assert_eq!(
             parsed,
             ModuleSource::Http {
-                url: "https://example.com/modules/module.jcl".to_string(),
+                url: "https://example.com/modules/module.jcf".to_string(),
             }
         );
     }
 
     #[test]
     fn test_parse_tarball_source() {
-        let source = "https://example.com/modules/module.tar.gz//module.jcl";
+        let source = "https://example.com/modules/module.tar.gz//module.jcf";
         let parsed = ModuleSourceResolver::parse_source(source).unwrap();
         assert_eq!(
             parsed,
             ModuleSource::Tarball {
                 url: "https://example.com/modules/module.tar.gz".to_string(),
-                path: "module.jcl".to_string(),
+                path: "module.jcf".to_string(),
             }
         );
     }

@@ -62,7 +62,7 @@ cp ftdetect/jcl.vim ~/.config/nvim/ftdetect/
 
 ## Usage
 
-Syntax highlighting will automatically activate for `.jcl` files.
+Syntax highlighting will automatically activate for `.jcf` files.
 
 ## Syntax Elements
 

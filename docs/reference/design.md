@@ -374,7 +374,7 @@ environment "production" {
   }
 }
 
-# stacks/web-app.jcl
+# stacks/web-app.jcf
 stack "web_application" {
   environment = env.production
 
