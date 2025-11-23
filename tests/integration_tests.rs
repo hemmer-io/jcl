@@ -1,8 +1,8 @@
-use jcl::{ast::Value, evaluator::Evaluator, parser};
+use jcl::{ast::Value, evaluator::Evaluator};
 
 /// Helper function to parse and evaluate a JCL file
 fn eval_file(content: &str) -> Result<std::collections::HashMap<String, Value>, anyhow::Error> {
-    let module = parser::parse_str(content)?;
+    let module = jcl::parse_str(content)?;
     let mut evaluator = Evaluator::new();
     let result = evaluator.evaluate(module)?;
     Ok(result.bindings)
@@ -197,7 +197,7 @@ fn test_builtin_example_parses() {
     // Note: builtin.jcf uses many built-in functions that may not be fully implemented
     // This test just verifies it parses successfully
     let content = include_str!("../examples/builtin.jcf");
-    let parse_result = parser::parse_str(content);
+    let parse_result = jcl::parse_str(content);
     assert!(
         parse_result.is_ok(),
         "builtin.jcf should parse successfully"
@@ -225,7 +225,7 @@ fn test_all_examples_parse() {
     ];
 
     for (name, content) in examples {
-        let result = parser::parse_str(content);
+        let result = jcl::parse_str(content);
         assert!(
             result.is_ok(),
             "Example {} should parse successfully. Error: {:?}",

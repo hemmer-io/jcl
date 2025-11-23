@@ -3,9 +3,9 @@
 
 ## String Operations
 
-app_name = myapp
-app_name_upper = upper(app_name)              # MYAPP
-app_name_with_env = "${app_name}-production"  # myapp-production
+app_name = "myapp"
+app_name_upper = upper(app_name)              # "MYAPP"
+app_name_with_env = "${app_name}-production"  # "myapp-production"
 
 # String manipulation
 message = "  Hello, World!  "
@@ -22,8 +22,8 @@ formatted = join(fruits, " | ")                # "apple | banana | cherry"
 
 # JSON
 config = (
-  name = myapp
-  version = 1.2.3
+  name = "myapp",
+  version = "1.2.3",
   enabled = true
 )
 
@@ -42,7 +42,7 @@ url_encoded = urlencode(url_param)            # "hello%20world%20%26%20more"
 ## Collections
 
 # Working with lists
-numbers = (1, 5, 3, 9, 2, 7)
+numbers = [1, 5, 3, 9, 2, 7]
 number_count = length(numbers)                # 6
 min_value = min(numbers)                      # 1
 max_value = max(numbers)                      # 9
@@ -53,16 +53,16 @@ reversed = reverse(sorted_numbers)            # [9, 7, 5, 3, 2, 1]
 
 # Working with maps
 tags = (
-  environment = production
-  team = platform
-  cost_center = engineering
+  environment = "production",
+  team = "platform",
+  cost_center = "engineering"
 )
 
 tag_keys = keys(tags)                         # ["environment", "team", "cost_center"]
 tag_values = values(tags)                     # ["production", "platform", "engineering"]
 
 # Merging maps
-default_tags = (managed_by = jcl version = 1.0)
+default_tags = (managed_by = "jcl", version = "1.0")
 all_tags = merge(default_tags, tags)
 
 # Lookup with default
@@ -71,15 +71,15 @@ region = lookup(config, "region", "us-west-2")
 ## List Operations
 
 # Remove duplicates
-items = (apple, banana, apple, cherry, banana)
+items = ["apple", "banana", "apple", "cherry", "banana"]
 unique_items = distinct(items)                # ["apple", "banana", "cherry"]
 
 # Remove nulls
-mixed = (1, null, 2, null, 3)
+mixed = [1, null, 2, null, 3]
 cleaned_list = compact(mixed)                 # [1, 2, 3]
 
 # Flatten nested lists
-nested = ((1, 2), (3, 4), (5, 6))
+nested = [[1, 2], [3, 4], [5, 6]]
 flat = flatten(nested)                        # [1, 2, 3, 4, 5, 6]
 
 ## Numeric Operations
@@ -106,16 +106,16 @@ five_to_ten = range(5, 10)                    # [5, 6, 7, 8, 9]
 
 ## Pipeline Operations
 
-# Chain multiple operations
+# Chain multiple operations (pipeline operator partially implemented)
 regions_raw = "us-west-2, US-EAST-1, eu-west-1, US-WEST-2"
 
-regions_clean = regions_raw
-  | lower
-  | split ", "
-  | map r => trim(r)
-  | distinct
-  | sort
-  | join ", "
+# Manual chaining as pipeline operator is not yet fully implemented
+regions_lower = lower(regions_raw)
+regions_split = split(regions_lower, ", ")
+regions_trimmed = [trim(r) for r in regions_split]
+regions_unique = distinct(regions_trimmed)
+regions_sorted = sort(regions_unique)
+regions_clean = join(regions_sorted, ", ")
 # Result: "eu-west-1, us-east-1, us-west-2"
 
 ## List Comprehensions
@@ -127,28 +127,27 @@ numbers_doubled = [n * 2 for n in numbers]    # [2, 10, 6, 18, 4, 14]
 even_numbers = [n for n in numbers if n % 2 == 0]  # [2]
 
 # Complex transformation
-formatted_tags = [
-  "${k}=${v}"
-  for k, v in tags
-]  # ["environment=production", "team=platform", ...]
+# Note: Tuple destructuring in comprehensions (for k, v in map) is not yet supported
+# formatted_tags = ["${k}=${v}" for k, v in tags]
+tag_list = keys(tags)
 
 ## Conditional Values
 
-env = prod
-instance_type = env == prod ? t3.large : t3.small
+env = "prod"
+instance_type = env == "prod" ? "t3.large" : "t3.small"
 
 # Pattern matching
-state = when env (
-  prod => running
-  staging => running
-  * => stopped
-)
+state = when env {
+  "prod" => "running",
+  "staging" => "running",
+  * => "stopped"
+}
 
 ## Zipmap (create map from lists)
 
-keys = (name, version, enabled)
-values = (myapp, 1.2.3, true)
-zipped = zipmap(keys, values)                 # (name=myapp version=1.2.3 enabled=true)
+key_list = ["name", "version", "enabled"]
+value_list = ["myapp", "1.2.3", true]
+zipped = zipmap(key_list, value_list)        # (name="myapp", version="1.2.3", enabled=true)
 
 ## Coalesce (first non-null)
 
@@ -175,28 +174,31 @@ filename = basename(filepath)                 # "myapp"
 # Inline template
 greeting_template = "Hello, {{name}}! Welcome to {{app}}."
 greeting = template(greeting_template, (
-  name = "User"
+  name = "User",
   app = app_name
 ))  # "Hello, User! Welcome to myapp."
 
 # Template from file
 # nginx_conf = templatefile("nginx.conf.tpl", (
-#   port = 8080
-#   server_name = app_name
+#   port = 8080,
+#   server_name = app_name,
 #   workers = 4
 # ))
 
-## Complex Pipeline Example
+## Complex Data Processing Example
 
 # Process and transform data
 server_list = "web-1, web-2, db-1, web-3, cache-1"
 
-web_servers = server_list
-  | split ", "
-  | map s => trim(s)
-  | filter s => contains(s, "web")
-  | map s => (name = s type = "web-server" port = 8080)
-  | jsonencode
+# Manual chaining (pipeline operator not fully implemented)
+server_split = split(server_list, ", ")
+server_trimmed = [trim(s) for s in server_split]
+web_only = [s for s in server_trimmed if contains(s, "web")]
+web_configs = [
+  (name = s, type = "web-server", port = 8080)
+  for s in web_only
+]
+web_servers = jsonencode(web_configs)
 
 # Result: JSON array of web server configs
 
@@ -212,7 +214,7 @@ count_string = tostring(count)                # "42"
 
 # To boolean
 enabled_string = "true"
-enabled = tobool(enabled_string)              # true
+enabled_bool = tobool(enabled_string)         # true
 
 ## Outputs
 

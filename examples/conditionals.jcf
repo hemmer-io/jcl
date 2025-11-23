@@ -15,30 +15,30 @@ protocol = port == 443 ? "https" : "http"
 # When expressions (pattern matching)
 mode = "production"
 
-log_level = when mode (
+log_level = when mode {
   "development" => "debug",
   "staging" => "info",
   "production" => "warn",
   _ => "error"
-)
+}
 
 # When with literal patterns
 value = 75
 
-category = when value (
+category = when value {
   0 => "zero",
   75 => "exact match",
   _ => "other"
-)
+}
 
 # Nested conditionals
 user_role = "admin"
 is_authenticated = true
 
 access_level = if is_authenticated then (
-  when user_role (
+  when user_role {
     "admin" => "full",
     "user" => "limited",
     _ => "read-only"
-  )
+  }
 ) else "none"
