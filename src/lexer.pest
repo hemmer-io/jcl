@@ -30,7 +30,7 @@ doccomment_token = ${ "///" ~ (!"\n" ~ ANY)* ~ "\n"? }
 
 keyword_token = @{
     ( "import" | "match" | "false" | "when" | "then" | "else" | "from" | "true" | "null"
-    | "and" | "not" | "mut" | "try" | "for" | "fn" | "if" | "in" | "as" | "or"
+    | "and" | "not" | "mut" | "try" | "for" | "let" | "fn" | "if" | "in" | "as" | "or"
     ) ~ !(ASCII_ALPHANUMERIC | "_" | "-")
 }
 

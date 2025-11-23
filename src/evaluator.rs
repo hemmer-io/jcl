@@ -888,6 +888,23 @@ impl Evaluator {
                 body: body.clone(),
             }),
 
+            Expression::Let { bindings, body, .. } => {
+                // Evaluate let expression with local bindings
+                // Each binding creates a new scope that's visible to subsequent bindings and the body
+                let mut scoped_eval = self.clone_with_var(&bindings[0].0, {
+                    self.evaluate_expression(&bindings[0].1)?
+                });
+
+                // Process remaining bindings in order, each seeing previous bindings
+                for (name, expr) in &bindings[1..] {
+                    let value = scoped_eval.evaluate_expression(expr)?;
+                    scoped_eval = scoped_eval.clone_with_var(name, value);
+                }
+
+                // Evaluate body in the scope with all bindings
+                scoped_eval.evaluate_expression(body)
+            }
+
             Expression::ListComprehension {
                 expr,
                 iterators,
@@ -1389,8 +1406,47 @@ impl Evaluator {
                     let mut results = Vec::new();
 
                     for item in items {
-                        // Create new scope with current loop variable
-                        let scoped_eval = self.clone_with_var(var_name, item);
+                        // Create new scope with current loop variable(s)
+                        // Support tuple destructuring: "i, x" binds to multiple variables
+                        let scoped_eval = if var_name.contains(", ") {
+                            // Tuple destructuring - extract elements from list
+                            let var_names: Vec<&str> = var_name.split(", ").collect();
+
+                            // Item must be a list with matching element count
+                            let tuple_values = match &item {
+                                Value::List(elements) => {
+                                    if elements.len() != var_names.len() {
+                                        return Err(anyhow!(
+                                            "Tuple destructuring mismatch: expected {} elements, got {}",
+                                            var_names.len(),
+                                            elements.len()
+                                        ));
+                                    }
+                                    elements.clone()
+                                }
+                                _ => {
+                                    return Err(anyhow!(
+                                        "Tuple destructuring requires a list with {} elements, got {:?}",
+                                        var_names.len(),
+                                        item
+                                    ));
+                                }
+                            };
+
+                            // Bind each variable to its corresponding value
+                            // Start with first binding, then chain the rest
+                            let (first_name, rest_names) = var_names.split_first().unwrap();
+                            let (first_value, rest_values) = tuple_values.split_first().unwrap();
+
+                            let mut eval = self.clone_with_var(first_name, first_value.clone());
+                            for (name, value) in rest_names.iter().zip(rest_values.iter()) {
+                                eval = eval.clone_with_var(name, value.clone());
+                            }
+                            eval
+                        } else {
+                            // Single variable binding
+                            self.clone_with_var(var_name, item)
+                        };
 
                         // Recursively handle remaining iterators
                         let sub_results = scoped_eval.evaluate_comprehension_recursive(
