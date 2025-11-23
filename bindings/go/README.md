@@ -83,7 +83,7 @@ fmt.Println(config["debug"]) // false
 Load and evaluate a JCL file.
 
 ```go
-config, err := jcl.EvalFile("./config.jcl")
+config, err := jcl.EvalFile("./config.jcf")
 if err != nil {
     log.Fatal(err)
 }
@@ -291,8 +291,8 @@ func Load() (map[string]interface{}, error) {
         }
 
         cfg, err = jcl.Eval(`
-            import * from "./config/base.jcl"
-            import * from "./config/` + env + `.jcl"
+            import * from "./config/base.jcf"
+            import * from "./config/` + env + `.jcf"
         `)
     })
     return cfg, err

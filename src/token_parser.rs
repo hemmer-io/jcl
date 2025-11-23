@@ -91,12 +91,26 @@ impl TokenParser {
         }
 
         // Check for assignment (identifier followed by = or :)
+        // Also handles member access patterns like out.name = value
         if self.check_identifier() {
-            let next_pos = self.position + 1;
-            if next_pos < self.tokens.len() {
-                let next = &self.tokens[next_pos].kind;
-                if matches!(next, TokenKind::Equal | TokenKind::Colon) {
-                    return self.parse_assignment(false, doc_comments);
+            // Look ahead to find = or :, skipping over member access chains
+            let mut pos = self.position + 1;
+            while pos < self.tokens.len() {
+                match &self.tokens[pos].kind {
+                    TokenKind::Dot => {
+                        // Skip the dot and the following identifier
+                        pos += 1;
+                        if pos < self.tokens.len() && self.check_identifier_at(pos) {
+                            pos += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    TokenKind::Equal | TokenKind::Colon => {
+                        // Found assignment operator - this is an assignment
+                        return self.parse_assignment(false, doc_comments);
+                    }
+                    _ => break,
                 }
             }
         }
@@ -331,7 +345,7 @@ impl TokenParser {
 
         let name = self.parse_identifier()?;
 
-        // Check for module-specific patterns
+        // Check for module-specific patterns (handled specially)
         if name == "module" && self.check(&TokenKind::Dot) {
             self.advance(); // consume the dot
             let member = self.parse_identifier()?;
@@ -365,6 +379,15 @@ impl TokenParser {
             ));
         }
 
+        // Handle member access chains for non-module patterns (e.g., out.name, config.host)
+        let mut full_name = name.clone();
+        while self.check(&TokenKind::Dot) {
+            self.advance(); // consume the dot
+            let member = self.parse_identifier()?;
+            full_name.push('.');
+            full_name.push_str(&member);
+        }
+
         let type_annotation = if self.check(&TokenKind::Colon) {
             self.advance();
             Some(self.parse_type()?)
@@ -382,7 +405,7 @@ impl TokenParser {
         };
 
         Ok(Statement::Assignment {
-            name,
+            name: full_name,
             value,
             type_annotation,
             mutable,
@@ -1478,22 +1501,45 @@ impl TokenParser {
     }
 
     /// Parse when expression (pattern matching)
+    /// Supports both syntaxes:
+    /// - New: when expr { pattern => value, ... }
+    /// - Legacy: when expr (pattern => value, ...)  (only works with complex expressions)
     fn parse_when_expr(&mut self) -> Result<Expression> {
         let start = self.mark_position();
 
         self.expect(&TokenKind::When)?;
         let value = self.parse_expression()?;
-        self.expect(&TokenKind::LeftParen)?;
+
+        // Support both { } and ( ) syntax for when arms
+        let use_braces = if self.check(&TokenKind::LeftBrace) {
+            self.advance();
+            true
+        } else if self.check(&TokenKind::LeftParen) {
+            self.advance();
+            false
+        } else {
+            return Err(anyhow!("Expected '{{' or '(' after when expression"));
+        };
 
         let mut arms = vec![self.parse_when_arm()?];
         while self.check(&TokenKind::Comma) {
             self.advance();
-            if self.check(&TokenKind::RightParen) {
+            let closing_token = if use_braces {
+                TokenKind::RightBrace
+            } else {
+                TokenKind::RightParen
+            };
+            if self.check(&closing_token) {
                 break; // Trailing comma
             }
             arms.push(self.parse_when_arm()?);
         }
-        self.expect(&TokenKind::RightParen)?;
+
+        if use_braces {
+            self.expect(&TokenKind::RightBrace)?;
+        } else {
+            self.expect(&TokenKind::RightParen)?;
+        }
 
         Ok(Expression::When {
             value: Box::new(value),
@@ -1837,6 +1883,14 @@ impl TokenParser {
         matches!(self.current().kind, TokenKind::Identifier(_))
     }
 
+    fn check_identifier_at(&self, pos: usize) -> bool {
+        if pos < self.tokens.len() {
+            matches!(self.tokens[pos].kind, TokenKind::Identifier(_))
+        } else {
+            false
+        }
+    }
+
     fn current_identifier(&self) -> Option<TokenKind> {
         if self.check_identifier() {
             Some(self.current().kind.clone())
@@ -2071,7 +2125,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_path_based() {
-        let input = r#"import "./config.jcl""#;
+        let input = r#"import "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2081,7 +2135,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             assert!(matches!(kind, crate::ast::ImportKind::Full { alias: None }));
         } else {
             panic!("Expected import statement");
@@ -2090,7 +2144,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_path_based_with_alias() {
-        let input = r#"import "./config.jcl" as cfg"#;
+        let input = r#"import "./config.jcf" as cfg"#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2100,7 +2154,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             if let crate::ast::ImportKind::Full { alias } = kind {
                 assert_eq!(alias.as_ref().unwrap(), "cfg");
             } else {
@@ -2113,7 +2167,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_selective() {
-        let input = r#"import (database, server) from "./config.jcl""#;
+        let input = r#"import (database, server) from "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2123,7 +2177,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             if let crate::ast::ImportKind::Selective { items } = kind {
                 assert_eq!(items.len(), 2);
                 assert_eq!(items[0].name, "database");
@@ -2140,7 +2194,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_selective_with_aliases() {
-        let input = r#"import (database as db, server as srv) from "./config.jcl""#;
+        let input = r#"import (database as db, server as srv) from "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2150,7 +2204,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             if let crate::ast::ImportKind::Selective { items } = kind {
                 assert_eq!(items.len(), 2);
                 assert_eq!(items[0].name, "database");
@@ -2167,7 +2221,7 @@ evens = [x for x in numbers if x % 2 == 0]
 
     #[test]
     fn test_parse_import_wildcard() {
-        let input = r#"import * from "./config.jcl""#;
+        let input = r#"import * from "./config.jcf""#;
         let result = parse(input);
         if let Err(e) = &result {
             println!("Error: {:?}", e);
@@ -2177,7 +2231,7 @@ evens = [x for x in numbers if x % 2 == 0]
         assert_eq!(module.statements.len(), 1);
 
         if let Statement::Import { path, kind, .. } = &module.statements[0] {
-            assert_eq!(path, "./config.jcl");
+            assert_eq!(path, "./config.jcf");
             assert!(matches!(kind, crate::ast::ImportKind::Wildcard));
         } else {
             panic!("Expected import statement");
@@ -2248,7 +2302,7 @@ module.outputs = (
     fn test_parse_module_instance() {
         let input = r#"
 module.server.web = (
-    source = "./modules/server.jcl",
+    source = "./modules/server.jcf",
     port = 8080,
     host = "localhost"
 )
@@ -2271,12 +2325,123 @@ module.server.web = (
         {
             assert_eq!(module_type, "server");
             assert_eq!(instance_name, "web");
-            assert_eq!(source, "./modules/server.jcl");
+            assert_eq!(source, "./modules/server.jcf");
             assert_eq!(inputs.len(), 2);
             assert!(inputs.contains_key("port"));
             assert!(inputs.contains_key("host"));
         } else {
             panic!("Expected module instance statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_output_assignment() {
+        // Test fix for Issue #109-2: out.* assignments
+        let input = r#"
+app_name = "myapp"
+out.name = app_name
+out.version = "1.0"
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 3);
+
+        // Check that second statement is out.name assignment
+        if let Statement::Assignment { name, .. } = &module.statements[1] {
+            assert_eq!(name, "out.name");
+        } else {
+            panic!("Expected out.name assignment");
+        }
+    }
+
+    #[test]
+    fn test_parse_output_with_map() {
+        // Test fix for Issue #109-2: out.* assignments with map values
+        let input = r#"
+summary = (name = "app", version = "1.0")
+out.summary = summary
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_when_with_braces() {
+        // Test fix for Issue #109-1: when expressions with brace syntax
+        let input = r#"
+env = "prod"
+result = when env {
+  "prod" => "production",
+  "dev" => "development",
+  * => "unknown"
+}
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_when_with_map_values() {
+        // Test fix for Issue #109-1: when expressions with map values
+        let input = r#"
+env = "prod"
+config = when env {
+  "prod" => (type = "t3.large", replicas = 3),
+  "dev" => (type = "t3.small", replicas = 1),
+  * => (type = "t3.micro", replicas = 1)
+}
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_when_legacy_syntax() {
+        // Test backward compatibility: when with parens still works for member access
+        let input = r#"
+settings = (log_level: "info")
+status = when settings.log_level ("info" => "normal", * => "other")
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_nested_member_access_assignment() {
+        // Test deeper member access chains
+        let input = r#"
+config.database.host = "localhost"
+config.database.port = 5432
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let Statement::Assignment { name, .. } = &module.statements[0] {
+            assert_eq!(name, "config.database.host");
+        } else {
+            panic!("Expected config.database.host assignment");
         }
     }
 }

@@ -826,8 +826,8 @@ default_config = (timeout = 30, retries = 3)
 ```
 
 ```jcl
-# main.jcl
-import "./common.jcl"
+# main.jcf
+import "./common.jcf"
 
 # All bindings available directly
 my_tags = merge(common_tags, (app = "myapp"))
@@ -837,8 +837,8 @@ my_config = merge(default_config, (timeout = 60))
 #### Import with Namespace Alias
 
 ```jcl
-# main.jcl
-import "./common.jcl" as common
+# main.jcf
+import "./common.jcf" as common
 
 # Access via namespace
 my_tags = merge(common.common_tags, (app = "myapp"))
@@ -853,7 +853,7 @@ Import only specific items from a file.
 
 ```jcl
 # Import only what you need
-import (common_tags, default_config) from "./common.jcl"
+import (common_tags, default_config) from "./common.jcf"
 
 # Use imported values
 my_tags = merge(common_tags, (app = "myapp"))
@@ -863,7 +863,7 @@ my_tags = merge(common_tags, (app = "myapp"))
 
 ```jcl
 # Rename items during import
-import (common_tags as tags, default_config as config) from "./common.jcl"
+import (common_tags as tags, default_config as config) from "./common.jcf"
 
 # Use aliases
 my_tags = merge(tags, (app = "myapp"))
@@ -874,7 +874,7 @@ my_config = merge(config, (timeout = 60))
 
 ```jcl
 # Import everything directly (equivalent to no alias)
-import * from "./common.jcl"
+import * from "./common.jcf"
 
 # All bindings available
 tags = common_tags
@@ -887,20 +887,20 @@ Imports are resolved **relative to the importing file**, not the current working
 
 ```jcl
 # Relative to current file
-import "./config.jcl"                    # Same directory
-import "../shared/common.jcl"            # Parent directory
-import "../../base/settings.jcl"         # Two levels up
+import "./config.jcf"                    # Same directory
+import "../shared/common.jcf"            # Parent directory
+import "../../base/settings.jcf"         # Two levels up
 
 # Absolute path
-import "/etc/jcl/global-config.jcl"
+import "/etc/jcl/global-config.jcf"
 ```
 
 **Example Directory Structure:**
 ```
 project/
-├── main.jcl                    # import "./config/database.jcl"
+├── main.jcf                    # import "./config/database.jcf"
 ├── config/
-│   ├── database.jcl           # import "../shared/utils.jcl"
+│   ├── database.jcf           # import "../shared/utils.jcf"
 │   └── server.jcl
 └── shared/
     └── utils.jcl
@@ -911,21 +911,21 @@ project/
 Imported files can themselves import other files. JCL automatically tracks the import chain and detects circular dependencies.
 
 ```jcl
-# base.jcl
+# base.jcf
 app_name = "MyApp"
 version = "1.0.0"
 ```
 
 ```jcl
-# config.jcl
-import (app_name, version) from "./base.jcl"
+# config.jcf
+import (app_name, version) from "./base.jcf"
 environment = "production"
 full_name = "${app_name} v${version}"
 ```
 
 ```jcl
-# main.jcl
-import "./config.jcl" as config
+# main.jcf
+import "./config.jcf" as config
 
 # Can access nested imports
 result = "${config.full_name} (${config.environment})"
@@ -937,38 +937,38 @@ result = "${config.full_name} (${config.environment})"
 1. **Use selective imports** for clarity:
    ```jcl
    # Good: Clear what's being used
-   import (database, server) from "./config.jcl"
+   import (database, server) from "./config.jcf"
 
    # Less clear: Everything imported
-   import * from "./config.jcl"
+   import * from "./config.jcf"
    ```
 
 2. **Use namespace aliases** for large modules:
    ```jcl
    # Good: Clear namespace
-   import "./aws-resources.jcl" as aws
+   import "./aws-resources.jcf" as aws
    instance = aws.ec2_instance
 
    # Can be confusing: Many variables at top level
-   import "./aws-resources.jcl"
+   import "./aws-resources.jcf"
    ```
 
 3. **Organize related configuration**:
    ```
    config/
-   ├── database.jcl       # Database settings
-   ├── server.jcl         # Server settings
-   ├── network.jcl        # Network settings
-   └── main.jcl           # Imports and combines
+   ├── database.jcf       # Database settings
+   ├── server.jcf         # Server settings
+   ├── network.jcf        # Network settings
+   └── main.jcf           # Imports and combines
    ```
 
 4. **Avoid circular imports**: JCL detects and prevents circular dependencies
    ```jcl
    # a.jcl
-   import "./b.jcl"  # ✗ Error: Circular import
+   import "./b.jcf"  # ✗ Error: Circular import
 
    # b.jcl
-   import "./a.jcl"  # These create a cycle
+   import "./a.jcf"  # These create a cycle
    ```
 
 ### Import Caching
@@ -1028,15 +1028,15 @@ module.outputs = (
 Use modules by creating instances with specific inputs:
 
 ```jcl
-# main.jcl
+# main.jcf
 module.greeter.alice = (
-    source = "./greeter.jcl",
+    source = "./greeter.jcf",
     name = "Alice",
     prefix = "Good morning"
 )
 
 module.greeter.bob = (
-    source = "./greeter.jcl",
+    source = "./greeter.jcf",
     name = "Bob"
     # prefix uses default: "Hello"
 )
@@ -1054,7 +1054,7 @@ JCL supports multiple module source types:
 
 ```jcl
 module.config.app = (
-    source = "./modules/app-config.jcl",
+    source = "./modules/app-config.jcf",
     environment = "production"
 )
 ```
@@ -1063,7 +1063,7 @@ module.config.app = (
 
 ```jcl
 module.external.aws = (
-    source = "git::https://github.com/org/modules.git//aws/ec2.jcl?ref=v1.0.0",
+    source = "git::https://github.com/org/modules.git//aws/ec2.jcf?ref=v1.0.0",
     instance_type = "t3.medium",
     region = "us-east-1"
 )
@@ -1077,7 +1077,7 @@ Parameters:
 
 ```jcl
 module.remote.policy = (
-    source = "https://config.example.com/security-policy.jcl",
+    source = "https://config.example.com/security-policy.jcf",
     strictness = "high"
 )
 ```
@@ -1110,7 +1110,7 @@ Version requirements:
 
 ```jcl
 module.service.web = (
-    source = "./web-service.jcl",
+    source = "./web-service.jcf",
     condition = environment == "production",
     replicas = 3
 )
@@ -1123,7 +1123,7 @@ Create N identical instances:
 
 ```jcl
 module.server.cluster = (
-    source = "./server.jcl",
+    source = "./server.jcf",
     count = 3,
     name = "server-${count.index}",  # count.index available: 0, 1, 2
     port = 8080 + count.index
@@ -1142,7 +1142,7 @@ Create instances for each element:
 # With list
 environments = ["dev", "staging", "prod"]
 module.service.envs = (
-    source = "./service.jcl",
+    source = "./service.jcf",
     for_each = environments,
     env_name = each.value,  # each.key = index, each.value = element
     replicas = each.value == "prod" ? 5 : 1
@@ -1151,7 +1151,7 @@ module.service.envs = (
 # With map
 regions = (us-east = "10.0.0.0/16", us-west = "10.1.0.0/16")
 module.vpc.regional = (
-    source = "./vpc.jcl",
+    source = "./vpc.jcf",
     for_each = regions,
     region = each.key,      # each.key = map key
     cidr = each.value       # each.value = map value
@@ -1205,7 +1205,7 @@ module.interface = (
 
 # Use base module
 module.base.inner = (
-    source = "./base-greeting.jcl",
+    source = "./base-greeting.jcf",
     name = module.inputs.name
 )
 
@@ -1228,7 +1228,7 @@ jcl-module init my-module \
 
 Creates:
 - `jcl.json` - Module manifest
-- `module.jcl` - Module template with interface
+- `module.jcf` - Module template with interface
 - `README.md` - Documentation template
 - `.gitignore` - JCL cache exclusions
 
@@ -1276,7 +1276,7 @@ Shows all cached modules with versions and descriptions.
     "aws-base": "^2.0.0",
     "networking": "~1.5.0"
   },
-  "main": "module.jcl"
+  "main": "module.jcf"
 }
 ```
 
@@ -1297,10 +1297,10 @@ JCL automatically detects and prevents circular module dependencies:
 
 ```jcl
 # module-a.jcl
-module.b.instance = (source = "./module-b.jcl")
+module.b.instance = (source = "./module-b.jcf")
 
 # module-b.jcl
-module.a.instance = (source = "./module-a.jcl")  # ✗ Error: Circular dependency
+module.a.instance = (source = "./module-a.jcf")  # ✗ Error: Circular dependency
 ```
 
 ### Best Practices
@@ -1362,14 +1362,14 @@ Errors should be clear and actionable:
 
 ```
 Error: Function 'upper' requires 1 argument, got 0
-  --> config.jcl:42:15
+  --> config.jcf:42:15
    |
 42 | result = upper()
    |          ^^^^^^^ Expected 1 argument
    |
 
 Error: Type mismatch
-  --> config.jcl:15:8
+  --> config.jcf:15:8
    |
 15 | port = "8080"
    |        ^^^^^^ Expected int, got string

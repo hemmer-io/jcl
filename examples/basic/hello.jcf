@@ -1,0 +1,6 @@
+# Basic JCL example - Hello World
+
+greeting = "Hello, JCL!"
+
+# Output
+out.message = greeting

@@ -97,8 +97,8 @@ fn handle_event(event: &Event, args: &Args) -> Result<()> {
     }
 
     for path in &event.paths {
-        // Only process .jcl files
-        if path.extension().and_then(|s| s.to_str()) != Some("jcl") {
+        // Only process .jcf files
+        if path.extension().and_then(|s| s.to_str()) != Some("jcf") {
             continue;
         }
 

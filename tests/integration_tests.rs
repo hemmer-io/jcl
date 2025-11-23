@@ -1,8 +1,8 @@
-use jcl::{ast::Value, evaluator::Evaluator, parser};
+use jcl::{ast::Value, evaluator::Evaluator};
 
 /// Helper function to parse and evaluate a JCL file
 fn eval_file(content: &str) -> Result<std::collections::HashMap<String, Value>, anyhow::Error> {
-    let module = parser::parse_str(content)?;
+    let module = jcl::parse_str(content)?;
     let mut evaluator = Evaluator::new();
     let result = evaluator.evaluate(module)?;
     Ok(result.bindings)
@@ -10,8 +10,8 @@ fn eval_file(content: &str) -> Result<std::collections::HashMap<String, Value>, 
 
 #[test]
 fn test_basic_example() {
-    let content = include_str!("../examples/basic.jcl");
-    let result = eval_file(content).expect("Failed to evaluate basic.jcl");
+    let content = include_str!("../examples/basic.jcf");
+    let result = eval_file(content).expect("Failed to evaluate basic.jcf");
 
     // Check some expected values
     assert_eq!(result.get("name"), Some(&Value::String("JCL".to_string())));
@@ -26,8 +26,8 @@ fn test_basic_example() {
 
 #[test]
 fn test_functions_example() {
-    let content = include_str!("../examples/functions.jcl");
-    let result = eval_file(content).expect("Failed to evaluate functions.jcl");
+    let content = include_str!("../examples/functions.jcf");
+    let result = eval_file(content).expect("Failed to evaluate functions.jcf");
 
     // Check function results
     assert_eq!(result.get("result1"), Some(&Value::Int(10))); // double(5)
@@ -41,8 +41,8 @@ fn test_functions_example() {
 
 #[test]
 fn test_collections_example() {
-    let content = include_str!("../examples/collections.jcl");
-    let result = eval_file(content).expect("Failed to evaluate collections.jcl");
+    let content = include_str!("../examples/collections.jcf");
+    let result = eval_file(content).expect("Failed to evaluate collections.jcf");
 
     // Check list values
     assert_eq!(
@@ -78,8 +78,8 @@ fn test_collections_example() {
 
 #[test]
 fn test_strings_example() {
-    let content = include_str!("../examples/strings.jcl");
-    let result = eval_file(content).expect("Failed to evaluate strings.jcl");
+    let content = include_str!("../examples/strings.jcf");
+    let result = eval_file(content).expect("Failed to evaluate strings.jcf");
 
     // Check basic strings
     assert_eq!(
@@ -104,8 +104,8 @@ fn test_strings_example() {
 
 #[test]
 fn test_conditionals_example() {
-    let content = include_str!("../examples/conditionals.jcl");
-    let result = eval_file(content).expect("Failed to evaluate conditionals.jcl");
+    let content = include_str!("../examples/conditionals.jcf");
+    let result = eval_file(content).expect("Failed to evaluate conditionals.jcf");
 
     // Check if expressions
     assert_eq!(result.get("score"), Some(&Value::Int(85)));
@@ -143,8 +143,8 @@ fn test_conditionals_example() {
 
 #[test]
 fn test_pipelines_example() {
-    let content = include_str!("../examples/pipelines.jcl");
-    let result = eval_file(content).expect("Failed to evaluate pipelines.jcl");
+    let content = include_str!("../examples/pipelines.jcf");
+    let result = eval_file(content).expect("Failed to evaluate pipelines.jcf");
 
     // Check list comprehensions (pipeline alternatives)
     assert_eq!(
@@ -176,8 +176,8 @@ fn test_pipelines_example() {
 
 #[test]
 fn test_web_server_example() {
-    let content = include_str!("../examples/web-server.jcl");
-    let result = eval_file(content).expect("Failed to evaluate web-server.jcl");
+    let content = include_str!("../examples/web-server.jcf");
+    let result = eval_file(content).expect("Failed to evaluate web-server.jcf");
 
     // Check environment
     assert_eq!(
@@ -194,13 +194,13 @@ fn test_web_server_example() {
 
 #[test]
 fn test_builtin_example_parses() {
-    // Note: builtin.jcl uses many built-in functions that may not be fully implemented
+    // Note: builtin.jcf uses many built-in functions that may not be fully implemented
     // This test just verifies it parses successfully
-    let content = include_str!("../examples/builtin.jcl");
-    let parse_result = parser::parse_str(content);
+    let content = include_str!("../examples/builtin.jcf");
+    let parse_result = jcl::parse_str(content);
     assert!(
         parse_result.is_ok(),
-        "builtin.jcl should parse successfully"
+        "builtin.jcf should parse successfully"
     );
 }
 
@@ -208,24 +208,24 @@ fn test_builtin_example_parses() {
 #[test]
 fn test_all_examples_parse() {
     let examples = vec![
-        ("basic.jcl", include_str!("../examples/basic.jcl")),
-        ("functions.jcl", include_str!("../examples/functions.jcl")),
+        ("basic.jcf", include_str!("../examples/basic.jcf")),
+        ("functions.jcf", include_str!("../examples/functions.jcf")),
         (
-            "collections.jcl",
-            include_str!("../examples/collections.jcl"),
+            "collections.jcf",
+            include_str!("../examples/collections.jcf"),
         ),
-        ("strings.jcl", include_str!("../examples/strings.jcl")),
+        ("strings.jcf", include_str!("../examples/strings.jcf")),
         (
-            "conditionals.jcl",
-            include_str!("../examples/conditionals.jcl"),
+            "conditionals.jcf",
+            include_str!("../examples/conditionals.jcf"),
         ),
-        ("pipelines.jcl", include_str!("../examples/pipelines.jcl")),
-        ("builtin.jcl", include_str!("../examples/builtin.jcl")),
-        ("web-server.jcl", include_str!("../examples/web-server.jcl")),
+        ("pipelines.jcf", include_str!("../examples/pipelines.jcf")),
+        ("builtin.jcf", include_str!("../examples/builtin.jcf")),
+        ("web-server.jcf", include_str!("../examples/web-server.jcf")),
     ];
 
     for (name, content) in examples {
-        let result = parser::parse_str(content);
+        let result = jcl::parse_str(content);
         assert!(
             result.is_ok(),
             "Example {} should parse successfully. Error: {:?}",

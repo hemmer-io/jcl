@@ -82,7 +82,7 @@ puts "Port: #{config['app']['port']}"
 puts "Features: #{config['app']['features'].join(', ')}"
 
 # Evaluate from file
-file_config = JCL.eval_file('config.jcl')
+file_config = JCL.eval_file('config.jcf')
 ```
 
 ### Formatting
@@ -183,7 +183,7 @@ require 'jcl'
 
 module MyApp
   class Application < Rails::Application
-    jcl_config = JCL.eval_file(Rails.root.join('config', 'app.jcl'))
+    jcl_config = JCL.eval_file(Rails.root.join('config', 'app.jcf'))
 
     config.app_name = jcl_config['app']['name']
     config.api_endpoint = jcl_config['api']['endpoint']
@@ -199,7 +199,7 @@ end
 require 'jcl'
 
 # Load configuration from JCL
-config = JCL.eval_file('/etc/app/config.jcl')
+config = JCL.eval_file('/etc/app/config.jcf')
 
 # Use configuration in Chef resources
 template '/etc/nginx/nginx.conf' do
@@ -238,7 +238,7 @@ Then in your manifest:
 
 ```puppet
 # manifests/config.pp
-$config = jcl_eval('/etc/app/config.jcl')
+$config = jcl_eval('/etc/app/config.jcf')
 
 file { '/etc/app/settings.json':
   ensure  => file,
@@ -255,7 +255,7 @@ require 'jcl'
 namespace :jcl do
   desc 'Validate JCL configuration files'
   task :validate do
-    Dir.glob('config/**/*.jcl').each do |file|
+    Dir.glob('config/**/*.jcf').each do |file|
       puts "Validating #{file}..."
 
       begin
@@ -280,7 +280,7 @@ namespace :jcl do
 
   desc 'Format JCL configuration files'
   task :format do
-    Dir.glob('config/**/*.jcl').each do |file|
+    Dir.glob('config/**/*.jcf').each do |file|
       puts "Formatting #{file}..."
 
       begin
@@ -303,7 +303,7 @@ require 'sinatra'
 require 'jcl'
 
 configure do
-  config = JCL.eval_file('config/app.jcl')
+  config = JCL.eval_file('config/app.jcf')
 
   set :port, config['server']['port']
   set :environment, config['environment']
@@ -312,7 +312,7 @@ end
 
 get '/config' do
   content_type :json
-  config = JCL.eval_file('config/app.jcl')
+  config = JCL.eval_file('config/app.jcf')
   config.to_json
 end
 ```
@@ -357,7 +357,7 @@ class ConfigLoader
 end
 
 # Usage
-config = ConfigLoader.new('config/app.jcl')
+config = ConfigLoader.new('config/app.jcf')
 puts config.version
 puts config.get('app.name')
 ```
@@ -370,7 +370,7 @@ require 'jcl'
 
 RSpec.configure do |config|
   config.before(:suite) do
-    test_config = JCL.eval_file('spec/fixtures/test_config.jcl')
+    test_config = JCL.eval_file('spec/fixtures/test_config.jcf')
     ENV['TEST_CONFIG'] = test_config.to_json
   end
 end
@@ -414,7 +414,7 @@ All methods raise `RuntimeError` on errors. It's recommended to catch and handle
 
 ```ruby
 begin
-  config = JCL.eval_file('config.jcl')
+  config = JCL.eval_file('config.jcf')
 rescue RuntimeError => e
   if e.message.include?('Parse error')
     puts "Invalid JCL syntax: #{e.message}"
@@ -430,7 +430,7 @@ end
 
 ```ruby
 # Inline rescue
-config = JCL.eval_file('config.jcl') rescue {}
+config = JCL.eval_file('config.jcf') rescue {}
 
 # Method with rescue
 def load_config(path)
@@ -473,7 +473,7 @@ The JCL Ruby bindings are thread-safe. Multiple threads can safely call JCL meth
 ```ruby
 threads = 10.times.map do |i|
   Thread.new do
-    config = JCL.eval_file("config/env#{i}.jcl")
+    config = JCL.eval_file("config/env#{i}.jcf")
     # Process config...
   end
 end
@@ -499,7 +499,7 @@ ruby test/jcl_test.rb
 require 'benchmark'
 require 'jcl'
 
-jcl_code = File.read('large_config.jcl')
+jcl_code = File.read('large_config.jcf')
 
 Benchmark.bm do |x|
   x.report('parse:') { 100.times { JCL.parse(jcl_code) } }

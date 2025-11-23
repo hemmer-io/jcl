@@ -173,7 +173,7 @@ pub fn run_repl() -> Result<()> {
 /// Get the history file path
 fn get_history_path() -> Option<PathBuf> {
     if let Some(mut path) = env::var_os("HOME").map(PathBuf::from) {
-        path.push(".jcl_history");
+        path.push(".jcf_history");
         Some(path)
     } else {
         None
@@ -189,7 +189,7 @@ fn print_help() {
     println!();
     println!("{}", "Features:".cyan().bold());
     println!(
-        "  {} - Persistent command history (~/.jcl_history)",
+        "  {} - Persistent command history (~/.jcf_history)",
         "Up/Down arrows".dimmed()
     );
     println!("  {} - Complete and search history", "Tab/Ctrl-R".dimmed());

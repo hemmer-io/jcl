@@ -227,9 +227,9 @@ impl Default for JclContext {
 /// use std::path::PathBuf;
 ///
 /// let files = vec![
-///     PathBuf::from("config1.jcl"),
-///     PathBuf::from("config2.jcl"),
-///     PathBuf::from("config3.jcl"),
+///     PathBuf::from("config1.jcf"),
+///     PathBuf::from("config2.jcf"),
+///     PathBuf::from("config3.jcf"),
 /// ];
 ///
 /// let results = parse_files_parallel(&files).unwrap();

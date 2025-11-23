@@ -20,7 +20,7 @@ pip install jcl-lang
 import jcl
 
 # Load and evaluate a JCL file (~0.05ms)
-config = jcl.eval_file("config.jcl")
+config = jcl.eval_file("config.jcf")
 print(config["app_name"])
 
 # Parse from string
@@ -44,7 +44,7 @@ npm install @hemmer-io/jcl
 const jcl = require('@hemmer-io/jcl');
 
 // Load and evaluate a JCL file (~0.05ms)
-const config = jcl.evalFile('config.jcl');
+const config = jcl.evalFile('config.jcf');
 console.log(config.app_name);
 
 // Parse from string
@@ -66,7 +66,7 @@ gem install jcl
 require 'jcl'
 
 # Load and evaluate a JCL file (~0.05ms)
-config = JCL.eval_file('config.jcl')
+config = JCL.eval_file('config.jcf')
 puts config['app_name']
 
 # Parse from string
@@ -85,16 +85,16 @@ issues = JCL.lint(source_code)
 cargo install jcl
 
 # Evaluate a JCL file (~5ms with subprocess overhead)
-jcl eval config.jcl
+jcl eval config.jcf
 
 # Run the interactive REPL
 jcl repl
 
 # Format JCL files
-jcl-fmt config.jcl
+jcl-fmt config.jcf
 
 # Validate against a schema
-jcl-validate --schema schema.jcl config.jcl
+jcl-validate --schema schema.jcf config.jcf
 
 # Migrate from other formats
 jcl-migrate config.json --from json

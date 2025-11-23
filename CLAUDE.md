@@ -476,7 +476,7 @@ Located in `tests/cli_tests.rs`:
 fn test_jcl_eval_basic() {
     let jcl_path = get_binary_path("jcl");
     let test_file = create_temp_file(
-        "test.jcl",
+        "test.jcf",
         r#"
 x = 42
 y = "hello"
