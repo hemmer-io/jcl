@@ -1,0 +1,156 @@
+# JCL Functions and Advanced Features
+# Demonstrates function definitions, list comprehensions, and functional programming
+
+# Simple function definitions
+fn greet(name) = "Hello, ${name}!"
+
+fn add(x, y) = x + y
+
+fn multiply(x, y) = x * y
+
+# Function with conditional logic
+fn absolute(n) = if n >= 0 then n else -n
+
+# Function with when expression
+fn classify_age(age) = when age {
+    >= 65 => "senior"
+    >= 18 => "adult"
+    >= 13 => "teenager"
+    >= 0 => "child"
+    else => "invalid"
+}
+
+# Lambda functions
+double = x => x * 2
+square = x => x * x
+is_even = x => x % 2 == 0
+
+# Higher-order functions with map
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+doubled = map(double, numbers)
+squared = map(square, numbers)
+
+# Filter with predicate
+evens = filter(is_even, numbers)
+odds = filter(x => x % 2 != 0, numbers)
+
+# Reduce for aggregation
+sum = reduce((acc, x) => acc + x, 0, numbers)
+product = reduce((acc, x) => acc * x, 1, numbers)
+
+# List comprehensions
+# Basic comprehension
+squares = [x * x for x in numbers]
+
+# Comprehension with filter
+even_squares = [x * x for x in numbers if x % 2 == 0]
+
+# Nested comprehensions
+pairs = [
+    (x, y)
+    for x in range(1, 4)
+    for y in range(1, 4)
+]
+
+# Comprehension with transformation
+users = [
+    (name = "Alice", age = 30),
+    (name = "Bob", age = 25),
+    (name = "Carol", age = 35)
+]
+
+user_summaries = [
+    "${u.name} is ${u.age} years old"
+    for u in users
+]
+
+adults = [u for u in users if u.age >= 18]
+
+# String manipulation functions
+text = "  Hello, World!  "
+trimmed = trim(text)
+uppercase = upper(trimmed)
+lowercase = lower(trimmed)
+replaced = replace(uppercase, "WORLD", "JCL")
+
+# List operations
+fruits = ["apple", "banana", "cherry", "date"]
+first_two = slice(fruits, 0, 2)
+sorted_fruits = sort(fruits)
+reversed_fruits = reverse(fruits)
+fruit_count = length(fruits)
+
+# Map operations
+person = (
+    name = "Alice",
+    age = 30,
+    city = "New York"
+)
+
+person_keys = keys(person)
+person_values = values(person)
+has_age = contains(person, "age")
+
+# Merging maps
+defaults = (port = 8080, host = "localhost")
+overrides = (port = 3000, debug = true)
+config = merge(defaults, overrides)
+
+# JSON encoding/decoding
+json_string = jsonencode(person)
+yaml_string = yamlencode(config)
+toml_string = tomlencode(defaults)
+
+# Hash functions
+password = "secret123"
+md5_hash = md5(password)
+sha256_hash = sha256(password)
+
+# Base64 encoding
+encoded = base64encode("Hello, JCL!")
+decoded = base64decode(encoded)
+
+# Template rendering
+template_str = "Name: {{name}}, Age: {{age}}"
+rendered = template(template_str, person)
+
+# Let bindings for local scope
+result = let (
+    x = 10,
+    y = 20,
+    z = x + y
+) in z * 2
+
+# Complex transformation pipeline
+data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Pipeline: filter evens, square them, sum the results
+pipeline_result = reduce(
+    (acc, x) => acc + x,
+    0,
+    map(x => x * x, filter(x => x % 2 == 0, data))
+)
+
+# Cartesian product
+colors = ["red", "blue"]
+sizes = ["small", "large"]
+products = [
+    (color = c, size = s)
+    for c in colors
+    for s in sizes
+]
+
+# Recursive-style with function
+fn factorial(n) = if n <= 1 then 1 else n * factorial(n - 1)
+
+# Time and date functions
+now = timestamp()
+formatted_date = formatdate("YYYY-MM-DD", now)
+
+# File operations (for tool integration)
+file_content = file("./config.txt")
+file_exists = fileexists("./data.json")
+
+# URL encoding
+url_safe = urlencode("hello world & stuff")
+decoded_url = urldecode(url_safe)

@@ -1,0 +1,264 @@
+# Kubernetes-style Configuration in JCL
+# Demonstrates using JCL for declarative infrastructure/application configuration
+
+# Namespace configuration
+namespace = "production"
+
+# Common labels
+common_labels = (
+    app = "web-server",
+    environment = namespace,
+    managed_by = "jcl"
+)
+
+# Deployment configuration
+deployment = (
+    apiVersion = "apps/v1",
+    kind = "Deployment",
+    metadata = (
+        name = "web-server",
+        namespace = namespace,
+        labels = common_labels
+    ),
+    spec = (
+        replicas = 3,
+        selector = (
+            matchLabels = (
+                app = "web-server"
+            )
+        ),
+        template = (
+            metadata = (
+                labels = common_labels
+            ),
+            spec = (
+                containers = [
+                    (
+                        name = "nginx",
+                        image = "nginx:1.21",
+                        ports = [
+                            (containerPort = 80, protocol = "TCP")
+                        ],
+                        env = [
+                            (name = "ENV", value = namespace),
+                            (name = "DEBUG", value = "false")
+                        ],
+                        resources = (
+                            requests = (cpu = "100m", memory = "128Mi"),
+                            limits = (cpu = "500m", memory = "512Mi")
+                        ),
+                        livenessProbe = (
+                            httpGet = (path = "/health", port = 80),
+                            initialDelaySeconds = 30,
+                            periodSeconds = 10
+                        )
+                    )
+                ]
+            )
+        )
+    )
+)
+
+# Service configuration
+service = (
+    apiVersion = "v1",
+    kind = "Service",
+    metadata = (
+        name = "web-server-service",
+        namespace = namespace,
+        labels = common_labels
+    ),
+    spec = (
+        selector = (app = "web-server"),
+        ports = [
+            (
+                protocol = "TCP",
+                port = 80,
+                targetPort = 80,
+                name = "http"
+            )
+        ],
+        type = "LoadBalancer"
+    )
+)
+
+# ConfigMap for application configuration
+configmap = (
+    apiVersion = "v1",
+    kind = "ConfigMap",
+    metadata = (
+        name = "app-config",
+        namespace = namespace
+    ),
+    data = (
+        "app.conf" = <<CONF
+server {
+    listen 80;
+    server_name example.com;
+
+    location / {
+        proxy_pass http://backend:8080;
+        proxy_set_header Host $host;
+    }
+}
+CONF,
+        "database.conf" = <<DB
+{
+    "host": "db.production.svc.cluster.local",
+    "port": 5432,
+    "database": "app_db"
+}
+DB
+    )
+)
+
+# Secret (base64 encoded values)
+secret_data = (
+    username = "admin",
+    password = "super-secret-password"
+)
+
+secret = (
+    apiVersion = "v1",
+    kind = "Secret",
+    metadata = (
+        name = "db-credentials",
+        namespace = namespace
+    ),
+    type = "Opaque",
+    data = (
+        username = base64encode(secret_data.username),
+        password = base64encode(secret_data.password)
+    )
+)
+
+# Ingress configuration
+ingress = (
+    apiVersion = "networking.k8s.io/v1",
+    kind = "Ingress",
+    metadata = (
+        name = "web-ingress",
+        namespace = namespace,
+        annotations = (
+            "kubernetes.io/ingress.class" = "nginx",
+            "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
+        )
+    ),
+    spec = (
+        tls = [
+            (
+                hosts = ["example.com"],
+                secretName = "example-tls"
+            )
+        ],
+        rules = [
+            (
+                host = "example.com",
+                http = (
+                    paths = [
+                        (
+                            path = "/",
+                            pathType = "Prefix",
+                            backend = (
+                                service = (
+                                    name = "web-server-service",
+                                    port = (number = 80)
+                                )
+                            )
+                        )
+                    ]
+                )
+            )
+        ]
+    )
+)
+
+# Multiple environments using list comprehensions
+environments = ["dev", "staging", "production"]
+
+all_namespaces = [
+    (
+        apiVersion = "v1",
+        kind = "Namespace",
+        metadata = (name = env)
+    )
+    for env in environments
+]
+
+# Resource limits per environment
+resource_limits = [
+    (
+        env = env,
+        cpu_limit = when env {
+            == "production" => "2000m"
+            == "staging" => "1000m"
+            else => "500m"
+        },
+        memory_limit = when env {
+            == "production" => "4Gi"
+            == "staging" => "2Gi"
+            else => "1Gi"
+        },
+        replicas = when env {
+            == "production" => 5
+            == "staging" => 2
+            else => 1
+        }
+    )
+    for env in environments
+]
+
+# Helper function to create pod spec
+fn create_pod_spec(name, image, port, env) = (
+    containers = [
+        (
+            name = name,
+            image = image,
+            ports = [(containerPort = port)],
+            env = [
+                (name = "ENVIRONMENT", value = env)
+            ]
+        )
+    ]
+)
+
+# Generate deployments for multiple services
+services_config = [
+    (name = "api", image = "api:v1", port = 8080),
+    (name = "worker", image = "worker:v1", port = 8081),
+    (name = "scheduler", image = "scheduler:v1", port = 8082)
+]
+
+service_deployments = [
+    (
+        apiVersion = "apps/v1",
+        kind = "Deployment",
+        metadata = (
+            name = "${svc.name}-deployment",
+            namespace = namespace
+        ),
+        spec = (
+            replicas = 2,
+            selector = (matchLabels = (app = svc.name)),
+            template = (
+                metadata = (labels = (app = svc.name)),
+                spec = create_pod_spec(svc.name, svc.image, svc.port, namespace)
+            )
+        )
+    )
+    for svc in services_config
+]
+
+# Export all resources
+all_resources = concat([
+    [deployment],
+    [service],
+    [configmap],
+    [secret],
+    [ingress],
+    all_namespaces,
+    service_deployments
+])
+
+# Generate YAML output
+kubernetes_manifest = yamlencode((items = all_resources))
