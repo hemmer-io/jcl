@@ -145,7 +145,7 @@ jobs:
 
           Dependencies updated: ${{ steps.metadata.outputs.dependency-names }}"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_PAT }}
 
       - name: Check if outside business hours
         if: needs.check-business-hours.outputs.is-business-hours == 'false'
@@ -165,4 +165,4 @@ jobs:
 
           You can manually merge this PR at any time if needed." || true
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_PAT }}
