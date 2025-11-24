@@ -26,7 +26,7 @@
       "patterns": [
         {
           "name": "keyword.control.jcl",
-          "match": "\\b(if|then|else|when|for|in|import|return|break|continue)\\b"
+          "match": "\\b(if|then|else|when|for|in|import|let|return|break|continue)\\b"
         },
         {
           "name": "keyword.other.jcl",
@@ -115,6 +115,17 @@
               ]
             }
           ]
+        },
+        {
+          "name": "string.unquoted.heredoc.jcl",
+          "begin": "<<([A-Z_]+)",
+          "end": "^\\1$",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.jcl" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.jcl" }
+          }
         }
       ]
     },

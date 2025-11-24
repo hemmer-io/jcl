@@ -1,0 +1,92 @@
+# Application Configuration
+# This demonstrates JCL's configuration syntax
+
+# Basic configuration map
+app_config = (
+    name = "my-application",
+    version = "1.0.0",
+    host = "localhost",
+    port = 8080,
+    debug = true
+)
+
+# Database configuration with nested maps
+database = (
+    host = "db.example.com",
+    port = 5432,
+    name = "mydb",
+    credentials = (
+        username = "admin",
+        password = "secret"
+    ),
+    pool = (
+        min_connections = 5,
+        max_connections = 20,
+        timeout = 30
+    )
+)
+
+# List of services
+services = [
+    "api",
+    "worker",
+    "scheduler",
+    "notifications"
+]
+
+# Environment-specific configuration
+environment = "production"
+replicas = environment == "production" ? 5 : 2
+log_level = environment == "production" ? "info" : "debug"
+
+# When expression for grading
+grade_threshold = when replicas {
+    >= 5 => "high"
+    >= 3 => "medium"
+    >= 1 => "low"
+    else => "none"
+}
+
+# String interpolation
+connection_string = "postgresql://${database.credentials.username}@${database.host}:${database.port}/${database.name}"
+
+# Null coalescing
+api_timeout = database.pool.timeout ?? 60
+fallback_host = database.host ?: "localhost"
+
+# List comprehension
+service_urls = [
+    "https://${service}.example.com"
+    for service in services
+]
+
+# Built-in functions
+config_json = jsonencode(app_config)
+config_keys = keys(database)
+upper_name = upper(app_config.name)
+
+# Function definition
+fn create_endpoint(service, port) = (
+    url = "https://${service}.example.com:${port}",
+    healthy = true,
+    timeout = 30
+)
+
+# Using custom function
+api_endpoint = create_endpoint("api", 8080)
+
+# Heredoc for multi-line strings
+sql_query = <<SQL
+SELECT u.id, u.name, u.email
+FROM users u
+WHERE u.created_at > NOW() - INTERVAL '7 days'
+ORDER BY u.created_at DESC
+LIMIT 100
+SQL
+
+# Range syntax
+numbers = range(1, 11)
+even_numbers = [x for x in numbers if x % 2 == 0]
+
+# Try for error handling
+safe_value = try(risky_operation(), "default")
