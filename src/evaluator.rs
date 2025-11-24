@@ -1557,12 +1557,12 @@ impl Evaluator {
         }
     }
 
-    /// Higher-order function: map(lambda, list)
-    /// Applies the lambda to each element in the list and returns a new list
+    /// Higher-order function: map(lambda, list_or_stream)
+    /// Applies the lambda to each element and returns a new list or stream
     fn call_map(&self, args: &[Expression]) -> Result<Value> {
         if args.len() != 2 {
             return Err(anyhow!(
-                "map() expects 2 arguments (lambda, list), got {}",
+                "map() expects 2 arguments (lambda, list or stream), got {}",
                 args.len()
             ));
         }
@@ -1573,29 +1573,40 @@ impl Evaluator {
             return Err(anyhow!("map() first argument must be a function"));
         }
 
-        // Evaluate the list
-        let list_value = self.evaluate_expression(&args[1])?;
-        let list = match list_value {
-            Value::List(l) => l,
-            _ => return Err(anyhow!("map() second argument must be a list")),
-        };
+        // Evaluate the second argument (list or stream)
+        let collection_value = self.evaluate_expression(&args[1])?;
 
-        // Apply the function to each element
-        let mut results = Vec::new();
-        for item in list {
-            let result = self.call_user_function(&func_value, &[item])?;
-            results.push(result);
+        match collection_value {
+            Value::List(list) => {
+                // Eager evaluation for lists
+                let mut results = Vec::new();
+                for item in list {
+                    let result = self.call_user_function(&func_value, &[item])?;
+                    results.push(result);
+                }
+                Ok(Value::List(results))
+            }
+            Value::Stream(stream_id) => {
+                // Lazy evaluation for streams: peek values, transform, create new stream
+                let values = self.peek_stream(stream_id)?;
+                let mut results = Vec::new();
+                for item in values {
+                    let result = self.call_user_function(&func_value, &[item])?;
+                    results.push(result);
+                }
+                let new_stream_id = self.create_stream(results);
+                Ok(Value::Stream(new_stream_id))
+            }
+            _ => Err(anyhow!("map() second argument must be a list or stream")),
         }
-
-        Ok(Value::List(results))
     }
 
-    /// Higher-order function: filter(lambda, list)
-    /// Returns a new list containing only elements for which lambda returns true
+    /// Higher-order function: filter(lambda, list_or_stream)
+    /// Returns a new list or stream containing only elements for which lambda returns true
     fn call_filter(&self, args: &[Expression]) -> Result<Value> {
         if args.len() != 2 {
             return Err(anyhow!(
-                "filter() expects 2 arguments (lambda, list), got {}",
+                "filter() expects 2 arguments (lambda, list or stream), got {}",
                 args.len()
             ));
         }
@@ -1606,23 +1617,38 @@ impl Evaluator {
             return Err(anyhow!("filter() first argument must be a function"));
         }
 
-        // Evaluate the list
-        let list_value = self.evaluate_expression(&args[1])?;
-        let list = match list_value {
-            Value::List(l) => l,
-            _ => return Err(anyhow!("filter() second argument must be a list")),
-        };
+        // Evaluate the second argument (list or stream)
+        let collection_value = self.evaluate_expression(&args[1])?;
 
-        // Filter elements
-        let mut results = Vec::new();
-        for item in list {
-            let result = self.call_user_function(&func_value, std::slice::from_ref(&item))?;
-            if self.is_truthy(&result) {
-                results.push(item);
+        match collection_value {
+            Value::List(list) => {
+                // Eager filtering for lists
+                let mut results = Vec::new();
+                for item in list {
+                    let result =
+                        self.call_user_function(&func_value, std::slice::from_ref(&item))?;
+                    if self.is_truthy(&result) {
+                        results.push(item);
+                    }
+                }
+                Ok(Value::List(results))
             }
+            Value::Stream(stream_id) => {
+                // Lazy filtering for streams: peek values, filter, create new stream
+                let values = self.peek_stream(stream_id)?;
+                let mut results = Vec::new();
+                for item in values {
+                    let result =
+                        self.call_user_function(&func_value, std::slice::from_ref(&item))?;
+                    if self.is_truthy(&result) {
+                        results.push(item);
+                    }
+                }
+                let new_stream_id = self.create_stream(results);
+                Ok(Value::Stream(new_stream_id))
+            }
+            _ => Err(anyhow!("filter() second argument must be a list or stream")),
         }
-
-        Ok(Value::List(results))
     }
 
     /// Higher-order function: reduce(lambda, list, initial)
@@ -2438,6 +2464,15 @@ impl Evaluator {
         self.streams
             .borrow_mut()
             .remove(&id)
+            .ok_or_else(|| anyhow!("Invalid stream ID: {}", id))
+    }
+
+    /// Peek at stream values without consuming the stream
+    pub fn peek_stream(&self, id: usize) -> Result<Vec<Value>> {
+        self.streams
+            .borrow()
+            .get(&id)
+            .cloned()
             .ok_or_else(|| anyhow!("Invalid stream ID: {}", id))
     }
 
@@ -4664,5 +4699,151 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("argument must be a stream"));
+    }
+
+    #[test]
+    fn test_stream_map() {
+        // Test: map() works on streams
+        let code = r#"
+            s = stream([1, 2, 3, 4, 5])
+            doubled = map(x => x * 2, s)
+            result = collect(doubled)
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+                Value::Int(8),
+                Value::Int(10)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_stream_filter() {
+        // Test: filter() works on streams
+        let code = r#"
+            s = stream([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+            evens = filter(x => x % 2 == 0, s)
+            result = collect(evens)
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+                Value::Int(8),
+                Value::Int(10)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_stream_map_filter_chain() {
+        // Test: chaining map and filter on streams
+        let code = r#"
+            result = collect(
+                filter(x => x > 10,
+                    map(x => x * 2,
+                        stream([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+                    )
+                )
+            )
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(12),
+                Value::Int(14),
+                Value::Int(16),
+                Value::Int(18),
+                Value::Int(20)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_stream_complex_pipeline() {
+        // Test: complex stream pipeline with map, filter, and take
+        let code = r#"
+            result = collect(
+                take(
+                    filter(x => x % 2 == 0,
+                        map(x => x * 3,
+                            stream([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+                        )
+                    ),
+                    3
+                )
+            )
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        // Should be [6, 12, 18] (first 3 even numbers after multiplying by 3)
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(6),
+                Value::Int(12),
+                Value::Int(18)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_map_works_on_lists_too() {
+        // Test: map() still works on regular lists (backwards compatible)
+        let code = r#"
+            result = map(x => x * 2, [1, 2, 3])
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_filter_works_on_lists_too() {
+        // Test: filter() still works on regular lists (backwards compatible)
+        let code = r#"
+            result = filter(x => x > 2, [1, 2, 3, 4, 5])
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(3),
+                Value::Int(4),
+                Value::Int(5)
+            ]))
+        );
     }
 }
