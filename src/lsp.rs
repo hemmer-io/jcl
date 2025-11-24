@@ -309,23 +309,27 @@ impl JclLanguageServer {
 
         // Check each top-level assignment to see if we're inside its map
         for stmt in &module.statements {
-            if let Statement::Assignment { name, value, .. } = stmt {
-                if let Expression::Map { entries, .. } = value {
-                    // Get the schema type for this assignment
-                    if let TypeDef::Map { properties, .. } = &schema.type_def {
-                        if let Some(prop) = properties.get(name) {
-                            if let TypeDef::Map {
-                                properties: nested_props,
-                                required: nested_required,
-                                ..
-                            } = &prop.type_def
-                            {
-                                // Get existing keys
-                                let existing_keys: std::collections::HashSet<&str> =
-                                    entries.iter().map(|(k, _)| k.as_str()).collect();
+            if let Statement::Assignment {
+                name,
+                value: Expression::Map { entries, .. },
+                ..
+            } = stmt
+            {
+                // Get the schema type for this assignment
+                if let TypeDef::Map { properties, .. } = &schema.type_def {
+                    if let Some(prop) = properties.get(name) {
+                        if let TypeDef::Map {
+                            properties: nested_props,
+                            required: nested_required,
+                            ..
+                        } = &prop.type_def
+                        {
+                            // Get existing keys
+                            let existing_keys: std::collections::HashSet<&str> =
+                                entries.iter().map(|(k, _)| k.as_str()).collect();
 
-                                // Suggest properties that aren't already defined
-                                for (key, property) in nested_props {
+                            // Suggest properties that aren't already defined
+                            for (key, property) in nested_props {
                                     if !existing_keys.contains(key.as_str()) {
                                         let is_required = nested_required.contains(key);
                                         let label = if is_required {
@@ -361,7 +365,6 @@ impl JclLanguageServer {
                                             }),
                                             ..Default::default()
                                         });
-                                    }
                                 }
                             }
                         }
