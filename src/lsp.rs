@@ -102,6 +102,68 @@ impl JclLanguageServer {
         Ok(())
     }
 
+    /// Find a node in the AST by field path (e.g., "config.database.port")
+    /// Returns the source span of the matching expression
+    fn find_span_by_path(
+        module: &crate::ast::Module,
+        path: &str,
+    ) -> Option<crate::ast::SourceSpan> {
+        use crate::ast::{Expression, Statement};
+
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.is_empty() {
+            return None;
+        }
+
+        // Find the root assignment
+        let root_name = parts[0];
+        let root_stmt = module.statements.iter().find(|stmt| {
+            if let Statement::Assignment { name, .. } = stmt {
+                name == root_name
+            } else {
+                false
+            }
+        })?;
+
+        // Get the root expression
+        let root_expr = if let Statement::Assignment { value, .. } = root_stmt {
+            value
+        } else {
+            return None;
+        };
+
+        // If path has only one component, return the span of the entire assignment value
+        if parts.len() == 1 {
+            return root_expr.span().cloned();
+        }
+
+        // Traverse nested structure for remaining path components
+        let mut current_expr = root_expr;
+        for &key in &parts[1..] {
+            match current_expr {
+                Expression::Map { entries, .. } => {
+                    // Find the entry with this key
+                    if let Some((_k, expr)) = entries.iter().find(|(k, _)| k == key) {
+                        current_expr = expr;
+                    } else {
+                        return None;
+                    }
+                }
+                Expression::Variable { name, span } => {
+                    // This is a reference to another variable - try to resolve it
+                    // For now, just return its span as a fallback
+                    if name == key {
+                        return span.clone();
+                    }
+                    return None;
+                }
+                _ => return None,
+            }
+        }
+
+        current_expr.span().cloned()
+    }
+
     /// Get diagnostics for a document
     async fn get_diagnostics(&self, _uri: &Url, text: &str) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
@@ -170,18 +232,34 @@ impl JclLanguageServer {
                                 error.message.clone()
                             };
 
-                            // Validation errors don't have spans, so use field path to estimate position
-                            // In the future we could search for the field in the document
-                            let range = Range {
-                                start: Position {
-                                    line: 0,
-                                    character: 0,
-                                },
-                                end: Position {
-                                    line: 0,
-                                    character: 1,
-                                },
-                            };
+                            // Try to find the precise location using the field path
+                            let range =
+                                if let Some(span) = Self::find_span_by_path(&module, &error.path) {
+                                    // Found the field - use its precise location
+                                    Range {
+                                        start: Position {
+                                            line: span.line.saturating_sub(1) as u32, // LSP is 0-indexed
+                                            character: span.column.saturating_sub(1) as u32,
+                                        },
+                                        end: Position {
+                                            line: span.line.saturating_sub(1) as u32,
+                                            character: (span.column.saturating_sub(1) + span.length)
+                                                as u32,
+                                        },
+                                    }
+                                } else {
+                                    // Couldn't find the field - fall back to (0,0)
+                                    Range {
+                                        start: Position {
+                                            line: 0,
+                                            character: 0,
+                                        },
+                                        end: Position {
+                                            line: 0,
+                                            character: 1,
+                                        },
+                                    }
+                                };
 
                             diagnostics.push(Diagnostic {
                                 range,
@@ -770,4 +848,77 @@ pub async fn run_server() -> anyhow::Result<()> {
     Server::new(stdin, stdout, socket).serve(service).await;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_span_by_path_simple() {
+        let input = r#"
+config = (
+    host = "localhost",
+    port = 8080
+)
+"#;
+        let module = crate::parse_str(input).unwrap();
+
+        // Test finding the root "config" assignment
+        let span = JclLanguageServer::find_span_by_path(&module, "config");
+        assert!(span.is_some());
+
+        // Test finding nested "host" field
+        let span = JclLanguageServer::find_span_by_path(&module, "config.host");
+        assert!(span.is_some());
+        let span = span.unwrap();
+        // The span should point to "localhost" (the value)
+        assert!(span.line > 0);
+
+        // Test finding nested "port" field
+        let span = JclLanguageServer::find_span_by_path(&module, "config.port");
+        assert!(span.is_some());
+        let span = span.unwrap();
+        // The span should point to 8080 (the value)
+        assert!(span.line > 0);
+    }
+
+    #[test]
+    fn test_find_span_by_path_deeply_nested() {
+        let input = r#"
+app = (
+    database = (
+        connection = (
+            host = "db.local",
+            port = 5432
+        )
+    )
+)
+"#;
+        let module = crate::parse_str(input).unwrap();
+
+        // Test finding deeply nested field
+        let span = JclLanguageServer::find_span_by_path(&module, "app.database.connection.port");
+        assert!(span.is_some());
+        let span = span.unwrap();
+        assert!(span.line > 0);
+    }
+
+    #[test]
+    fn test_find_span_by_path_not_found() {
+        let input = r#"
+config = (
+    host = "localhost"
+)
+"#;
+        let module = crate::parse_str(input).unwrap();
+
+        // Test field that doesn't exist
+        let span = JclLanguageServer::find_span_by_path(&module, "config.port");
+        assert!(span.is_none());
+
+        // Test root that doesn't exist
+        let span = JclLanguageServer::find_span_by_path(&module, "missing");
+        assert!(span.is_none());
+    }
 }
