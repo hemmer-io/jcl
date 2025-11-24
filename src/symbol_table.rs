@@ -463,6 +463,14 @@ impl SymbolTable {
                     }
                 }
             }
+            Expression::Let { bindings, body, .. } => {
+                // Process value expressions in bindings
+                for (_, value_expr) in bindings {
+                    self.process_expression(value_expr);
+                }
+                // Process the body expression
+                self.process_expression(body);
+            }
             Expression::Literal { .. } => {
                 // Literals don't contain symbol references
             }

@@ -1237,6 +1237,11 @@ impl TokenParser {
             return self.parse_if_expr();
         }
 
+        // Let expression
+        if self.check(&TokenKind::Let) {
+            return self.parse_let_expr();
+        }
+
         // When expression
         if self.check(&TokenKind::When) {
             return self.parse_when_expr();
@@ -1431,11 +1436,27 @@ impl TokenParser {
         // Check for list comprehension
         if self.check(&TokenKind::For) {
             // Parse multiple for clauses: for x in list1 for y in list2 ...
+            // Also supports tuple destructuring: for i, x in enumerate(list)
             let mut iterators = Vec::new();
 
             while self.check(&TokenKind::For) {
                 self.advance();
-                let var = self.parse_identifier()?;
+
+                // Parse variable name(s) - can be single or tuple destructuring
+                let mut vars = vec![self.parse_identifier()?];
+                while self.check(&TokenKind::Comma) {
+                    self.advance();
+                    vars.push(self.parse_identifier()?);
+                }
+
+                // Combine into single string for now (AST uses String, not Vec<String>)
+                // Format: "i, x" for tuple destructuring
+                let var = if vars.len() == 1 {
+                    vars[0].clone()
+                } else {
+                    vars.join(", ")
+                };
+
                 self.expect(&TokenKind::In)?;
                 // Use parse_or instead of parse_expression to stop at keywords like 'for' and 'if'
                 let iter = self.parse_or()?;
@@ -1496,6 +1517,48 @@ impl TokenParser {
             condition: Box::new(condition),
             then_expr: Box::new(then_expr),
             else_expr,
+            span: self.span_from(start),
+        })
+    }
+
+    /// Parse let expression with local bindings
+    /// Syntax: let (x = expr1, y = expr2) in body_expr
+    fn parse_let_expr(&mut self) -> Result<Expression> {
+        let start = self.mark_position();
+
+        self.expect(&TokenKind::Let)?;
+        self.expect(&TokenKind::LeftParen)?;
+
+        // Parse bindings: name = expr, name = expr, ...
+        let mut bindings = Vec::new();
+
+        if !self.check(&TokenKind::RightParen) {
+            loop {
+                let var_name = self.parse_identifier()?;
+                self.expect(&TokenKind::Equal)?;
+                let value_expr = self.parse_expression()?;
+                bindings.push((var_name, value_expr));
+
+                if !self.check(&TokenKind::Comma) {
+                    break;
+                }
+                self.advance(); // consume comma
+
+                // Allow trailing comma
+                if self.check(&TokenKind::RightParen) {
+                    break;
+                }
+            }
+        }
+
+        self.expect(&TokenKind::RightParen)?;
+        self.expect(&TokenKind::In)?;
+
+        let body = self.parse_expression()?;
+
+        Ok(Expression::Let {
+            bindings,
+            body: Box::new(body),
             span: self.span_from(start),
         })
     }
@@ -2443,5 +2506,83 @@ config.database.port = 5432
         } else {
             panic!("Expected config.database.host assignment");
         }
+    }
+
+    #[test]
+    fn test_parse_let_simple() {
+        // Test simple let binding
+        let input = r#"
+x = let (a = 1) in a
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.statements.len(), 1);
+
+        // Verify it's a Let expression
+        if let Statement::Assignment { value, .. } = &module.statements[0] {
+            if let Expression::Let { bindings, .. } = value {
+                assert_eq!(bindings.len(), 1);
+                assert_eq!(bindings[0].0, "a");
+            } else {
+                panic!("Expected Let expression");
+            }
+        } else {
+            panic!("Expected assignment");
+        }
+    }
+
+    #[test]
+    fn test_parse_let_multiple_bindings() {
+        // Test let with multiple bindings
+        let input = r#"
+result = let (x = 3, y = 4, z = 5) in x + y + z
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let Statement::Assignment { value, .. } = &module.statements[0] {
+            if let Expression::Let { bindings, .. } = value {
+                assert_eq!(bindings.len(), 3);
+                assert_eq!(bindings[0].0, "x");
+                assert_eq!(bindings[1].0, "y");
+                assert_eq!(bindings[2].0, "z");
+            } else {
+                panic!("Expected Let expression");
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_let_trailing_comma() {
+        // Test let with trailing comma
+        let input = r#"
+x = let (a = 1, b = 2,) in a + b
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_let_in_comprehension() {
+        // Test let expression inside list comprehension
+        let input = r#"
+squares = [let (sq = x * x) in sq + 1 for x in [1, 2, 3]]
+"#;
+        let result = parse(input);
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
+        assert!(result.is_ok());
     }
 }

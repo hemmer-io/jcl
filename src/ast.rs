@@ -282,6 +282,13 @@ pub enum Expression {
         span: Option<SourceSpan>,
     },
 
+    /// Let expression with local bindings: `let (x = 1, y = 2) in x + y`
+    Let {
+        bindings: Vec<(String, Expression)>,
+        body: Box<Expression>,
+        span: Option<SourceSpan>,
+    },
+
     /// List comprehension: `[expr for x in list for y in list2 if condition]`
     /// Supports multiple for clauses for flattening/nested iteration
     ListComprehension {
@@ -363,6 +370,7 @@ impl Expression {
             Expression::Map { span, .. } => span.as_ref(),
             Expression::Spread { span, .. } => span.as_ref(),
             Expression::Splat { span, .. } => span.as_ref(),
+            Expression::Let { span, .. } => span.as_ref(),
         }
     }
 }
