@@ -629,6 +629,49 @@ impl Evaluator {
                 step,
                 ..
             } => {
+                // OPTIMIZATION: Detect [expr for x in list][start:end] pattern
+                // Only optimize for simple positive slices with step=1 and single-iterator comprehensions
+                if let Expression::ListComprehension {
+                    expr,
+                    iterators,
+                    condition,
+                    ..
+                } = object.as_ref()
+                {
+                    if iterators.len() == 1 && step.is_none() {
+                        // Only optimize for forward slices (no negative indices, no step)
+                        let has_negative_index = match (start.as_ref(), end.as_ref()) {
+                            (Some(s), Some(e)) => {
+                                matches!(
+                                    (self.evaluate_expression(s), self.evaluate_expression(e)),
+                                    (Ok(Value::Int(si)), Ok(Value::Int(ei))) if si < 0 || ei < 0
+                                )
+                            }
+                            (Some(s), None) => {
+                                matches!(self.evaluate_expression(s), Ok(Value::Int(si)) if si < 0)
+                            }
+                            (None, Some(e)) => {
+                                matches!(self.evaluate_expression(e), Ok(Value::Int(ei)) if ei < 0)
+                            }
+                            (None, None) => false,
+                        };
+
+                        if !has_negative_index {
+                            // We can optimize! Use lazy evaluation via streaming
+                            let (variable, iterable) = &iterators[0];
+                            return self.evaluate_comprehension_slice_optimized(
+                                expr,
+                                variable,
+                                iterable,
+                                condition.as_ref().map(|v| &**v),
+                                start.as_ref().map(|v| &**v),
+                                end.as_ref().map(|v| &**v),
+                            );
+                        }
+                    }
+                }
+
+                // Standard evaluation (no optimization possible)
                 let obj_value = self.evaluate_expression(object)?;
 
                 match obj_value {
@@ -1349,6 +1392,78 @@ impl Evaluator {
 
                 // Index out of bounds
                 Err(anyhow!("Index out of bounds: {}", target_idx))
+            }
+            _ => Err(anyhow!("List comprehension requires iterable to be a list")),
+        }
+    }
+
+    /// Lazy evaluation optimization for [expr for x in list][start:end]
+    /// Only evaluates the elements needed for the slice, avoiding full materialization
+    fn evaluate_comprehension_slice_optimized(
+        &self,
+        expr: &Expression,
+        variable: &str,
+        iterable: &Expression,
+        condition: Option<&Expression>,
+        start_expr: Option<&Expression>,
+        end_expr: Option<&Expression>,
+    ) -> Result<Value> {
+        let iter_value = self.evaluate_expression(iterable)?;
+        match iter_value {
+            Value::List(items) => {
+                // Evaluate slice bounds
+                let start_idx = if let Some(s) = start_expr {
+                    match self.evaluate_expression(s)? {
+                        Value::Int(i) if i >= 0 => i as usize,
+                        _ => 0,
+                    }
+                } else {
+                    0
+                };
+
+                let end_idx = if let Some(e) = end_expr {
+                    match self.evaluate_expression(e)? {
+                        Value::Int(i) if i >= 0 => Some(i as usize),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+
+                let mut result = Vec::new();
+                let mut current_result_idx = 0usize;
+
+                // Iterate through items, but only process what we need
+                for item in items {
+                    // Early termination: if we've collected enough items, stop
+                    if let Some(end) = end_idx {
+                        if current_result_idx >= end {
+                            break;
+                        }
+                    }
+
+                    // Create new scope with loop variable
+                    let scoped_eval = self.clone_with_var(variable, item);
+
+                    // Check condition if present
+                    let should_include = if let Some(cond) = condition {
+                        let cond_val = scoped_eval.evaluate_expression(cond)?;
+                        scoped_eval.is_truthy(&cond_val)
+                    } else {
+                        true
+                    };
+
+                    if should_include {
+                        // Only evaluate and collect if within slice range
+                        if current_result_idx >= start_idx {
+                            let value = scoped_eval.evaluate_expression(expr)?;
+                            result.push(value);
+                        }
+                        current_result_idx += 1;
+                    }
+                }
+
+                Ok(Value::List(result))
             }
             _ => Err(anyhow!("List comprehension requires iterable to be a list")),
         }
@@ -4843,6 +4958,180 @@ mod tests {
                 Value::Int(3),
                 Value::Int(4),
                 Value::Int(5)
+            ]))
+        );
+    }
+
+    // ===== Phase 3: Transparent Optimization Tests =====
+
+    #[test]
+    fn test_transparent_optimization_comprehension_slice() {
+        // Test: [expr for x in list][start:end] is automatically optimized
+        // This should NOT evaluate all elements, only the ones needed for the slice
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            # Only processes first 5 elements, not all 10
+            result = [x * 2 for x in numbers][0:5]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(2),
+                Value::Int(4),
+                Value::Int(6),
+                Value::Int(8),
+                Value::Int(10)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_transparent_optimization_comprehension_slice_with_filter() {
+        // Test: [expr for x in list if cond][start:end] is optimized
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+            # Only processes until we get 5 even numbers
+            result = [x * 2 for x in numbers if x % 2 == 0][0:5]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(4),
+                Value::Int(8),
+                Value::Int(12),
+                Value::Int(16),
+                Value::Int(20)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_transparent_optimization_comprehension_slice_partial() {
+        // Test: Slicing in the middle [5:10]
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+            # Skips first 5, takes next 5
+            result = [x * 3 for x in numbers][5:10]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(18),  // 6*3
+                Value::Int(21),  // 7*3
+                Value::Int(24),  // 8*3
+                Value::Int(27),  // 9*3
+                Value::Int(30)   // 10*3
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_transparent_optimization_comprehension_slice_open_end() {
+        // Test: [expr for x in list][start:] is optimized
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8]
+            # Takes from index 5 to end
+            result = [x + 10 for x in numbers][5:]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(16),  // 6+10
+                Value::Int(17),  // 7+10
+                Value::Int(18)   // 8+10
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_transparent_optimization_comprehension_slice_from_start() {
+        // Test: [expr for x in list][:end] is optimized
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            # Takes first 3 elements only
+            result = [x * x for x in numbers][:3]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(1),   // 1*1
+                Value::Int(4),   // 2*2
+                Value::Int(9)    // 3*3
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_transparent_optimization_no_fallback_for_negative_indices() {
+        // Test: Negative indices should fall back to standard evaluation
+        // (we don't optimize negative indices because they require knowing the full list length)
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5]
+            result = [x * 2 for x in numbers][-2:]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        // Should still work, just not optimized
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![Value::Int(8), Value::Int(10)]))
+        );
+    }
+
+    #[test]
+    fn test_transparent_optimization_empty_slice() {
+        // Test: Empty slice [10:5] should return empty list
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5]
+            result = [x * 2 for x in numbers][10:5]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(result.bindings.get("result"), Some(&Value::List(vec![])));
+    }
+
+    #[test]
+    fn test_transparent_optimization_large_list() {
+        // Test: Demonstrates the benefit - large list but only need first 3
+        let code = r#"
+            # Generate list [0..999] but only take first 3
+            numbers = [0..1000]
+            result = [x * 2 for x in numbers][0:3]
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(0),
+                Value::Int(2),
+                Value::Int(4)
             ]))
         );
     }
