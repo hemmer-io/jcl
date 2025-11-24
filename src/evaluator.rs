@@ -5028,11 +5028,11 @@ mod tests {
         assert_eq!(
             result.bindings.get("result"),
             Some(&Value::List(vec![
-                Value::Int(18),  // 6*3
-                Value::Int(21),  // 7*3
-                Value::Int(24),  // 8*3
-                Value::Int(27),  // 9*3
-                Value::Int(30)   // 10*3
+                Value::Int(18), // 6*3
+                Value::Int(21), // 7*3
+                Value::Int(24), // 8*3
+                Value::Int(27), // 9*3
+                Value::Int(30)  // 10*3
             ]))
         );
     }
@@ -5052,9 +5052,9 @@ mod tests {
         assert_eq!(
             result.bindings.get("result"),
             Some(&Value::List(vec![
-                Value::Int(16),  // 6+10
-                Value::Int(17),  // 7+10
-                Value::Int(18)   // 8+10
+                Value::Int(16), // 6+10
+                Value::Int(17), // 7+10
+                Value::Int(18)  // 8+10
             ]))
         );
     }
@@ -5074,9 +5074,9 @@ mod tests {
         assert_eq!(
             result.bindings.get("result"),
             Some(&Value::List(vec![
-                Value::Int(1),   // 1*1
-                Value::Int(4),   // 2*2
-                Value::Int(9)    // 3*3
+                Value::Int(1), // 1*1
+                Value::Int(4), // 2*2
+                Value::Int(9)  // 3*3
             ]))
         );
     }

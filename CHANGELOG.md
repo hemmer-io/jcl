@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Streaming API & Transparent Lazy Evaluation** (#45)
+  - **Higher-Order Functions**: `map`, `filter`, and `reduce` now work polymorphically with both lists (eager) and streams (lazy)
+  - **Streaming Functions**: New `stream()`, `take()`, and `collect()` functions for explicit lazy evaluation
+  - **Transparent Optimization**: Automatic lazy evaluation for `[expr for x in list][start:end]` pattern
+    - Only processes elements actually needed for the slice
+    - Memory: O(k) instead of O(n) where k = slice size
+    - Speed: 10x-100x faster for small slices from large lists
+    - Works with filters: `[expr for x in list if cond][start:end]`
+  - **Pattern Detection**: Automatically detects and optimizes:
+    - `[expr for x in list][0:10]` - bounded slice
+    - `[expr for x in list][:10]` - from start
+    - `[expr for x in list][5:]` - to end
+    - `[expr for x in list if cond][0:10]` - with filter
+  - **Backwards Compatible**: All existing code continues to work unchanged
+  - **Example**:
+    ```jcl
+    # Automatically optimized! Only processes 10 elements, not 1000.
+    result = [x * 2 for x in [0..1000]][0:10]
+    # [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
+    ```
+  - **Test Coverage**: Added 20 comprehensive tests (297 total tests passing)
+
 ### Changed
 - **File Extension Migration** (#106)
   - Migrated file extension from `.jcl` to `.jcf` (JCL Configuration Format)

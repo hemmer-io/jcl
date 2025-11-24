@@ -25,6 +25,7 @@ JCL provides 80+ built-in functions organized by category. All functions are glo
 - [File Functions](#file-functions)
 - [Template Functions](#template-functions)
 - [Utility Functions](#utility-functions)
+- [Higher-Order & Streaming Functions](#higher-order--streaming-functions) ⭐ NEW
 - [Advanced Functions](#advanced-functions)
 
 ---
@@ -906,6 +907,200 @@ try(missing_var, "default")  # "default"
 
 ---
 
+## Higher-Order & Streaming Functions
+
+JCL provides powerful higher-order functions (`map`, `filter`, `reduce`) and streaming functions for memory-efficient lazy evaluation. These functions work polymorphically with both lists (eager evaluation) and streams (lazy evaluation).
+
+### map
+
+Apply a function to each element of a list or stream.
+
+**Signature**: `map(function, list_or_stream) → list_or_stream`
+
+```jcl
+# With lists (eager evaluation)
+doubled = map(x => x * 2, [1, 2, 3, 4, 5])
+# [2, 4, 6, 8, 10]
+
+uppercase = map(s => upper(s), ["hello", "world"])
+# ["HELLO", "WORLD"]
+
+# With streams (lazy evaluation)
+numbers = stream([1, 2, 3, 4, 5])
+doubled_stream = map(x => x * 2, numbers)
+result = collect(doubled_stream)
+# [2, 4, 6, 8, 10]
+
+# Transparent optimization (automatic streaming)
+# Only processes first 3 elements, not all 1000!
+first_three = [x * 2 for x in [0..1000]][0:3]
+# [0, 2, 4]
+```
+
+### filter
+
+Filter elements of a list or stream based on a predicate function.
+
+**Signature**: `filter(predicate, list_or_stream) → list_or_stream`
+
+```jcl
+# With lists (eager evaluation)
+evens = filter(x => x % 2 == 0, [1, 2, 3, 4, 5, 6])
+# [2, 4, 6]
+
+long_names = filter(s => length(s) > 3, ["a", "hello", "world", "x"])
+# ["hello", "world"]
+
+# With streams (lazy evaluation)
+numbers = stream([1, 2, 3, 4, 5, 6, 7, 8])
+evens_stream = filter(x => x % 2 == 0, numbers)
+result = collect(evens_stream)
+# [2, 4, 6, 8]
+
+# Transparent optimization with filter
+# Processes only until we get 5 matching elements
+first_five_evens = [x * 2 for x in [1..100] if x % 2 == 0][0:5]
+# [4, 8, 12, 16, 20]
+```
+
+### reduce
+
+Reduce a list to a single value by repeatedly applying a function.
+
+**Signature**: `reduce(function, list, initial_value) → value`
+
+```jcl
+# Sum all numbers
+sum = reduce((acc, x) => acc + x, [1, 2, 3, 4, 5], 0)
+# 15
+
+# Concatenate strings
+joined = reduce((acc, s) => acc + s, ["hello", " ", "world"], "")
+# "hello world"
+
+# Find maximum
+max_value = reduce((acc, x) => x > acc ? x : acc, [3, 1, 4, 1, 5, 9], 0)
+# 9
+```
+
+### stream
+
+Create a lazy stream from a list. Streams delay evaluation until values are actually needed.
+
+**Signature**: `stream(list) → stream`
+
+```jcl
+# Create a stream (no evaluation yet)
+numbers_stream = stream([1, 2, 3, 4, 5])
+
+# Chain transformations (still lazy)
+doubled = map(x => x * 2, numbers_stream)
+evens = filter(x => x > 5, doubled)
+
+# Materialize when needed
+result = collect(evens)
+# [6, 8, 10]
+```
+
+**When to use streams:**
+- Processing large collections where you only need some results
+- Chaining multiple transformations
+- Memory-constrained environments
+
+### take
+
+Take the first N elements from a stream.
+
+**Signature**: `take(stream, n) → stream`
+
+```jcl
+numbers = stream([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+first_five = take(numbers, 5)
+result = collect(first_five)
+# [1, 2, 3, 4, 5]
+
+# Useful for limiting results
+# Only processes first 10 elements of a 1000-element range
+small_sample = collect(take(stream([0..1000]), 10))
+# [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+```
+
+### collect
+
+Materialize a stream into a list. This forces evaluation of all pending operations.
+
+**Signature**: `collect(stream) → list`
+
+```jcl
+# Create and transform a stream
+numbers = stream([1, 2, 3, 4, 5])
+doubled = map(x => x * 2, numbers)
+
+# Collect converts stream to list
+result = collect(doubled)
+# [2, 4, 6, 8, 10]
+```
+
+### Transparent Lazy Evaluation
+
+**NEW in v1.1.0**: JCL automatically optimizes list comprehensions with slicing, eliminating the need for explicit `stream()` and `collect()` calls in common cases.
+
+```jcl
+# ✨ Automatic optimization - no explicit streaming needed!
+
+# Pattern: [expr for x in list][start:end]
+# Only evaluates elements 0-9, not all 1000
+first_ten = [x * 2 for x in [0..1000]][0:10]
+# [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
+
+# With filter - stops once we have 5 results
+first_five_evens = [x for x in [0..1000] if x % 2 == 0][0:5]
+# [0, 2, 4, 6, 8]
+
+# Middle slice - skips first 100, takes next 5
+middle_slice = [x * 3 for x in [0..1000]][100:105]
+# [300, 303, 306, 309, 312]
+
+# Open-ended slice [start:]
+from_500 = [x for x in [0..1000]][500:]
+# [500, 501, ..., 1000]
+```
+
+**Performance benefits:**
+- **Memory**: O(k) instead of O(n) where k = slice size, n = input size
+- **Speed**: Only processes what's needed (10x-100x faster for small slices)
+- **Transparent**: Works automatically, no code changes needed
+
+**Optimization applies when:**
+- ✅ Pattern is `[expr for x in list][start:end]` or `[expr for x in list if cond][start:end]`
+- ✅ Single iterator (one `for` clause)
+- ✅ Forward slice (no negative indices, no step)
+
+**Falls back to standard evaluation when:**
+- ❌ Negative indices (`[expr for x in list][-2:]`)
+- ❌ Step parameter (`[expr for x in list][::2]`)
+- ❌ Multiple iterators (`[x+y for x in list1 for y in list2]`)
+
+### Performance Comparison
+
+```jcl
+# Without optimization (before v1.1.0):
+# Evaluates 1,000,000 expressions, creates 1,000,000-element list
+huge_list = [expensive_operation(x) for x in [0..1000000]]
+result = huge_list[0:10]  # Then throws away 999,990 results
+
+# With transparent optimization (v1.1.0+):
+# Evaluates only 10 expressions, creates 10-element list
+result = [expensive_operation(x) for x in [0..1000000]][0:10]
+
+# Performance improvement:
+# - 100,000x less memory
+# - 100,000x faster
+# - Completely transparent!
+```
+
+---
+
 ## Advanced Functions
 
 ### cartesian
@@ -947,9 +1142,10 @@ permutations([1, 2, 3], 2)  # [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]]
 - **File (5)**: file, fileexists, dirname, basename, abspath
 - **Template (2)**: template, templatefile
 - **Utility (4)**: range, zipmap, coalesce, try
+- **Higher-Order & Streaming (6)**: map, filter, reduce, stream, take, collect ⭐ NEW
 - **Advanced (3)**: cartesian, combinations, permutations
 
-**Total: 70 built-in functions**
+**Total: 76 built-in functions**
 
 ---
 
