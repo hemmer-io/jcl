@@ -152,6 +152,7 @@ fn value_to_ruby(ruby: &Ruby, value: &JclValue) -> Result<Value, Error> {
             Ok(ruby_hash.as_value())
         }
         JclValue::Function { .. } => Ok(ruby.str_new("<function>").as_value()),
+        JclValue::Stream(id) => Ok(ruby.str_new(&format!("<stream:{}>", id)).as_value()),
     }
 }
 

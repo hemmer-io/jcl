@@ -473,6 +473,9 @@ pub enum Value {
         params: Vec<Parameter>,
         body: Box<Expression>,
     },
+    /// Stream handle - reference to a lazily-evaluated sequence
+    /// The actual iterator is managed by the Evaluator
+    Stream(usize), // StreamId
     Null,
 }
 
@@ -502,6 +505,7 @@ impl Value {
                 format!("({})", pairs.join(", "))
             }
             Value::Function { .. } => "<function>".to_string(),
+            Value::Stream(id) => format!("<stream:{}>", id),
         }
     }
 
@@ -512,6 +516,8 @@ impl Value {
             Value::Int(_) => Type::Int,
             Value::Float(_) => Type::Float,
             Value::Bool(_) => Type::Bool,
+            Value::Stream(_) => Type::Any, // Streams are generic over their element type
+
             Value::List(items) => {
                 if items.is_empty() {
                     Type::List(Box::new(Type::Any))

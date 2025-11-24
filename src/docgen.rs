@@ -479,6 +479,7 @@ fn value_to_string(val: &Value) -> String {
                 .join(", ");
             format!("fn({})", params_str)
         }
+        Value::Stream(id) => format!("<stream:{}>", id),
     }
 }
 

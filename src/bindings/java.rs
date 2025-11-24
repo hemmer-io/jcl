@@ -357,5 +357,6 @@ fn value_to_json(value: &Value) -> serde_json::Value {
             serde_json::Value::Object(obj)
         }
         Value::Function { .. } => serde_json::Value::String("<function>".to_string()),
+        Value::Stream(id) => serde_json::Value::String(format!("<stream:{}>", id)),
     }
 }

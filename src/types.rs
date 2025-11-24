@@ -1027,6 +1027,7 @@ impl TypeChecker {
                     return_type: Box::new(Type::Any),
                 }
             }
+            Value::Stream(_) => Type::Any, // Streams are generic over their element type
         }
     }
 
@@ -1093,6 +1094,7 @@ impl TypeChecker {
                 }
             }
             Value::Function { .. } => Type::Any, // Functions have complex types
+            Value::Stream(_) => Type::Any,       // Streams are generic over their element type
         }
     }
 

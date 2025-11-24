@@ -129,7 +129,7 @@ cargo build --release
 
 - **[Getting Started Guide](https://jcl.hemmer.io/getting-started/)** - Learn JCL basics
 - **[Language Specification](https://jcl.hemmer.io/reference/language-spec)** - Complete syntax reference
-- **[Built-in Functions](https://jcl.hemmer.io/reference/functions)** - 70+ functions documented
+- **[Built-in Functions](https://jcl.hemmer.io/reference/functions)** - 76+ functions including streaming ⭐ NEW
 - **[CLI Tools](https://jcl.hemmer.io/reference/cli-tools)** - Command-line utilities
 - **[Comparison Guide](https://jcl.hemmer.io/guides/comparison)** - JCL vs other formats
 
@@ -137,8 +137,9 @@ cargo build --release
 
 🎯 **General-Purpose Configuration**
 - Clean, human-readable syntax with minimal punctuation
-- Rich standard library of 70+ built-in functions
+- Rich standard library of 76+ built-in functions including streaming
 - Can be embedded or used standalone
+- Transparent lazy evaluation for memory-efficient operations ⭐ NEW
 
 🔒 **Type Safety**
 - Advanced static type inference catches errors before runtime
@@ -150,6 +151,7 @@ cargo build --release
 - **String operations**: upper, lower, trim, replace, split, join, format
 - **Encoding/Decoding**: JSON, YAML, TOML, Base64, URL encoding
 - **Collections**: merge, lookup, keys, values, sort, distinct, flatten
+- **Higher-Order & Streaming** ⭐ NEW: map, filter, reduce, stream, take, collect
 - **Numeric**: min, max, sum, avg, abs, ceil, floor, round
 - **Hashing**: MD5, SHA1, SHA256, SHA512
 - **Templating**: String interpolation, conditional content, loops in templates
@@ -207,6 +209,15 @@ evens = [0..10:2]            # [0, 2, 4, 6, 8, 10]
 countdown = [10..1:-1]       # [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 squares = [x * x for x in [1..10]]  # [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
 
+# ⭐ NEW: Transparent lazy evaluation (automatic optimization!)
+# Only processes first 10 elements, not all 1000 - completely transparent!
+first_ten = [x * 2 for x in [0..1000]][0:10]
+# [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
+
+# Higher-order functions work with both lists and streams
+doubled = map(x => x * 2, [1, 2, 3, 4, 5])  # [2, 4, 6, 8, 10]
+evens_filtered = filter(x => x % 2 == 0, [1, 2, 3, 4, 5, 6])  # [2, 4, 6]
+
 # Heredoc strings for embedding scripts/configs
 startup_script = <<BASH
 #!/bin/bash
@@ -228,6 +239,8 @@ BASH
 - **Functions**: Lambda expressions (`x => x * 2`) and named functions (`fn double(x) = x * 2`)
 - **Control Flow**: Ternary operators, if/then/else, when expressions
 - **List Comprehensions**: `[x * 2 for x in numbers if x > 0]`
+- **Streaming & Higher-Order Functions** ⭐ NEW: `map`, `filter`, `reduce`, `stream`, `take`, `collect`
+- **Transparent Lazy Evaluation** ⭐ NEW: Automatic optimization for `[expr for x in list][slice]` patterns
 - **Error Handling**: `try()` for graceful error recovery
 - **Import System**: Modular configuration files
 

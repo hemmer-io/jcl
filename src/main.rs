@@ -645,5 +645,6 @@ fn format_value(value: &jcl::ast::Value) -> String {
             let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
             format!("fn({})", param_names.join(", "))
         }
+        Value::Stream(id) => format!("<stream:{}>", id),
     }
 }

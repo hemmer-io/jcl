@@ -2210,6 +2210,7 @@ fn infer_type_from_literal(value: &crate::ast::Value, options: &GenerateOptions)
             }
         }
         Value::Function { .. } => TypeDef::Any,
+        Value::Stream(_) => TypeDef::Any, // Streams are generic
     }
 }
 
