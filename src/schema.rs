@@ -1310,6 +1310,11 @@ impl Validator {
         }
     }
 
+    /// Get a reference to the underlying schema
+    pub fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
     /// Create a validator from a SchemaBuilder (programmatic API)
     pub fn from_builder(builder: SchemaBuilder) -> Self {
         let field_metadata = builder.field_metadata().clone();

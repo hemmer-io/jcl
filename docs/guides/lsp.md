@@ -32,8 +32,11 @@ The binary will be available at `target/release/jcl-lsp`.
   - Keywords (fn, if, else, for, etc.)
   - Type names
   - Constants (true, false, null)
+  - **Schema-based property suggestions** (when schema is present)
 
-- **Hover**: Documentation on hover (basic)
+- **Hover**: Documentation on hover
+  - Basic hover information for all symbols
+  - **Schema information**: Type, constraints, and descriptions for schema-defined fields
 
 - **Go to Definition**: Jump to variable and function definitions
 
@@ -187,12 +190,16 @@ Schema validation errors appear alongside linting errors with:
 - **Source**: `jcl-schema` (vs `jcl` for linter)
 - **Code**: `schema-{ErrorType}` (e.g., `schema-TypeMismatch`)
 - **Message**: Includes field path (e.g., "at config.database.port")
+- **Precise positioning**: Errors appear exactly at the problematic field, not at (0,0)
 
 ### Hot-Reloading
 
-The schema is loaded when the LSP server initializes. To reload after changing the schema:
-1. Restart your editor's LSP client, or
-2. Reload the workspace/window in your editor
+The LSP server automatically watches the schema file for changes. When you edit and save your schema file, the LSP will:
+1. Automatically reload the schema
+2. Re-validate all open documents
+3. Send a notification to the editor (success or error)
+
+No need to restart your editor or reload the workspace!
 
 ## Testing the LSP Server
 
@@ -252,10 +259,6 @@ Planned features:
 - Workspace symbols
 - Semantic highlighting
 - Inlay hints for inferred types
-- Precise error positioning for schema validation errors
-- File watcher for schema hot-reload on edit
-- Hover support showing schema requirements for fields
-- Schema-based completion suggestions
 
 ## Troubleshooting
 
