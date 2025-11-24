@@ -373,6 +373,7 @@ impl Formatter {
                 format!("({})", entries.join(", "))
             }
             Value::Function { .. } => "<function>".to_string(),
+            Value::Stream(id) => format!("<stream:{}>", id),
         }
     }
 

@@ -99,6 +99,11 @@ pub struct Evaluator {
     instantiating_modules: RefCell<Vec<PathBuf>>,
     /// Module source resolver (for external module sources)
     module_source_resolver: RefCell<ModuleSourceResolver>,
+    /// Stream storage: maps stream IDs to their buffered values
+    /// Note: For Phase 1, we use Vec<Value> for simplicity. Future phases may use actual iterators.
+    streams: RefCell<HashMap<usize, Vec<Value>>>,
+    /// Next stream ID to allocate
+    next_stream_id: RefCell<usize>,
 }
 
 impl Evaluator {
@@ -120,6 +125,8 @@ impl Evaluator {
             current_module_inputs: RefCell::new(None),
             instantiating_modules: RefCell::new(Vec::new()),
             module_source_resolver: RefCell::new(ModuleSourceResolver::new(None)),
+            streams: RefCell::new(HashMap::new()),
+            next_stream_id: RefCell::new(0),
         };
         evaluator.register_builtins();
         evaluator
@@ -1365,6 +1372,8 @@ impl Evaluator {
             current_module_inputs: RefCell::new(self.current_module_inputs.borrow().clone()),
             instantiating_modules: RefCell::new(Vec::new()),
             module_source_resolver: RefCell::new(ModuleSourceResolver::new(None)),
+            streams: RefCell::new(self.streams.borrow().clone()),
+            next_stream_id: RefCell::new(*self.next_stream_id.borrow()),
         };
         new_eval.variables.insert(var_name.to_string(), value);
         new_eval
@@ -1492,6 +1501,10 @@ impl Evaluator {
             "map" => return self.call_map(args),
             "filter" => return self.call_filter(args),
             "reduce" => return self.call_reduce(args),
+            // Handle streaming functions that need evaluator access
+            "stream" => return self.call_stream(args),
+            "take" => return self.call_take(args),
+            "collect" => return self.call_collect(args),
             _ => {}
         }
 
@@ -1644,6 +1657,81 @@ impl Evaluator {
         }
 
         Ok(accumulator)
+    }
+
+    /// Streaming function: stream(list)
+    /// Creates a stream from a list
+    fn call_stream(&self, args: &[Expression]) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(anyhow!(
+                "stream() expects 1 argument (list), got {}",
+                args.len()
+            ));
+        }
+
+        // Evaluate the list argument
+        let list_value = self.evaluate_expression(&args[0])?;
+        let list = match list_value {
+            Value::List(l) => l,
+            _ => return Err(anyhow!("stream() argument must be a list")),
+        };
+
+        // Create a stream from the list
+        let stream_id = self.create_stream(list);
+        Ok(Value::Stream(stream_id))
+    }
+
+    /// Streaming function: take(stream, n)
+    /// Takes n values from a stream, returns a new stream with remaining values
+    fn call_take(&self, args: &[Expression]) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(anyhow!(
+                "take() expects 2 arguments (stream, n), got {}",
+                args.len()
+            ));
+        }
+
+        // Evaluate the stream argument
+        let stream_value = self.evaluate_expression(&args[0])?;
+        let stream_id = match stream_value {
+            Value::Stream(id) => id,
+            _ => return Err(anyhow!("take() first argument must be a stream")),
+        };
+
+        // Evaluate the n argument
+        let n_value = self.evaluate_expression(&args[1])?;
+        let n = match n_value {
+            Value::Int(i) if i >= 0 => i as usize,
+            Value::Int(i) => return Err(anyhow!("take() n must be non-negative, got {}", i)),
+            _ => return Err(anyhow!("take() second argument must be an integer")),
+        };
+
+        // Take n values from the stream and return them as a new stream
+        let (taken, _remaining_stream_id) = self.take_from_stream(stream_id, n)?;
+        let taken_stream_id = self.create_stream(taken);
+        Ok(Value::Stream(taken_stream_id))
+    }
+
+    /// Streaming function: collect(stream)
+    /// Collects all values from a stream into a list
+    fn call_collect(&self, args: &[Expression]) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(anyhow!(
+                "collect() expects 1 argument (stream), got {}",
+                args.len()
+            ));
+        }
+
+        // Evaluate the stream argument
+        let stream_value = self.evaluate_expression(&args[0])?;
+        let stream_id = match stream_value {
+            Value::Stream(id) => id,
+            _ => return Err(anyhow!("collect() argument must be a stream")),
+        };
+
+        // Get all values from the stream
+        let values = self.get_stream(stream_id)?;
+        Ok(Value::List(values))
     }
 
     /// Check if an actual type matches an expected type
@@ -2334,6 +2422,42 @@ impl Evaluator {
 
             resolved.canonicalize().or_else(|_| Ok(resolved))
         }
+    }
+
+    /// Create a new stream from a list of values
+    /// Returns a stream ID that can be used in Value::Stream(id)
+    pub fn create_stream(&self, values: Vec<Value>) -> usize {
+        let id = *self.next_stream_id.borrow();
+        *self.next_stream_id.borrow_mut() += 1;
+        self.streams.borrow_mut().insert(id, values);
+        id
+    }
+
+    /// Get values from a stream (consumes the stream)
+    pub fn get_stream(&self, id: usize) -> Result<Vec<Value>> {
+        self.streams
+            .borrow_mut()
+            .remove(&id)
+            .ok_or_else(|| anyhow!("Invalid stream ID: {}", id))
+    }
+
+    /// Take n values from a stream, returning a new stream with the remaining values
+    /// Returns (taken_values, new_stream_id)
+    pub fn take_from_stream(&self, id: usize, n: usize) -> Result<(Vec<Value>, usize)> {
+        let mut streams = self.streams.borrow_mut();
+        let values = streams
+            .remove(&id)
+            .ok_or_else(|| anyhow!("Invalid stream ID: {}", id))?;
+
+        let taken: Vec<Value> = values.iter().take(n).cloned().collect();
+        let remaining: Vec<Value> = values.into_iter().skip(n).collect();
+
+        // Create a new stream with remaining values
+        let new_id = *self.next_stream_id.borrow();
+        *self.next_stream_id.borrow_mut() += 1;
+        streams.insert(new_id, remaining);
+
+        Ok((taken, new_id))
     }
 
     /// Register built-in functions
@@ -4380,5 +4504,165 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Field 'missing' not found"));
+    }
+
+    #[test]
+    fn test_stream_basic() {
+        // Test: stream(list) creates a stream
+        let code = r#"
+            numbers = [1, 2, 3, 4, 5]
+            s = stream(numbers)
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        // Should have created a stream
+        match result.bindings.get("s") {
+            Some(Value::Stream(_)) => {} // Success
+            other => panic!("Expected stream, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_stream_take() {
+        // Test: take(stream, n) returns stream with first n elements
+        let code = r#"
+            numbers = [10, 20, 30, 40, 50]
+            s = stream(numbers)
+            s2 = take(s, 2)
+            result = collect(s2)
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        // Should have taken first 2 elements
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![Value::Int(10), Value::Int(20)]))
+        );
+    }
+
+    #[test]
+    fn test_stream_collect() {
+        // Test: collect(stream) materializes stream to list
+        let code = r#"
+            s = stream([1, 2, 3])
+            result = collect(s)
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_stream_chaining() {
+        // Test: chaining stream operations
+        let code = r#"
+            result = collect(take(stream([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), 3))
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_stream_take_zero() {
+        // Test: take(stream, 0) returns empty stream
+        let code = r#"
+            result = collect(take(stream([1, 2, 3]), 0))
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(result.bindings.get("result"), Some(&Value::List(vec![])));
+    }
+
+    #[test]
+    fn test_stream_take_more_than_available() {
+        // Test: take(stream, n) where n > length returns all elements
+        let code = r#"
+            result = collect(take(stream([1, 2, 3]), 10))
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module).expect("Failed to evaluate");
+
+        assert_eq!(
+            result.bindings.get("result"),
+            Some(&Value::List(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_stream_invalid_argument_types() {
+        // Test: stream() requires list
+        let code = r#"
+            s = stream(42)
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("argument must be a list"));
+    }
+
+    #[test]
+    fn test_take_invalid_argument_types() {
+        // Test: take() requires stream and int
+        let code = r#"
+            result = take([1, 2, 3], 2)
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("first argument must be a stream"));
+    }
+
+    #[test]
+    fn test_collect_invalid_argument_type() {
+        // Test: collect() requires stream
+        let code = r#"
+            result = collect([1, 2, 3])
+        "#;
+        let module = crate::parse_str(code).expect("Failed to parse");
+        let mut evaluator = Evaluator::new();
+        let result = evaluator.evaluate(module);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("argument must be a stream"));
     }
 }

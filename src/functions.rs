@@ -389,6 +389,7 @@ fn format_value_as_string(val: &Value) -> Result<String> {
             Ok(format!("({})", formatted.join(", ")))
         }
         Value::Function { .. } => Ok("<function>".to_string()),
+        Value::Stream(id) => Ok(format!("<stream:{}>", id)),
     }
 }
 
@@ -1187,6 +1188,7 @@ fn fn_typeof(args: &[Value]) -> Result<Value> {
         Value::List(_) => "list",
         Value::Map(_) => "map",
         Value::Function { .. } => "function",
+        Value::Stream(_) => "stream",
     };
 
     Ok(Value::String(type_name.to_string()))
@@ -1497,6 +1499,9 @@ fn value_to_serde_json(value: &Value) -> Result<serde_json::Value> {
         }
         Value::Function { .. } => Err(anyhow!(
             "Cannot convert function to JSON for template rendering"
+        )),
+        Value::Stream(_) => Err(anyhow!(
+            "Cannot convert stream to JSON for template rendering"
         )),
     }
 }

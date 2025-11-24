@@ -249,5 +249,6 @@ fn format_value(value: &Value) -> String {
             let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
             format!("fn({})", param_names.join(", ")).blue().to_string()
         }
+        Value::Stream(id) => format!("<stream:{}>", id).green().to_string(),
     }
 }

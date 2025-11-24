@@ -127,6 +127,7 @@ fn value_to_python(py: Python, value: &Value) -> PyResult<Py<PyAny>> {
             // Functions can't be directly converted to Python
             Ok(py.None())
         }
+        Value::Stream(id) => Ok(PyString::new(py, &format!("<stream:{}>", id)).into()),
     }
 }
 
