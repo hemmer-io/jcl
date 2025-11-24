@@ -1,57 +1,54 @@
 name: Build
 
+# Only run test builds when PRs are merged to main
+# This validates all platforms compile correctly before release
+# Actual release builds with artifacts happen in release.yml
 on:
-  pull_request:
-    branches: [ main, master ]
+  push:
+    branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    name: Build ${{ matrix.name }}
+    name: Test Build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Native builds (with tests)
+          # Native builds
           - name: Linux x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             cross: false
-            test: true
 
           - name: macOS ARM64 (Apple Silicon)
             os: macos-latest
             target: aarch64-apple-darwin
             cross: false
-            test: true
 
           - name: macOS x86_64 (Intel)
             os: macos-latest
             target: x86_64-apple-darwin
             cross: false
-            test: true  # Can test via Rosetta on ARM runners
 
           - name: Windows x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
             cross: false
-            test: true
 
-          # Cross-compiled builds (build only, no tests)
+          # Cross-compiled builds
           - name: Linux ARM64
             os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             cross: true
-            test: false
 
           - name: Linux x86_64 MUSL (static)
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             cross: true
-            test: false
 
     steps:
       - name: Checkout code
@@ -77,34 +74,5 @@ jobs:
         if: matrix.cross
         run: cross build --release --target ${{ matrix.target }}
 
-      # Run tests only on native builds
-      - name: Run tests
-        if: matrix.test
-        run: cargo test --release --target ${{ matrix.target }}
-
-      # Upload build artifacts
-      - name: Upload binary (Unix)
-        if: matrix.os != 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: jcl-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/jcl-cli
-            target/${{ matrix.target }}/release/jcl-fmt
-            target/${{ matrix.target }}/release/jcl-lsp
-            target/${{ matrix.target }}/release/jcl-validate
-            target/${{ matrix.target }}/release/jcl-migrate
-          if-no-files-found: error
-
-      - name: Upload binary (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: jcl-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/jcl-cli.exe
-            target/${{ matrix.target }}/release/jcl-fmt.exe
-            target/${{ matrix.target }}/release/jcl-lsp.exe
-            target/${{ matrix.target }}/release/jcl-validate.exe
-            target/${{ matrix.target }}/release/jcl-migrate.exe
-          if-no-files-found: error
+      # No artifact upload - this is just a test build
+      # Release builds with artifacts happen in release.yml
