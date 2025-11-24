@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "jcl-lang"
-version = "1.1.0"
+version = "1.2.0"
 description = "Jack-of-All Configuration Language - A general-purpose configuration language with powerful built-in functions"
 readme = "README.md"
 requires-python = ">=3.8"

@@ -1,6 +1,6 @@
 {
   "name": "@hemmer-io/jcl",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Jack-of-All Configuration Language - A general-purpose configuration language with powerful built-in functions",
   "main": "index.node",
   "types": "index.d.ts",

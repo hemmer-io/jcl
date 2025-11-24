@@ -5,9 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2025-11-24
 
 ### Added
+- **Cross-Compilation Support** (#117, #122)
+  - Pre-built binaries for 6 target platforms
+  - Native builds: Linux x86_64, macOS ARM64, macOS x86_64 (Intel), Windows x86_64
+  - Cross-compiled builds: Linux ARM64 (Raspberry Pi, AWS Graviton), Linux MUSL (Alpine, static linking)
+  - Automated release workflow uploads all binaries on tagged releases
+  - Build artifacts uploaded for every PR for testing
+
+- **Heredoc String Syntax** (#85, #96)
+  - Multi-line strings with `<<EOF ... EOF` syntax
+  - Preserves formatting and whitespace
+  - Supports custom delimiters
+  - Example:
+    ```jcl
+    message = <<EOF
+    Hello, World!
+    This is a multi-line string.
+    EOF
+    ```
+
+- **Splat Operator** (#86, #92)
+  - Extract attributes from lists of maps with `[*]` syntax
+  - `users[*].name` extracts all `name` fields from a list of user maps
+  - Works with nested access: `data[*].items[*].value`
+
+- **Range Syntax** (#89, #91)
+  - Generate number sequences with `[start..end]` syntax
+  - Inclusive ranges: `[1..5]` produces `[1, 2, 3, 4, 5]`
+  - Step support: `[0..10..2]` produces `[0, 2, 4, 6, 8, 10]`
+  - Reverse ranges: `[5..1]` produces `[5, 4, 3, 2, 1]`
+
+- **Slice Syntax & Nested List Comprehensions** (#46, #84)
+  - Python-style slicing: `list[start:end]`, `list[:end]`, `list[start:]`
+  - Negative indices: `list[-1]` for last element
+  - Nested comprehensions: `[[x * y for y in row] for x in matrix]`
+
+- **New Built-in Functions** (#87, #90)
+  - `indent(str, spaces)`: Indent each line of a string
+  - `chomp(str)`: Remove trailing newlines
+  - `title(str)`: Title case conversion
+  - `compact(list)`: Remove null values from list
+  - `chunklist(list, size)`: Split list into chunks
+  - `coalesce(...)`: Return first non-null value
+  - `try(expr, default)`: Return default on error
+  - `range(start, end, step?)`: Generate number sequences
+  - `element(list, index)`: Safe list access with wraparound
+  - `index(list, value)`: Find index of value in list
+  - `zipmap(keys, values)`: Create map from key/value lists
+  - `setproduct(...)`: Cartesian product of lists
+  - `setunion(...)`: Union of multiple lists
+  - `setintersection(...)`: Intersection of lists
+  - `setsubtract(a, b)`: Set difference
+
+- **Let-Bindings for Local Variable Scoping** (#109, #110)
+  - Local variable declarations with `let name = value in expr`
+  - Proper lexical scoping
+  - Shadowing support
+  - Example:
+    ```jcl
+    result = let x = 10 in let y = 20 in x + y  # 30
+    ```
+
+- **LSP Schema Validation Enhancements** (#104, #111)
+  - Precise error positioning with exact line/column locations
+  - File watching for schema changes with automatic revalidation
+  - Hover information for schema-validated fields
+  - Completion suggestions based on schema definitions
+  - Multi-file schema support
+
+- **GitHub Linguist Support Files** (#112, #113)
+  - TextMate grammar for syntax highlighting (`syntaxes/jcl.tmLanguage.json`)
+  - Sample files for Linguist testing
+  - Prepared for GitHub Linguist submission (pending separate grammar repo)
+
 - **Streaming API & Transparent Lazy Evaluation** (#45)
   - **Higher-Order Functions**: `map`, `filter`, and `reduce` now work polymorphically with both lists (eager) and streams (lazy)
   - **Streaming Functions**: New `stream()`, `take()`, and `collect()` functions for explicit lazy evaluation
@@ -318,6 +391,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Full TypeDef coverage including unions, discriminated unions, refs
     - Standard-compliant output for integration with external tools
 
+### Changed
+- **File Extension**: Migrated from `.jcl` to `.jcf` (JCL Configuration Format) (#106)
+  - Avoids conflict with IBM mainframe Job Control Language in GitHub Linguist
+  - All example/test files renamed
+  - Updated all documentation and code references
+
+### Fixed
+- **Python Bindings**: Handle `Value::Stream` variant in `value_to_python()` (#119)
+- **Dependabot Auto-merge**: Allow skipped checks in workflow (#121)
+- **Dependabot Auto-merge**: Use DEPENDABOT_PAT consistently (#118)
+- **Parser Bugs**: Fixed critical issues including keyword boundary checking (#109)
+
+### Dependencies
+- Bumped `pest` from 2.8.3 to 2.8.4 (#115)
+- Bumped `pest_derive` from 2.8.3 to 2.8.4 (#115)
+
 ## [1.1.0] - 2025-01-19
 
 ### Added
@@ -418,9 +507,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History Summary
 
+- **1.2.0** (2025-11-24): Major feature release with cross-compilation, heredocs, splat operator, range syntax, and streaming API
+- **1.1.0** (2025-11-19): Performance improvements with lazy evaluation and parallel parsing
 - **1.0.0** (2025-11-18): Production-ready release with complete tooling, multi-language bindings, and documentation
 - **0.1.0** (2025-11-15): Initial experimental release
 
-[Unreleased]: https://github.com/hemmer-io/jcl/compare/v1.0.0...HEAD
+[1.2.0]: https://github.com/hemmer-io/jcl/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/hemmer-io/jcl/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/hemmer-io/jcl/releases/tag/v1.0.0
 [0.1.0]: https://github.com/hemmer-io/jcl/releases/tag/v0.1.0
