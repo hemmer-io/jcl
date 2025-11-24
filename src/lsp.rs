@@ -330,41 +330,41 @@ impl JclLanguageServer {
 
                             // Suggest properties that aren't already defined
                             for (key, property) in nested_props {
-                                    if !existing_keys.contains(key.as_str()) {
-                                        let is_required = nested_required.contains(key);
-                                        let label = if is_required {
-                                            format!("{} (required)", key)
-                                        } else {
-                                            key.clone()
-                                        };
+                                if !existing_keys.contains(key.as_str()) {
+                                    let is_required = nested_required.contains(key);
+                                    let label = if is_required {
+                                        format!("{} (required)", key)
+                                    } else {
+                                        key.clone()
+                                    };
 
-                                        let detail = match &property.type_def {
-                                            TypeDef::String { .. } => Some("String".to_string()),
-                                            TypeDef::Number {
-                                                integer_only: true, ..
-                                            } => Some("Int".to_string()),
-                                            TypeDef::Number {
-                                                integer_only: false,
-                                                ..
-                                            } => Some("Number".to_string()),
-                                            TypeDef::Boolean => Some("Boolean".to_string()),
-                                            TypeDef::List { .. } => Some("List".to_string()),
-                                            TypeDef::Map { .. } => Some("Map".to_string()),
-                                            _ => None,
-                                        };
+                                    let detail = match &property.type_def {
+                                        TypeDef::String { .. } => Some("String".to_string()),
+                                        TypeDef::Number {
+                                            integer_only: true, ..
+                                        } => Some("Int".to_string()),
+                                        TypeDef::Number {
+                                            integer_only: false,
+                                            ..
+                                        } => Some("Number".to_string()),
+                                        TypeDef::Boolean => Some("Boolean".to_string()),
+                                        TypeDef::List { .. } => Some("List".to_string()),
+                                        TypeDef::Map { .. } => Some("Map".to_string()),
+                                        _ => None,
+                                    };
 
-                                        completions.push(CompletionItem {
-                                            label,
-                                            kind: Some(CompletionItemKind::PROPERTY),
-                                            detail,
-                                            documentation: property.description.as_ref().map(|d| {
-                                                Documentation::MarkupContent(MarkupContent {
-                                                    kind: MarkupKind::Markdown,
-                                                    value: d.clone(),
-                                                })
-                                            }),
-                                            ..Default::default()
-                                        });
+                                    completions.push(CompletionItem {
+                                        label,
+                                        kind: Some(CompletionItemKind::PROPERTY),
+                                        detail,
+                                        documentation: property.description.as_ref().map(|d| {
+                                            Documentation::MarkupContent(MarkupContent {
+                                                kind: MarkupKind::Markdown,
+                                                value: d.clone(),
+                                            })
+                                        }),
+                                        ..Default::default()
+                                    });
                                 }
                             }
                         }
