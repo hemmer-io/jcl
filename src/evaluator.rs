@@ -455,7 +455,9 @@ impl Evaluator {
 
         // Force evaluation of all lazy variables for the final bindings
         // Clone the keys to avoid borrow issues
-        let lazy_var_names: Vec<String> = self.lazy_vars.borrow().keys().cloned().collect();
+        let mut lazy_var_names: Vec<String> = self.lazy_vars.borrow().keys().cloned().collect();
+        // Sort to ensure deterministic evaluation order (fixes test flakiness with streams)
+        lazy_var_names.sort();
 
         for name in lazy_var_names {
             // Evaluate the lazy variable
