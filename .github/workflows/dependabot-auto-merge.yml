@@ -89,7 +89,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 20
           running-workflow-name: 'Auto-Merge Dependabot PR'
-          allowed-conclusions: success
+          allowed-conclusions: success,skipped
 
       - name: Auto-approve PR
         if: steps.update-type.outputs.auto-merge == 'true'
