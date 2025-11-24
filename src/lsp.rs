@@ -3,6 +3,7 @@
 use crate::linter;
 use crate::schema::Validator;
 use crate::symbol_table::SymbolTable;
+use notify::{Event, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -99,7 +100,377 @@ impl JclLanguageServer {
         *self.schema_validator.write().await = Some(validator);
         *self.schema_path.write().await = Some(path.clone());
 
+        // Start watching the schema file for changes
+        self.watch_schema_file(path.clone()).await;
+
         Ok(())
+    }
+
+    /// Watch schema file for changes and reload automatically
+    async fn watch_schema_file(&self, path: PathBuf) {
+        let client = self.client.clone();
+        let schema_validator = self.schema_validator.clone();
+        let _document_map = self.document_map.clone();
+
+        // Spawn a task to watch the file
+        tokio::spawn(async move {
+            // Create a channel for receiving watch events
+            let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+
+            // Create watcher with event handler
+            let mut watcher =
+                match notify::recommended_watcher(move |res: notify::Result<Event>| {
+                    if let Ok(event) = res {
+                        // Send event through channel
+                        let _ = tx.blocking_send(event);
+                    }
+                }) {
+                    Ok(w) => w,
+                    Err(e) => {
+                        eprintln!("Failed to create schema file watcher: {}", e);
+                        return;
+                    }
+                };
+
+            // Start watching the schema file
+            if let Err(e) = watcher.watch(&path, RecursiveMode::NonRecursive) {
+                eprintln!("Failed to watch schema file: {}", e);
+                return;
+            }
+
+            // Process file change events
+            while let Some(event) = rx.recv().await {
+                // Only reload on modify events
+                if matches!(event.kind, notify::EventKind::Modify(_)) {
+                    // Reload the schema
+                    match std::fs::read_to_string(&path) {
+                        Ok(content) => {
+                            let validator_result =
+                                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                                    Validator::from_json(&content)
+                                } else {
+                                    Validator::from_yaml(&content)
+                                };
+
+                            match validator_result {
+                                Ok(validator) => {
+                                    // Update the validator
+                                    *schema_validator.write().await = Some(validator);
+
+                                    // Notify the client
+                                    client
+                                        .show_message(
+                                            MessageType::INFO,
+                                            format!("Schema file reloaded: {}", path.display()),
+                                        )
+                                        .await;
+
+                                    // Re-validate all open documents
+                                    // Note: This would require access to get_diagnostics which needs self
+                                    // For now, we'll just notify - documents will be re-validated on next change
+                                }
+                                Err(e) => {
+                                    // Notify about schema reload error
+                                    client
+                                        .show_message(
+                                            MessageType::ERROR,
+                                            format!("Failed to reload schema: {}", e),
+                                        )
+                                        .await;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            client
+                                .show_message(
+                                    MessageType::ERROR,
+                                    format!("Failed to read schema file: {}", e),
+                                )
+                                .await;
+                        }
+                    }
+                }
+            }
+
+            // Keep the watcher alive
+            drop(watcher);
+        });
+    }
+
+    /// Find the field path at a given cursor position in the document
+    /// Returns something like "config.database.port" if the cursor is on a map field
+    fn find_field_path_at_position(
+        &self,
+        module: &crate::ast::Module,
+        _text: &str,
+        position: &Position,
+    ) -> Option<String> {
+        use crate::ast::{Expression, Statement};
+
+        // Convert LSP position (0-indexed) to line/column (1-indexed)
+        let target_line = (position.line + 1) as usize;
+        let target_col = (position.character + 1) as usize;
+
+        // Find the statement and field at this position
+        for stmt in &module.statements {
+            if let Statement::Assignment {
+                name, value, span, ..
+            } = stmt
+            {
+                // Check if we're in this assignment
+                if let Some(s) = span {
+                    if s.line == target_line
+                        && target_col >= s.column
+                        && target_col < s.column + name.len()
+                    {
+                        // Cursor is on the assignment name itself
+                        return Some(name.clone());
+                    }
+                }
+
+                // Check if we're inside the value (a map)
+                if let Expression::Map { entries, .. } = value {
+                    if let Some((key, _val)) = entries.first() {
+                        // Build full path: root.key
+                        // This is a simplified approach - we'd need to handle nested maps
+                        let field_path = format!("{}.{}", name, key);
+
+                        // For now, return the first field path we find
+                        // A more sophisticated implementation would check exact positions
+                        return Some(field_path);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Get hover information for a field from the schema
+    fn get_schema_hover_info(&self, validator: &Validator, field_path: &str) -> Option<String> {
+        use crate::schema::TypeDef;
+
+        // Navigate the schema to find the field
+        let parts: Vec<&str> = field_path.split('.').collect();
+        if parts.is_empty() {
+            return None;
+        }
+
+        // Start from the root type
+        let schema = validator.schema();
+        let mut current_type = &schema.type_def;
+
+        // Navigate through the path
+        for part in &parts {
+            match current_type {
+                TypeDef::Map {
+                    properties,
+                    required,
+                    ..
+                } => {
+                    if let Some(property) = properties.get(*part) {
+                        current_type = &property.type_def;
+
+                        // If this is the last part, generate hover text
+                        if part == parts.last().unwrap() {
+                            let is_required = required.contains(&part.to_string());
+                            return Some(self.format_type_hover(
+                                &property.type_def,
+                                is_required,
+                                property.description.as_deref(),
+                            ));
+                        }
+                    } else {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
+        }
+
+        None
+    }
+
+    /// Get schema-based completions for the current context
+    fn get_schema_completions(
+        &self,
+        module: &crate::ast::Module,
+        validator: &Validator,
+        _position: &Position,
+    ) -> Option<Vec<CompletionItem>> {
+        use crate::ast::{Expression, Statement};
+        use crate::schema::TypeDef;
+
+        // Simplified implementation: suggest properties if we're inside a map
+        // A more sophisticated implementation would determine the exact context
+
+        let mut completions = Vec::new();
+        let schema = validator.schema();
+
+        // Check each top-level assignment to see if we're inside its map
+        for stmt in &module.statements {
+            if let Statement::Assignment { name, value, .. } = stmt {
+                if let Expression::Map { entries, .. } = value {
+                    // Get the schema type for this assignment
+                    if let TypeDef::Map { properties, .. } = &schema.type_def {
+                        if let Some(prop) = properties.get(name) {
+                            if let TypeDef::Map {
+                                properties: nested_props,
+                                required: nested_required,
+                                ..
+                            } = &prop.type_def
+                            {
+                                // Get existing keys
+                                let existing_keys: std::collections::HashSet<&str> =
+                                    entries.iter().map(|(k, _)| k.as_str()).collect();
+
+                                // Suggest properties that aren't already defined
+                                for (key, property) in nested_props {
+                                    if !existing_keys.contains(key.as_str()) {
+                                        let is_required = nested_required.contains(key);
+                                        let label = if is_required {
+                                            format!("{} (required)", key)
+                                        } else {
+                                            key.clone()
+                                        };
+
+                                        let detail = match &property.type_def {
+                                            TypeDef::String { .. } => Some("String".to_string()),
+                                            TypeDef::Number {
+                                                integer_only: true, ..
+                                            } => Some("Int".to_string()),
+                                            TypeDef::Number {
+                                                integer_only: false,
+                                                ..
+                                            } => Some("Number".to_string()),
+                                            TypeDef::Boolean => Some("Boolean".to_string()),
+                                            TypeDef::List { .. } => Some("List".to_string()),
+                                            TypeDef::Map { .. } => Some("Map".to_string()),
+                                            _ => None,
+                                        };
+
+                                        completions.push(CompletionItem {
+                                            label,
+                                            kind: Some(CompletionItemKind::PROPERTY),
+                                            detail,
+                                            documentation: property.description.as_ref().map(|d| {
+                                                Documentation::MarkupContent(MarkupContent {
+                                                    kind: MarkupKind::Markdown,
+                                                    value: d.clone(),
+                                                })
+                                            }),
+                                            ..Default::default()
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if completions.is_empty() {
+            None
+        } else {
+            Some(completions)
+        }
+    }
+
+    /// Format type information for hover display
+    fn format_type_hover(
+        &self,
+        type_def: &crate::schema::TypeDef,
+        is_required: bool,
+        description: Option<&str>,
+    ) -> String {
+        use crate::schema::TypeDef;
+
+        let mut hover = String::new();
+
+        // Type name
+        let type_name = match type_def {
+            TypeDef::String { .. } => "String",
+            TypeDef::Number {
+                integer_only: true, ..
+            } => "Int",
+            TypeDef::Number {
+                integer_only: false,
+                ..
+            } => "Number",
+            TypeDef::Boolean => "Boolean",
+            TypeDef::Null => "Null",
+            TypeDef::List { .. } => "List",
+            TypeDef::Map { .. } => "Map",
+            TypeDef::Any => "Any",
+            TypeDef::Union { .. } => "Union",
+            TypeDef::DiscriminatedUnion { .. } => "DiscriminatedUnion",
+            TypeDef::Ref { .. } => "Reference",
+        };
+
+        hover.push_str(&format!("**Type:** `{}`\n\n", type_name));
+
+        // Required/Optional
+        hover.push_str(&format!(
+            "**Required:** {}\n\n",
+            if is_required { "Yes" } else { "No" }
+        ));
+
+        // Constraints
+        match type_def {
+            TypeDef::String {
+                min_length,
+                max_length,
+                pattern,
+                enum_values,
+            } => {
+                if min_length.is_some()
+                    || max_length.is_some()
+                    || pattern.is_some()
+                    || enum_values.is_some()
+                {
+                    hover.push_str("**Constraints:**\n");
+                    if let Some(min) = min_length {
+                        hover.push_str(&format!("- Min length: {}\n", min));
+                    }
+                    if let Some(max) = max_length {
+                        hover.push_str(&format!("- Max length: {}\n", max));
+                    }
+                    if let Some(pat) = pattern {
+                        hover.push_str(&format!("- Pattern: `{}`\n", pat));
+                    }
+                    if let Some(enums) = enum_values {
+                        hover.push_str(&format!("- Allowed values: {}\n", enums.join(", ")));
+                    }
+                    hover.push('\n');
+                }
+            }
+            TypeDef::Number {
+                minimum,
+                maximum,
+                integer_only,
+            } => {
+                hover.push_str("**Constraints:**\n");
+                if let Some(min) = minimum {
+                    hover.push_str(&format!("- Minimum: {}\n", min));
+                }
+                if let Some(max) = maximum {
+                    hover.push_str(&format!("- Maximum: {}\n", max));
+                }
+                if *integer_only {
+                    hover.push_str("- Integer only\n");
+                }
+                hover.push('\n');
+            }
+            _ => {}
+        }
+
+        // Description
+        if let Some(desc) = description {
+            hover.push_str(&format!("**Description:** {}\n", desc));
+        }
+
+        hover
     }
 
     /// Find a node in the AST by field path (e.g., "config.database.port")
@@ -627,8 +998,26 @@ impl LanguageServer for JclLanguageServer {
         self.document_map.write().await.remove(&uri);
     }
 
-    async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
-        let items = self.get_completions();
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let mut items = self.get_completions();
+
+        // Add schema-based completions if a schema is loaded
+        let uri = params.text_document_position.text_document.uri.to_string();
+        let position = params.text_document_position.position;
+
+        if let Some(text) = self.document_map.read().await.get(&uri) {
+            if let Some(validator) = self.schema_validator.read().await.as_ref() {
+                if let Ok(module) = crate::parse_str(text) {
+                    // Get schema-based completions for the current context
+                    if let Some(schema_items) =
+                        self.get_schema_completions(&module, validator, &position)
+                    {
+                        items.extend(schema_items);
+                    }
+                }
+            }
+        }
+
         Ok(Some(CompletionResponse::Array(items)))
     }
 
@@ -638,13 +1027,37 @@ impl LanguageServer for JclLanguageServer {
             .text_document
             .uri
             .to_string();
+        let position = params.text_document_position_params.position;
 
-        if let Some(_text) = self.document_map.read().await.get(&uri) {
-            // For now, provide basic hover info
-            // In the future, we could analyze the position and provide context-specific info
+        if let Some(text) = self.document_map.read().await.get(&uri) {
+            // Check if we have a schema loaded
+            if let Some(validator) = self.schema_validator.read().await.as_ref() {
+                // Parse the document
+                if let Ok(module) = crate::parse_str(text) {
+                    // Try to find the field path at the cursor position
+                    if let Some(field_path) =
+                        self.find_field_path_at_position(&module, text, &position)
+                    {
+                        // Look up the field in the schema
+                        if let Some(hover_text) = self.get_schema_hover_info(validator, &field_path)
+                        {
+                            let contents = HoverContents::Markup(MarkupContent {
+                                kind: MarkupKind::Markdown,
+                                value: hover_text,
+                            });
+
+                            return Ok(Some(Hover {
+                                contents,
+                                range: None,
+                            }));
+                        }
+                    }
+                }
+            }
+
+            // Fall back to basic hover info
             let contents = HoverContents::Scalar(MarkedString::String(
-                "JCL Language Server\nHover information will be enhanced in future versions"
-                    .to_string(),
+                "JCL Configuration Language".to_string(),
             ));
 
             Ok(Some(Hover {
