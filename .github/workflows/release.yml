@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.2.0)'
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,15 +25,28 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
       - name: Get version from tag
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+            echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: Release ${{ inputs.tag || github.ref_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
