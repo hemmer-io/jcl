@@ -116,8 +116,9 @@ jcl-migrate config.json --from json
 # Via Cargo (Rust)
 cargo install jcl
 
-# Via Binary Download
+# Via Binary Download (6 platforms available)
 # Download from: https://github.com/hemmer-io/jcl/releases
+# Supported: Linux (x86_64, ARM64, MUSL), macOS (Intel, Apple Silicon), Windows
 
 # From Source
 git clone https://github.com/hemmer-io/jcl.git

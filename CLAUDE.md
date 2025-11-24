@@ -18,7 +18,7 @@ This document provides comprehensive guidance for AI assistants (primarily Claud
 ## Project Overview
 
 **JCL (Jack-of-All Configuration Language)** is a general-purpose configuration language with:
-- **Version**: 1.1.0 (production-ready with streaming optimizations)
+- **Version**: 1.2.0 (major feature release with cross-compilation, heredocs, splat, range syntax)
 - **Language**: Rust (edition 2021)
 - **Status**: 297 tests passing, zero warnings
 - **License**: MIT OR Apache-2.0
@@ -965,11 +965,11 @@ JCL used to be infrastructure-focused but is now **general-purpose**. The follow
 8. ✅ JCL is **general-purpose**, not infrastructure-specific
 
 **Current State**:
-- Version: 1.1.0
-- Tests: 297 passing (added 20 streaming tests)
+- Version: 1.2.0
+- Tests: 297 passing
 - Warnings: 0
-- Features: 76+ built-in functions including streaming API
-- New: Transparent lazy evaluation for list comprehensions
+- Features: 90+ built-in functions including streaming API, heredocs, splat, range syntax
+- New: Cross-compilation for 6 target platforms
 - Ready for publication
 
 **Resources**:
@@ -980,4 +980,4 @@ JCL used to be infrastructure-focused but is now **general-purpose**. The follow
 
 ---
 
-*Last Updated: 2025-01-24 for JCL v1.1.0 (Streaming API & Transparent Lazy Evaluation)*
+*Last Updated: 2025-11-24 for JCL v1.2.0 (Cross-compilation, Heredocs, Splat, Range Syntax, Module System)*
