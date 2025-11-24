@@ -151,7 +151,7 @@ fn value_to_js<'a>(cx: &mut FunctionContext<'a>, value: &Value) -> JsResult<'a, 
             Ok(js_obj.upcast())
         }
         Value::Function { .. } => Ok(cx.string("<function>").upcast()),
-        Value::Stream(id) => Ok(cx.string(&format!("<stream:{}>", id)).upcast()),
+        Value::Stream(id) => Ok(cx.string(format!("<stream:{}>", id)).upcast()),
     }
 }
 
