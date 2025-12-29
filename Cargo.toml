@@ -84,7 +84,7 @@ dirs = "6.0"
 semver = { version = "1.0", features = ["serde"] }
 
 # Testing utilities (needed by benchmarking tool)
-tempfile = { version = "3.8", optional = true }
+tempfile = { version = "3.24", optional = true }
 
 # WebAssembly
 wasm-bindgen = "0.2"
@@ -111,7 +111,7 @@ pretty_assertions = "1.4"
 criterion = "0.8"
 proptest = "1.4"
 wasm-bindgen-test = "0.3"
-tempfile = "3.8"
+tempfile = "3.24"
 
 [features]
 default = ["cli"]
